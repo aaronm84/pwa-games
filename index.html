@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>MyOldGames</title>
+  <meta name="description" content="A home arcade for old DOS and Windows 3.x games." />
+
+  <!-- PWA / iOS home-screen -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0f1115" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MyOldGames" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="view-home">
+  <!-- HOME / LIBRARY -->
+  <header id="home-header">
+    <h1>MyOldGames</h1>
+    <p id="install-hint" hidden>Tip: tap Share &rarr; “Add to Home Screen” to install.</p>
+  </header>
+  <main id="library" aria-label="Game library"></main>
+
+  <!-- PLAYER -->
+  <section id="player" aria-hidden="true">
+    <div id="player-bar">
+      <button id="btn-exit" class="bar-btn" aria-label="Back to library">&larr; Library</button>
+      <span id="player-title"></span>
+      <span class="bar-spacer"></span>
+      <button id="btn-keyboard" class="bar-btn" aria-pressed="false">⌨</button>
+      <button id="btn-fullscreen" class="bar-btn">⛶</button>
+    </div>
+
+    <div id="stage">
+      <canvas id="screen"></canvas>
+      <div id="loading" hidden><div class="spinner"></div><p id="loading-text">Loading…</p></div>
+      <div id="touch-controls" aria-hidden="true"></div>
+      <div id="virtual-keyboard" hidden></div>
+    </div>
+  </section>
+
+  <!-- js-dos v7 runtime (global Dos + emulators). See js/config.js to self-host for offline. -->
+  <script src="https://v7.js-dos.com/latest/js-dos.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

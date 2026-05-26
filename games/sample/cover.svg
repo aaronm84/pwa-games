@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
+  <rect width="320" height="240" fill="#0b0e13"/>
+  <rect x="14" y="14" width="292" height="212" rx="10" fill="#06210f" stroke="#38e07b" stroke-width="2"/>
+  <text x="30" y="60" font-family="monospace" font-size="16" fill="#38e07b">C:\&gt; _</text>
+  <text x="30" y="120" font-family="monospace" font-size="22" fill="#e6e8ee" font-weight="bold">EMULATOR</text>
+  <text x="30" y="150" font-family="monospace" font-size="22" fill="#e6e8ee" font-weight="bold">TEST</text>
+  <text x="30" y="200" font-family="monospace" font-size="12" fill="#9aa0ac">tap to boot DOS</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
+  <rect width="320" height="240" fill="#1a2740"/>
+  <circle cx="160" cy="96" r="52" fill="#ffd27f"/>
+  <circle cx="142" cy="88" r="7" fill="#1a2740"/>
+  <circle cx="178" cy="88" r="7" fill="#1a2740"/>
+  <path d="M150 110 q10 10 20 0" stroke="#1a2740" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <rect x="120" y="150" width="80" height="14" rx="7" fill="#38e07b"/>
+  <rect x="153" y="137" width="14" height="40" rx="7" fill="#38e07b"/>
+  <text x="160" y="215" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="16" fill="#e6e8ee" font-weight="bold">Animal Doctor</text>
+</svg>
