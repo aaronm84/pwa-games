@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.flow",
+  "appName": "Flow",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#16213e",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#16213e"
+}
