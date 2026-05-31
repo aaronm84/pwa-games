@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.game2248",
+  "appName": "2248",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#123a37",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#123a37"
+}

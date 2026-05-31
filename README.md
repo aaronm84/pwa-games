@@ -12,6 +12,7 @@ project in its own top-level `*-pwa/` folder.
 | --- | --- | --- |
 | 🃏 **Solitaire** — relaxing Klondike card game | [`solitaire-pwa/`](solitaire-pwa/) | https://aaronm84.github.io/pwa-games/solitaire/ |
 | 🔢 **2048** — swipe & merge tile puzzle | [`2048-pwa/`](2048-pwa/) | https://aaronm84.github.io/pwa-games/2048/ |
+| 🔗 **2248** — connect & merge numbers (full board) | [`2248-pwa/`](2248-pwa/) | https://aaronm84.github.io/pwa-games/2248/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 

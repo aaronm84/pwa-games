@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="512" height="512" viewBox="0 0 512 512" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+  <!-- Board background (rx swapped to 0 for the full-bleed maskable variant) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#123a37"/>
+
+  <!-- Connecting chain line: 2 -> 4 -> 8 -> 16 -->
+  <polyline points="150,150 362,150 150,362 362,362"
+            fill="none" stroke="#eafffb" stroke-opacity="0.55"
+            stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g font-family="Helvetica, Arial, sans-serif" font-weight="800"
+     text-anchor="middle" dominant-baseline="central" fill="#13322f">
+    <!-- 2 -->
+    <rect x="56" y="56" width="188" height="188" rx="18" fill="#b8e6e1"/>
+    <text x="150" y="156" font-size="104">2</text>
+    <!-- 4 -->
+    <rect x="268" y="56" width="188" height="188" rx="18" fill="#93d8d0"/>
+    <text x="362" y="156" font-size="104">4</text>
+    <!-- 8 -->
+    <rect x="56" y="268" width="188" height="188" rx="18" fill="#6fc7bd"/>
+    <text x="150" y="368" font-size="104">8</text>
+    <!-- 16 -->
+    <rect x="268" y="268" width="188" height="188" rx="18" fill="#4db6ac"/>
+    <text x="362" y="368" font-size="84">16</text>
+  </g>
+</svg>
