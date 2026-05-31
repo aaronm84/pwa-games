@@ -46,7 +46,9 @@ jobs:
           done
           # Landing page at the site root
           cp index.html "site/index.html"
-          ls -R site | head -40
+          # Sanity log: list the top-level published folders (no pipe -> safe with pipefail)
+          echo "Published games:"
+          ls -1 site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
