@@ -116,7 +116,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useThemeStore } from 'src/stores/theme'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
@@ -128,6 +128,7 @@ const COLORS = [
 ]
 
 const router = useRouter()
+const route = useRoute()
 const themeStore = useThemeStore()
 const progressStore = useProgressStore()
 const haptics = useHaptics()
@@ -228,9 +229,23 @@ function splitLengths(total, k, rng) {
   return len
 }
 
+// Difficulty curve: ramp the colour count within each board size, then grow the
+// board. Gives a gentle start (5x5, 3 colours) and a steady climb.
+function levelConfig(lvl) {
+  const stages = []
+  for (const s of [5, 6, 7, 8, 9]) {
+    for (const k of [s - 2, s - 1, s]) stages.push({ size: s, colors: k })
+  }
+  if (lvl - 1 < stages.length) return stages[lvl - 1]
+  // Beyond the staged levels: stay at 9x9 and keep adding colours (capped).
+  const extra = lvl - 1 - stages.length
+  return { size: 9, colors: Math.min(10 + extra, 12) }
+}
+
 function generatePuzzle(lvl) {
-  const n = Math.min(5 + Math.floor((lvl - 1) / 4), 9)
-  const colorCount = Math.min(Math.max(4, n - 1), COLORS.length)
+  const cfg = levelConfig(lvl)
+  const n = cfg.size
+  const colorCount = Math.min(cfg.colors, COLORS.length, Math.floor((n * n) / 2))
   const rng = mulberry32((Math.imul(lvl, 2654435761) >>> 0) || 1)
 
   let order = null
@@ -571,6 +586,12 @@ function load() {
 }
 
 onMounted(() => {
+  // Launched from the level-select screen with ?level=N → start that level fresh.
+  const requested = Number(route.query.level)
+  if (Number.isInteger(requested) && requested >= 1) {
+    newLevel(requested)
+    return
+  }
   if (!load()) newLevel(1)
 })
 onBeforeUnmount(() => {

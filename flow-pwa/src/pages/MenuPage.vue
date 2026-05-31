@@ -40,6 +40,23 @@
           color="primary"
           text-color="white"
           class="menu-btn"
+          @click="selectLevel"
+        >
+          <div class="btn-content">
+            <q-icon name="grid_view" size="md" class="btn-icon" />
+            <div class="btn-text">
+              <div class="btn-label">Select Level</div>
+              <div class="btn-sublabel">Up to level {{ flow.highestLevel }}</div>
+            </div>
+          </div>
+        </q-btn>
+
+        <q-btn
+          unelevated
+          size="xl"
+          color="primary"
+          text-color="white"
+          class="menu-btn"
           @click="howToPlay"
         >
           <div class="btn-content">
@@ -117,6 +134,11 @@ onMounted(() => {
 function playGame() {
   haptics.medium()
   router.push({ name: 'flow' })
+}
+
+function selectLevel() {
+  haptics.light()
+  router.push({ name: 'flow-levels' })
 }
 
 function howToPlay() {

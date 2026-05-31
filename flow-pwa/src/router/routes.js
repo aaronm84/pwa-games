@@ -18,6 +18,11 @@ const routes = [
         component: () => import('pages/FlowPage.vue'),
       },
       {
+        path: 'levels',
+        name: 'flow-levels',
+        component: () => import('pages/LevelSelectPage.vue'),
+      },
+      {
         path: 'how-to-play',
         name: 'how-to-play',
         component: () => import('pages/HowToPlayPage.vue'),
