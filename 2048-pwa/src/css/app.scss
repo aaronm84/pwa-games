@@ -1,0 +1,98 @@
+// 2048 - Global Styles
+
+// Font Face
+@font-face {
+  font-family: 'Quicksand';
+  src: url('/fonts/Quicksand-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+// Color Variables
+$primary: #667eea;
+$secondary: #764ba2;
+$accent: #ffd700;
+$dark: #3c3a32;
+
+// Global styles
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: $dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: calc(100% + env(safe-area-inset-bottom));
+  min-height: 100%;
+  overflow: hidden;
+  background: $dark;
+  font-family: 'Roboto', '-apple-system', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#q-app {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+// Utility classes
+.gradient-bg {
+  background: linear-gradient(135deg, $primary 0%, $secondary 100%);
+}
+
+.card-hover {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  }
+}
+
+// Note: .game-canvas styles are defined in component-specific scoped styles
+// to avoid conflicts with canvas dimensions set via JavaScript
+
+// Animations
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
