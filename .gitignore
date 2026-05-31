@@ -1,0 +1,17 @@
+# orbs-pwa lives in its own repository — not part of this monorepo (yet)
+/orbs-pwa/
+
+# Build / deploy output
+/site/
+**/dist/
+**/.quasar/
+
+# Dependencies
+**/node_modules/
+
+# OS / editor
+.DS_Store
+.thumbs.db
+*.log
+.idea/
+.vscode/

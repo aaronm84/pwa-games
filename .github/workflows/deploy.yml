@@ -1,0 +1,65 @@
+name: Deploy PWA games to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Allow the workflow to publish to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one concurrent deploy; don't cancel an in-progress run mid-publish
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Build every game into site/<name>/
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          shopt -s nullglob
+          for cfg in */quasar.config.js; do
+            dir="$(dirname "$cfg")"
+            name="${dir%-pwa}"   # solitaire-pwa -> solitaire
+            echo "::group::Building $dir -> /pwa-games/$name/"
+            (cd "$dir" && npm ci && PUBLIC_PATH="/pwa-games/$name/" npm run build)
+            mkdir -p "site/$name"
+            cp -r "$dir/dist/pwa/." "site/$name/"
+            echo "::endgroup::"
+          done
+          # Landing page at the site root
+          cp index.html "site/index.html"
+          ls -R site | head -40
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

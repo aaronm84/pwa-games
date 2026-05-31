@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.solitaire",
+  "appName": "Solitaire",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#1b4332",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#1b4332"
+}

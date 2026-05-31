@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>PWA Games</title>
+    <meta name="description" content="A collection of installable browser games — no app store required." />
+    <meta name="theme-color" content="#1b4332" />
+    <link rel="icon" href="solitaire/favicon.ico" />
+    <style>
+      :root {
+        --bg1: #0d2818;
+        --bg2: #1b4332;
+        --card: rgba(255, 255, 255, 0.07);
+        --card-border: rgba(255, 255, 255, 0.14);
+        --text: #f3f6f4;
+        --muted: rgba(243, 246, 244, 0.7);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; min-height: 100%; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--text);
+        background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 70%, #2d6a4f 100%);
+        background-attachment: fixed;
+        -webkit-font-smoothing: antialiased;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      .wrap {
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto;
+        padding: clamp(32px, 8vw, 72px) 24px 48px;
+        padding-top: max(clamp(32px, 8vw, 72px), env(safe-area-inset-top));
+        flex: 1;
+      }
+      header { text-align: center; margin-bottom: 40px; }
+      h1 {
+        font-size: clamp(2.2rem, 8vw, 3.2rem);
+        font-weight: 700;
+        margin: 0 0 8px;
+        letter-spacing: -0.02em;
+      }
+      header p { color: var(--muted); margin: 0; font-size: 1.05rem; }
+      .games { display: grid; gap: 16px; }
+      .game-card {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 20px;
+        border-radius: 18px;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        backdrop-filter: blur(10px);
+        color: inherit;
+        text-decoration: none;
+        transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+      }
+      .game-card:hover {
+        transform: translateY(-3px);
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.28);
+      }
+      .game-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        flex-shrink: 0;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      }
+      .game-text { flex: 1; min-width: 0; }
+      .game-title { font-size: 1.25rem; font-weight: 700; margin: 0 0 4px; }
+      .game-desc { color: var(--muted); font-size: 0.95rem; margin: 0; }
+      .chev { color: var(--muted); font-size: 1.6rem; flex-shrink: 0; }
+      .tip {
+        margin-top: 36px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+      footer {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.8rem;
+        padding: 24px;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+      }
+      footer a { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>PWA Games</h1>
+        <p>Free browser games you can install — no app store required.</p>
+      </header>
+
+      <div class="games">
+        <!-- One card per game. Each links to its /pwa-games/<name>/ build. -->
+        <a class="game-card" href="solitaire/">
+          <img class="game-icon" src="solitaire/icons/icon-192x192.png" alt="Solitaire icon" />
+          <div class="game-text">
+            <p class="game-title">Solitaire</p>
+            <p class="game-desc">A relaxing Klondike card game</p>
+          </div>
+          <span class="chev" aria-hidden="true">›</span>
+        </a>
+      </div>
+
+      <p class="tip">
+        Tip: open a game on your phone, then use your browser's
+        <strong>“Add to Home Screen”</strong> to install it.
+      </p>
+    </div>
+
+    <footer>
+      <a href="https://github.com/aaronm84/pwa-games">View source on GitHub</a>
+    </footer>
+  </body>
+</html>
