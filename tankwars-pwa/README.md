@@ -11,20 +11,22 @@ record.
 
 ## How to play
 
-You and the CPU sit on opposite ends of a hilly battlefield. **Drag from your
-tank** toward where you want to shoot — the drag's direction sets the **angle** and
-its length sets the **power** (a dotted line previews the start of the arc).
-**Release** to fire. Shells fall under **gravity** and drift with the **wind**
-(shown up top); explosions damage nearby tanks and **carve the terrain**. Reduce
-the enemy's health to zero to win, then the CPU shoots back.
+You and the CPU sit on opposite ends of a hilly battlefield. Set your **angle** and
+**power** with the sliders/steppers (or **drag the battlefield** to aim), pick a
+**weapon**, and **Fire**. Shells fall under **gravity** and drift with the **wind**;
+explosions damage nearby tanks and **carve the terrain** — lose the ground beneath
+you and you take **fall damage**. Win the round by reducing the enemy to zero;
+**best of five rounds** wins the war, with an **Armoury** between rounds.
 
 ## Features
 
 - Canvas battlefield with a procedurally generated, **destructible** heightmap.
-- Drag-to-aim with angle/power readout and a partial trajectory preview.
-- Gravity + per-turn **wind**; blast damage with falloff and direct-hit bonus.
-- A search-based **AI** opponent (simulates shots, aims for you, with some miss).
-- Health bars, win/lose, battle record + win streak saved; time-of-day theme.
+- **Manual angle/power controls** (sliders + fine steppers) *and* drag-to-aim, with a trajectory preview.
+- **Weapon roster**: Tracer (free ranging), Missile, Big Nuke, MIRV (splits at apex), Roller (rolls downhill).
+- **Economy + Armoury**: earn cash for damage dealt, buy ammo and utilities between rounds.
+- **Utilities**: Repair, Shield, Parachute (cancels fall damage), and fuel-based tank movement.
+- Per-turn **wind**, blast damage with falloff + direct-hit bonus, a search-based **AI** opponent.
+- Best-of-5 match, health/shield bars, battle record + win streak saved; time-of-day theme.
 
 ## Develop / build
 

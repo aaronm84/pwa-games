@@ -1,24 +1,30 @@
 <template>
-  <q-page class="tank-page" :style="{ background: themeStore.colors.gradient }" :data-state="state" :data-shots="shotCount">
+  <q-page
+    class="tank-page"
+    :style="{ background: themeStore.colors.gradient }"
+    :data-state="state"
+    :data-shots="shotCount"
+    :data-round="round"
+  >
     <!-- Header -->
     <div class="game-header">
       <q-btn fab-mini flat icon="arrow_back" color="white" @click="goBack" />
       <div class="hud">
         <div class="hp">
-          <span class="tag you">You</span>
+          <span class="tag you">You {{ playerHp }}<small v-if="playerShield">+{{ playerShield }}🛡</small></span>
           <div class="bar"><div class="fill you" :style="{ width: playerHp + '%' }"></div></div>
         </div>
-        <div class="wind">
-          <q-icon name="air" size="16px" />
-          <span>{{ windLabel }}</span>
+        <div class="mid">
+          <div class="round">Round {{ round }} · {{ playerWins }}–{{ aiWins }}</div>
+          <div class="wind"><q-icon name="air" size="14px" /><span>{{ windLabel }}</span></div>
         </div>
         <div class="hp">
           <div class="bar"><div class="fill foe" :style="{ width: aiHp + '%' }"></div></div>
-          <span class="tag foe">CPU</span>
+          <span class="tag foe">CPU {{ aiHp }}<small v-if="aiShield">+{{ aiShield }}🛡</small></span>
         </div>
       </div>
       <div class="header-menu">
-        <q-btn fab-mini flat icon="refresh" color="white" @click="newGame" />
+        <q-btn fab-mini flat icon="restart_alt" color="white" @click="newMatch" />
         <q-btn fab-mini flat icon="help_outline" color="white" @click="howToPlay" />
       </div>
     </div>
@@ -36,101 +42,208 @@
           @pointerup="onUp"
           @pointercancel="onUp"
         ></canvas>
-
-        <div class="turn-banner" v-if="state === 'aiming'">Your shot — drag to aim, release to fire</div>
+        <div class="turn-banner" v-if="state === 'aiming'">${{ money }} · {{ weapons[selected].label }}</div>
         <div class="turn-banner foe" v-else-if="state === 'ai'">CPU is taking aim…</div>
-        <div class="aim-readout" v-if="aiming">{{ Math.round(aimAngleDeg) }}° · {{ Math.round(aimPower * 100) }}%</div>
-
-        <transition name="overlay-fade">
-          <div v-if="state === 'over'" class="board-overlay">
-            <div class="overlay-text">{{ playerHp > 0 ? 'Victory!' : 'Defeated' }}</div>
-            <q-btn unelevated color="primary" text-color="white" label="New Battle" @click="newGame" />
-          </div>
-        </transition>
       </div>
     </div>
 
-    <p class="hint">Drag from your tank to set angle &amp; power — mind the wind</p>
+    <!-- Controls -->
+    <div class="controls" v-if="state === 'aiming'">
+      <div class="weapons">
+        <button
+          v-for="(w, key) in weapons"
+          :key="key"
+          class="wchip"
+          :class="{ sel: selected === key, out: !w.infinite && inv[key] <= 0 }"
+          :disabled="!w.infinite && inv[key] <= 0"
+          @click="selectWeapon(key)"
+        >
+          {{ w.label }}<span v-if="!w.infinite" class="ammo">{{ inv[key] }}</span>
+        </button>
+      </div>
+      <div class="dial">
+        <span class="dlabel">Angle</span>
+        <q-btn flat dense round icon="remove" color="white" @click="bump('angle', -1)" />
+        <q-slider v-model="angleDeg" :min="0" :max="180" :step="1" dense color="amber" class="col" @update:model-value="draw" />
+        <q-btn flat dense round icon="add" color="white" @click="bump('angle', 1)" />
+        <span class="dval">{{ angleDeg }}°</span>
+      </div>
+      <div class="dial">
+        <span class="dlabel">Power</span>
+        <q-btn flat dense round icon="remove" color="white" @click="bump('power', -10)" />
+        <q-slider v-model="power" :min="50" :max="1000" :step="5" dense color="amber" class="col" @update:model-value="draw" />
+        <q-btn flat dense round icon="add" color="white" @click="bump('power', 10)" />
+        <span class="dval">{{ power }}</span>
+      </div>
+      <div class="actions">
+        <q-btn dense unelevated color="grey-8" text-color="white" icon="chevron_left" :disable="fuel <= 0" @click="moveTank(-1)" />
+        <q-btn dense unelevated color="grey-8" text-color="white" :label="`Repair ${inv.repair}`" :disable="inv.repair <= 0 || playerHp >= 100" @click="useRepair" />
+        <q-btn dense unelevated color="grey-8" text-color="white" :label="`Shield ${inv.shield}`" :disable="inv.shield <= 0" @click="useShield" />
+        <q-btn dense unelevated color="grey-8" text-color="white" icon="chevron_right" :disable="fuel <= 0" @click="moveTank(1)" />
+        <q-btn dense unelevated color="primary" text-color="white" label="Fire" class="fire" @click="playerFire" />
+      </div>
+      <div class="fuelrow">Fuel {{ fuel }} · drag the battlefield to aim too</div>
+    </div>
+
+    <!-- Shop between rounds -->
+    <q-dialog v-model="shopOpen" persistent>
+      <q-card class="shop-card">
+        <q-card-section>
+          <div class="text-h6 text-white">
+            {{ roundWinner === 'player' ? 'Round won!' : 'Round lost' }} — Armoury
+          </div>
+          <div class="text-caption text-white q-mb-sm" style="opacity:.85">You have ${{ money }}</div>
+          <div class="shop-grid">
+            <div v-for="item in shopItems" :key="item.key" class="shop-item">
+              <div class="si-name">{{ item.label }} <span class="si-own">×{{ invOf(item.key) }}</span></div>
+              <q-btn
+                dense unelevated color="primary" text-color="white"
+                :label="`$${item.cost}`"
+                :disable="money < item.cost"
+                @click="buy(item)"
+              />
+            </div>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat color="white" label="Next Round" @click="startRound" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Match over -->
+    <q-dialog v-model="matchOver" persistent>
+      <q-card class="shop-card">
+        <q-card-section class="text-center">
+          <div class="text-h5 text-white">{{ playerWins > aiWins ? 'You win the war!' : 'CPU wins the war' }}</div>
+          <div class="text-body2 text-white q-mt-sm">Final score {{ playerWins }}–{{ aiWins }}</div>
+        </q-card-section>
+        <q-card-actions align="center">
+          <q-btn unelevated color="primary" text-color="white" label="New Match" @click="newMatch" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <p class="hint" v-if="state !== 'aiming'">Artillery duel — destroy the enemy tank to win the round</p>
   </q-page>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useThemeStore } from 'src/stores/theme'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
 
 const W = 900
-const H = 560
+const H = 480
 const GRAV = 0.35
-const MAX_V = 17.7 // power 1 @ 45° ≈ full-width range
+const PV = 0.0177 // power → initial speed (power 1000 ≈ full-width range at 45°)
 const TANK_R = 16
-const BLAST = 52
+const WIN_ROUNDS = 3
 
 const router = useRouter()
 const themeStore = useThemeStore()
 const progressStore = useProgressStore()
 const haptics = useHaptics()
 
+const weapons = {
+  tracer: { label: 'Tracer', blast: 0, dmg: 0, infinite: true },
+  missile: { label: 'Missile', blast: 46, dmg: 40, infinite: true },
+  nuke: { label: 'Big Nuke', blast: 92, dmg: 78 },
+  mirv: { label: 'MIRV', blast: 40, dmg: 30, split: 5 },
+  roller: { label: 'Roller', blast: 50, dmg: 44, roller: true },
+}
+const shopItems = [
+  { key: 'nuke', label: 'Big Nuke', cost: 120 },
+  { key: 'mirv', label: 'MIRV', cost: 150 },
+  { key: 'roller', label: 'Roller', cost: 100 },
+  { key: 'repair', label: 'Repair kit (+45)', cost: 70 },
+  { key: 'shield', label: 'Shield (+50)', cost: 90 },
+  { key: 'parachute', label: 'Parachute', cost: 40 },
+]
+
 const canvasEl = ref(null)
-const state = ref('aiming') // aiming | firing | ai | over
+const state = ref('aiming') // aiming | firing | ai | shop | matchover
+const round = ref(1)
+const playerWins = ref(0)
+const aiWins = ref(0)
 const playerHp = ref(100)
 const aiHp = ref(100)
+const playerShield = ref(0)
+const aiShield = ref(0)
+const money = ref(100)
+const fuel = ref(4)
 const wind = ref(0)
 const shotCount = ref(0)
-const aiming = ref(false)
-const aimAngleDeg = ref(45)
-const aimPower = ref(0.6)
+const selected = ref('missile')
+const angleDeg = ref(50)
+const power = ref(600)
+const shopOpen = ref(false)
+const matchOver = ref(false)
+const roundWinner = ref('player')
+
+const inv = reactive({ nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
 
 let ctx = null
-let ground = new Float32Array(W) // surface y per column
-let player = { x: 120, y: 0, color: '#42a5f5' }
-let ai = { x: W - 120, y: 0, color: '#ef5350' }
-let projectile = null
-let explosion = null
-let aimVec = null
+let ground = new Float32Array(W)
+let player = { x: 120, y: 0 }
+let ai = { x: W - 120, y: 0 }
+let projectiles = []
+let explosions = []
+let tracerMark = null
+let shooter = 'player'
+let aimDragging = false
+let aiAngle = 130
 let raf = null
-let turn = 'player' // whose shot is currently in flight
 
 const windLabel = computed(() => {
-  const v = Math.round(Math.abs(wind.value) / 0.06 * 5)
-  if (Math.abs(wind.value) < 0.005) return 'calm'
-  return (wind.value < 0 ? '◀ ' : '') + v + (wind.value > 0 ? ' ▶' : '')
+  const v = Math.round((Math.abs(wind.value) / 0.06) * 5)
+  if (Math.abs(wind.value) < 0.004) return 'calm'
+  return (wind.value < 0 ? '◀' : '') + v + (wind.value > 0 ? '▶' : '')
 })
+function invOf(k) {
+  return inv[k] === undefined ? 0 : inv[k]
+}
 
 // ---------- terrain ----------
 function genTerrain() {
-  const base = H * 0.62
-  const a1 = 60 + Math.random() * 40
-  const a2 = 22 + Math.random() * 20
-  const p1 = Math.random() * Math.PI * 2
-  const p2 = Math.random() * Math.PI * 2
+  const base = H * 0.6
+  const a1 = 55 + Math.random() * 35
+  const a2 = 20 + Math.random() * 18
+  const p1 = Math.random() * 6.28
+  const p2 = Math.random() * 6.28
   const f1 = 1.2 + Math.random()
   const f2 = 2.5 + Math.random() * 2
   for (let x = 0; x < W; x++) {
     const t = x / W
-    let y = base + Math.sin(t * Math.PI * f1 + p1) * a1 + Math.sin(t * Math.PI * f2 + p2) * a2
-    y += (t - 0.5) * (Math.random() * 30 - 15)
-    ground[x] = Math.max(H * 0.32, Math.min(H - 24, y))
+    const y = base + Math.sin(t * Math.PI * f1 + p1) * a1 + Math.sin(t * Math.PI * f2 + p2) * a2
+    ground[x] = Math.max(H * 0.3, Math.min(H - 20, y))
   }
-  // flatten small pads under each tank
   flatten(player.x)
   flatten(ai.x)
 }
 function flatten(cx) {
   const h = ground[Math.round(cx)]
-  for (let x = Math.max(0, cx - 22); x < Math.min(W, cx + 22); x++) ground[x] = h
+  for (let x = Math.max(0, cx - 20); x < Math.min(W, cx + 20); x++) ground[x] = h
 }
 function groundAt(x) {
-  const i = Math.max(0, Math.min(W - 1, Math.round(x)))
-  return ground[i]
+  return ground[Math.max(0, Math.min(W - 1, Math.round(x)))]
 }
-function settleTanks() {
-  player.y = groundAt(player.x)
-  ai.y = groundAt(ai.x)
+function settleTanks(fall = false) {
+  for (const t of [player, ai]) {
+    const ny = groundAt(t.x)
+    if (fall && ny - t.y > 18) {
+      const drop = ny - t.y
+      if (t === player && inv.parachute > 0) {
+        inv.parachute--
+      } else {
+        damageTank(t, Math.min(45, Math.round((drop - 18) * 0.4)))
+      }
+    }
+    t.y = ny
+  }
 }
-
 function newWind() {
   wind.value = (Math.random() * 2 - 1) * 0.06
 }
@@ -139,136 +252,165 @@ function newWind() {
 function draw() {
   if (!ctx) return
   ctx.clearRect(0, 0, W, H)
-
-  // terrain
   ctx.beginPath()
   ctx.moveTo(0, H)
   for (let x = 0; x < W; x++) ctx.lineTo(x, ground[x])
   ctx.lineTo(W, H)
   ctx.closePath()
-  const grad = ctx.createLinearGradient(0, H * 0.4, 0, H)
-  grad.addColorStop(0, '#5d4037')
-  grad.addColorStop(1, '#3e2723')
-  ctx.fillStyle = grad
+  const g = ctx.createLinearGradient(0, H * 0.35, 0, H)
+  g.addColorStop(0, '#5d4037')
+  g.addColorStop(1, '#3e2723')
+  ctx.fillStyle = g
   ctx.fill()
-  // grass edge
   ctx.beginPath()
   ctx.moveTo(0, ground[0])
   for (let x = 1; x < W; x++) ctx.lineTo(x, ground[x])
   ctx.strokeStyle = '#7cb342'
-  ctx.lineWidth = 5
+  ctx.lineWidth = 4
   ctx.stroke()
 
-  drawTank(player)
-  drawTank(ai)
+  drawTank(player, '#42a5f5', playerHp.value, playerShield.value)
+  drawTank(ai, '#ef5350', aiHp.value, aiShield.value)
 
-  // aim preview
-  if (aiming.value && aimVec) drawAimPreview()
-
-  // projectile
-  if (projectile) {
+  if (state.value === 'aiming') drawAimPreview()
+  if (tracerMark) {
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(projectile.x, projectile.y, 5, 0, Math.PI * 2)
+    ctx.moveTo(tracerMark.x - 8, tracerMark.y - 8)
+    ctx.lineTo(tracerMark.x + 8, tracerMark.y + 8)
+    ctx.moveTo(tracerMark.x + 8, tracerMark.y - 8)
+    ctx.lineTo(tracerMark.x - 8, tracerMark.y + 8)
+    ctx.stroke()
+  }
+  for (const p of projectiles) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 5, 0, 6.28)
     ctx.fillStyle = '#fff'
     ctx.fill()
   }
-  // explosion
-  if (explosion) {
+  for (const e of explosions) {
     ctx.beginPath()
-    ctx.arc(explosion.x, explosion.y, explosion.r, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(255,${160 - explosion.t * 120},40,${0.85 - explosion.t * 0.8})`
+    ctx.arc(e.x, e.y, e.r, 0, 6.28)
+    ctx.fillStyle = `rgba(255,${Math.round(170 - e.t * 130)},40,${(0.85 - e.t * 0.8).toFixed(3)})`
     ctx.fill()
   }
 }
-function drawTank(t) {
-  const dead = (t === player ? playerHp.value : aiHp.value) <= 0
+function drawTank(t, color, hp, shield) {
   ctx.save()
   ctx.translate(t.x, t.y)
-  // body
-  ctx.fillStyle = dead ? '#555' : t.color
+  if (shield > 0) {
+    ctx.beginPath()
+    ctx.arc(0, -8, 30, 0, 6.28)
+    ctx.strokeStyle = 'rgba(120,220,255,0.7)'
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+  ctx.fillStyle = hp <= 0 ? '#555' : color
   ctx.beginPath()
   ctx.roundRect(-TANK_R, -12, TANK_R * 2, 12, 4)
   ctx.fill()
   ctx.beginPath()
   ctx.arc(0, -12, 9, Math.PI, 0)
   ctx.fill()
-  // barrel (player aims toward current aim; ai toward player)
-  const ang = t === player ? aimAngleRad() : Math.PI - aimAngleRad()
-  ctx.strokeStyle = dead ? '#555' : '#cfd8dc'
+  const ang = (t === player ? angleDeg.value : aiAngle) * (Math.PI / 180)
+  ctx.strokeStyle = hp <= 0 ? '#555' : '#cfd8dc'
   ctx.lineWidth = 5
   ctx.beginPath()
   ctx.moveTo(0, -14)
-  ctx.lineTo(Math.cos(-ang) * 26, -14 + Math.sin(-ang) * 26)
+  ctx.lineTo(Math.cos(ang) * 26, -14 - Math.sin(ang) * 26)
   ctx.stroke()
   ctx.restore()
 }
-function aimAngleRad() {
-  return (aimAngleDeg.value * Math.PI) / 180
-}
 function drawAimPreview() {
-  const pts = simulate(player.x, player.y - 16, aimAngleDeg.value, aimPower.value, false, 90)
-  ctx.save()
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'
-  for (let i = 0; i < pts.length; i += 6) {
+  const pts = trajectory(player.x, player.y - 16, angleDeg.value, power.value, 70)
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'
+  for (let i = 0; i < pts.length; i += 5) {
     ctx.beginPath()
-    ctx.arc(pts[i].x, pts[i].y, 2.5, 0, Math.PI * 2)
+    ctx.arc(pts[i].x, pts[i].y, 2.4, 0, 6.28)
     ctx.fill()
   }
-  ctx.restore()
 }
 
-// ---------- physics ----------
-// Returns trajectory points; if collide, last point is impact. maxSteps caps preview length.
-function simulate(x0, y0, angleDeg, power, collideTanks, maxSteps = 4000) {
-  const a = (angleDeg * Math.PI) / 180
+// ---------- physics helpers ----------
+function trajectory(x0, y0, angle, pw, maxSteps) {
+  const a = angle * (Math.PI / 180)
   let x = x0
   let y = y0
-  let vx = Math.cos(a) * power * MAX_V
-  let vy = -Math.sin(a) * power * MAX_V
+  let vx = Math.cos(a) * pw * PV
+  let vy = -Math.sin(a) * pw * PV
   const pts = []
   for (let s = 0; s < maxSteps; s++) {
     vx += wind.value
     vy += GRAV
     x += vx
     y += vy
+    if (x < 0 || x > W || y > H) break
     pts.push({ x, y })
-    if (x < -40 || x > W + 40 || y > H + 40) {
-      pts.impact = null
-      return pts
-    }
-    if (y >= groundAt(x)) {
-      pts.impact = { x, y: groundAt(x) }
-      return pts
-    }
-    if (collideTanks) {
-      if (hit(x, y, player)) {
-        pts.impact = { x, y, direct: 'player' }
-        return pts
-      }
-      if (hit(x, y, ai)) {
-        pts.impact = { x, y, direct: 'ai' }
-        return pts
-      }
-    }
+    if (y >= groundAt(x)) break
   }
-  pts.impact = null
   return pts
 }
-function hit(x, y, t) {
-  return Math.hypot(x - t.x, y - t.y - 6) < TANK_R
+function aiSolve() {
+  let best = null
+  for (let ang = 95; ang <= 170; ang += 3) {
+    for (let pw = 250; pw <= 1000; pw += 30) {
+      const a = ang * (Math.PI / 180)
+      let x = ai.x - 10
+      let y = ai.y - 16
+      let vx = Math.cos(a) * pw * PV
+      let vy = -Math.sin(a) * pw * PV
+      let imp = null
+      for (let s = 0; s < 4000; s++) {
+        vx += wind.value
+        vy += GRAV
+        x += vx
+        y += vy
+        if (x < -40 || x > W + 40 || y > H + 40) break
+        if (y >= groundAt(x)) {
+          imp = x
+          break
+        }
+      }
+      if (imp == null) continue
+      const d = Math.abs(imp - player.x)
+      if (!best || d < best.d) best = { ang, pw, d }
+    }
+  }
+  return best || { ang: 130, pw: 600 }
 }
 
-function fire(angleDeg, power) {
-  if (state.value === 'firing' || state.value === 'over') return
-  const shooter = state.value === 'ai' ? ai : player
-  const a = (angleDeg * Math.PI) / 180
-  const dir = shooter === player ? 1 : -1
-  projectile = {
-    x: shooter.x + dir * 10,
-    y: shooter.y - 16,
-    vx: Math.cos(a) * power * MAX_V * dir,
-    vy: -Math.sin(a) * power * MAX_V,
+// ---------- firing ----------
+function spawn(t, angle, pw, weaponKey, dir) {
+  const a = angle * (Math.PI / 180)
+  return {
+    x: t.x + dir * 12,
+    y: t.y - 16,
+    vx: Math.cos(a) * pw * PV,
+    vy: -Math.sin(a) * pw * PV,
+    w: weapons[weaponKey],
+    didSplit: false,
+    rolling: false,
+    rollDist: 0,
   }
+}
+function selectWeapon(key) {
+  selected.value = key
+  draw()
+}
+function playerFire() {
+  if (state.value !== 'aiming') return
+  const key = selected.value
+  const w = weapons[key]
+  if (!w.infinite && inv[key] <= 0) return
+  if (!w.infinite) inv[key]--
+  shooter = 'player'
+  tracerMark = null
+  fireProjectile(spawn(player, angleDeg.value, power.value, key, 1))
+}
+function fireProjectile(p) {
+  projectiles = [p]
+  explosions = []
   state.value = 'firing'
   shotCount.value++
   haptics.medium()
@@ -278,162 +420,291 @@ function fire(angleDeg, power) {
 function loop() {
   cancelAnimationFrame(raf)
   const step = () => {
-    if (explosion) {
-      explosion.t += 0.06
-      explosion.r += 2
-      if (explosion.t >= 1) {
-        explosion = null
-        draw()
-        afterImpact()
-        return
-      }
-      draw()
-      raf = requestAnimationFrame(step)
+    for (let k = 0; k < 2; k++) advance()
+    for (const e of explosions) {
+      e.t += 0.06
+      e.r = e.maxR * Math.min(1, e.t * 1.6)
+    }
+    explosions = explosions.filter((e) => e.t < 1)
+    draw()
+    if (projectiles.length === 0 && explosions.length === 0) {
+      afterVolley()
       return
     }
-    // advance projectile a few sub-steps for smoothness
-    for (let k = 0; k < 2 && projectile; k++) {
-      projectile.vx += wind.value
-      projectile.vy += GRAV
-      projectile.x += projectile.vx
-      projectile.y += projectile.vy
-      const off = projectile.x < -40 || projectile.x > W + 40 || projectile.y > H + 40
-      const grnd = projectile.y >= groundAt(projectile.x)
-      const hp = hit(projectile.x, projectile.y, player)
-      const ha = hit(projectile.x, projectile.y, ai)
-      if (off) {
-        projectile = null
-        draw()
-        afterImpact()
-        return
-      }
-      if (grnd || hp || ha) {
-        startExplosion(projectile.x, grnd ? groundAt(projectile.x) : projectile.y)
-        projectile = null
-        break
-      }
-    }
-    draw()
     raf = requestAnimationFrame(step)
   }
   raf = requestAnimationFrame(step)
 }
-
-function startExplosion(x, y) {
-  explosion = { x, y, r: 8, t: 0 }
+function advance() {
+  const next = []
+  for (const p of projectiles) {
+    if (p.rolling) {
+      p.x += p.vx
+      p.rollDist += Math.abs(p.vx)
+      if (p.x < 4 || p.x > W - 4) {
+        explode(p)
+        continue
+      }
+      p.y = groundAt(p.x) - 2
+      if (Math.abs(p.x - player.x) < TANK_R || Math.abs(p.x - ai.x) < TANK_R) {
+        explode(p)
+        continue
+      }
+      const ahead = groundAt(p.x + Math.sign(p.vx) * 7)
+      if (ahead < p.y - 4 || p.rollDist > 340) {
+        explode(p)
+        continue
+      }
+      next.push(p)
+      continue
+    }
+    p.vx += wind.value
+    p.vy += GRAV
+    p.x += p.vx
+    p.y += p.vy
+    if (p.w.split && !p.didSplit && p.vy >= 0 && p.y < groundAt(p.x) - 40) {
+      for (let i = 0; i < p.w.split; i++) {
+        next.push({
+          x: p.x,
+          y: p.y,
+          vx: p.vx + (i - (p.w.split - 1) / 2) * 1.5,
+          vy: p.vy - Math.random() * 1.2,
+          w: { blast: p.w.blast, dmg: p.w.dmg },
+          didSplit: true,
+          rolling: false,
+          rollDist: 0,
+        })
+      }
+      continue
+    }
+    if (p.x < -40 || p.x > W + 40 || p.y > H + 40) continue
+    if (Math.abs(p.x - player.x) < TANK_R && Math.abs(p.y - (player.y - 6)) < TANK_R) {
+      explode(p)
+      continue
+    }
+    if (Math.abs(p.x - ai.x) < TANK_R && Math.abs(p.y - (ai.y - 6)) < TANK_R) {
+      explode(p)
+      continue
+    }
+    if (p.y >= groundAt(p.x)) {
+      if (p.w.roller && !p.rolling) {
+        p.rolling = true
+        p.y = groundAt(p.x) - 2
+        p.vx = (groundAt(p.x + 7) > groundAt(p.x - 7) ? 1 : -1) * 4.2
+        next.push(p)
+        continue
+      }
+      explode(p)
+      continue
+    }
+    next.push(p)
+  }
+  projectiles = next
+}
+function explode(p) {
+  const x = p.x
+  const y = Math.min(p.y, groundAt(p.x))
+  if (p.w.dmg === 0) {
+    tracerMark = { x, y: groundAt(x) }
+    return
+  }
+  explosions.push({ x, y, r: 6, maxR: p.w.blast, t: 0 })
   haptics.heavy()
-  // terrain destruction
-  for (let xi = Math.max(0, Math.floor(x - BLAST)); xi < Math.min(W, Math.ceil(x + BLAST)); xi++) {
+  for (let xi = Math.max(0, Math.floor(x - p.w.blast)); xi < Math.min(W, Math.ceil(x + p.w.blast)); xi++) {
     const dx = xi - x
-    const d2 = BLAST * BLAST - dx * dx
+    const d2 = p.w.blast * p.w.blast - dx * dx
     if (d2 <= 0) continue
-    const bottom = y + Math.sqrt(d2)
-    ground[xi] = Math.min(H - 4, Math.max(ground[xi], bottom))
+    ground[xi] = Math.min(H - 4, Math.max(ground[xi], y + Math.sqrt(d2)))
   }
-  // damage
-  applyDamage(player, x, y)
-  applyDamage(ai, x, y)
-  settleTanks()
+  blastDamage(x, y, p.w.blast, p.w.dmg)
+  settleTanks(true)
 }
-function applyDamage(t, x, y) {
-  const d = Math.hypot(x - t.x, y - t.y)
-  const reach = BLAST + TANK_R
-  if (d < reach) {
-    const dmg = Math.round(46 * (1 - d / reach)) + (d < TANK_R ? 25 : 0)
-    if (t === player) playerHp.value = Math.max(0, playerHp.value - dmg)
-    else aiHp.value = Math.max(0, aiHp.value - dmg)
+function blastDamage(x, y, blast, dmg) {
+  for (const t of [player, ai]) {
+    const d = Math.hypot(x - t.x, y - t.y)
+    const reach = blast + TANK_R
+    if (d < reach) {
+      const dm = Math.round(dmg * (1 - d / reach)) + (d < TANK_R ? 22 : 0)
+      const before = t === player ? playerHp.value : aiHp.value
+      damageTank(t, dm)
+      const dealt = before - (t === player ? playerHp.value : aiHp.value)
+      if (shooter === 'player' && t === ai && dealt > 0) money.value += dealt * 2
+    }
+  }
+}
+function damageTank(t, dmg) {
+  if (dmg <= 0) return
+  if (t === player) {
+    const s = Math.min(playerShield.value, dmg)
+    playerShield.value -= s
+    playerHp.value = Math.max(0, playerHp.value - (dmg - s))
+  } else {
+    const s = Math.min(aiShield.value, dmg)
+    aiShield.value -= s
+    aiHp.value = Math.max(0, aiHp.value - (dmg - s))
   }
 }
 
-function afterImpact() {
+function afterVolley() {
   if (playerHp.value <= 0 || aiHp.value <= 0) {
-    state.value = 'over'
-    progressStore.recordTankGame(playerHp.value > 0)
-    draw()
+    endRound()
     return
   }
   newWind()
-  if (turn === 'player') {
-    turn = 'ai'
+  if (shooter === 'player') {
     state.value = 'ai'
     draw()
     setTimeout(aiTurn, 700)
   } else {
-    turn = 'player'
     state.value = 'aiming'
+    fuel.value = 4
     draw()
   }
 }
 
-// ---------- AI ----------
 function aiTurn() {
   if (state.value !== 'ai') return
-  let best = null
-  for (let ang = 25; ang <= 78; ang += 4) {
-    for (let pw = 0.3; pw <= 1; pw += 0.05) {
-      const pts = simulate(ai.x - 10, ai.y - 16, 180 - ang, pw, false, 4000)
-      const imp = pts.impact
-      if (!imp) continue
-      const dist = Math.abs(imp.x - player.x)
-      if (!best || dist < best.dist) best = { ang, pw, dist }
-    }
-  }
-  if (!best) best = { ang: 50, pw: 0.7 }
-  // add miss noise (moderate difficulty)
-  const ang = best.ang + (Math.random() * 2 - 1) * 5
-  const pw = Math.min(1, Math.max(0.25, best.pw + (Math.random() * 2 - 1) * 0.07))
-  aimAngleDeg.value = ang
-  fire(ang, pw)
+  const sol = aiSolve()
+  aiAngle = sol.ang + (Math.random() * 2 - 1) * 5
+  const pw = Math.min(1000, Math.max(120, sol.pw + (Math.random() * 2 - 1) * 70))
+  const r = Math.random()
+  const key = r < 0.18 ? 'mirv' : r < 0.32 ? 'roller' : r < 0.42 ? 'nuke' : 'missile'
+  shooter = 'ai'
+  fireProjectile(spawn(ai, aiAngle, pw, key, -1))
 }
 
-// ---------- input ----------
+// ---------- round / match flow ----------
+function endRound() {
+  roundWinner.value = aiHp.value <= 0 ? 'player' : 'ai'
+  if (roundWinner.value === 'player') {
+    playerWins.value++
+    money.value += 70
+  } else {
+    aiWins.value++
+    money.value += 25
+  }
+  draw()
+  if (playerWins.value >= WIN_ROUNDS || aiWins.value >= WIN_ROUNDS) {
+    state.value = 'matchover'
+    matchOver.value = true
+    progressStore.recordTankGame(playerWins.value > aiWins.value)
+  } else {
+    setTimeout(() => {
+      shopOpen.value = true
+      state.value = 'shop'
+    }, 900)
+  }
+}
+function startRound() {
+  shopOpen.value = false
+  round.value++
+  playerHp.value = 100
+  aiHp.value = 100
+  playerShield.value = 0
+  aiShield.value = 0
+  fuel.value = 4
+  projectiles = []
+  explosions = []
+  tracerMark = null
+  shooter = 'player'
+  genTerrain()
+  settleTanks()
+  newWind()
+  state.value = 'aiming'
+  draw()
+}
+function newMatch() {
+  haptics.light()
+  cancelAnimationFrame(raf)
+  matchOver.value = false
+  shopOpen.value = false
+  round.value = 1
+  playerWins.value = 0
+  aiWins.value = 0
+  money.value = 100
+  Object.assign(inv, { nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
+  playerHp.value = 100
+  aiHp.value = 100
+  playerShield.value = 0
+  aiShield.value = 0
+  fuel.value = 4
+  projectiles = []
+  explosions = []
+  tracerMark = null
+  shooter = 'player'
+  selected.value = 'missile'
+  angleDeg.value = 50
+  power.value = 600
+  shotCount.value = 0
+  genTerrain()
+  settleTanks()
+  newWind()
+  state.value = 'aiming'
+  draw()
+}
+
+// ---------- shop / utilities ----------
+function buy(item) {
+  if (money.value < item.cost) return
+  money.value -= item.cost
+  inv[item.key] = (inv[item.key] || 0) + 1
+  haptics.light()
+}
+function useRepair() {
+  if (inv.repair <= 0 || playerHp.value >= 100) return
+  inv.repair--
+  playerHp.value = Math.min(100, playerHp.value + 45)
+  haptics.success()
+  draw()
+}
+function useShield() {
+  if (inv.shield <= 0) return
+  inv.shield--
+  playerShield.value += 50
+  haptics.success()
+  draw()
+}
+function moveTank(dir) {
+  if (fuel.value <= 0 || state.value !== 'aiming') return
+  player.x = Math.max(40, Math.min(ai.x - 70, player.x + dir * 16))
+  player.y = groundAt(player.x)
+  fuel.value--
+  haptics.light()
+  draw()
+}
+function bump(which, delta) {
+  if (which === 'angle') angleDeg.value = Math.max(0, Math.min(180, angleDeg.value + delta))
+  else power.value = Math.max(50, Math.min(1000, power.value + delta))
+  draw()
+}
+
+// ---------- input (drag aim) ----------
 function toLocal(e) {
   const r = canvasEl.value.getBoundingClientRect()
   return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }
 }
 function onDown(e) {
   if (state.value !== 'aiming') return
-  aiming.value = true
+  aimDragging = true
   updateAim(e)
 }
 function onMove(e) {
-  if (!aiming.value) return
+  if (!aimDragging) return
   e.preventDefault()
   updateAim(e)
 }
 function updateAim(e) {
   const p = toLocal(e)
-  aimVec = { x: p.x - player.x, y: p.y - (player.y - 16) }
-  const dist = Math.hypot(aimVec.x, aimVec.y)
-  let ang = (Math.atan2(-(aimVec.y), Math.abs(aimVec.x)) * 180) / Math.PI
-  ang = Math.max(5, Math.min(89, ang))
-  aimAngleDeg.value = ang
-  aimPower.value = Math.max(0.12, Math.min(1, dist / 260))
+  const dx = p.x - player.x
+  const dy = p.y - (player.y - 16)
+  let ang = (Math.atan2(-dy, dx) * 180) / Math.PI
+  ang = Math.max(1, Math.min(179, ang))
+  angleDeg.value = Math.round(ang)
+  power.value = Math.round(Math.max(50, Math.min(1000, (Math.hypot(dx, dy) / 260) * 1000)))
   draw()
 }
 function onUp() {
-  if (!aiming.value) return
-  aiming.value = false
-  fire(aimAngleDeg.value, aimPower.value)
-}
-
-// ---------- lifecycle ----------
-function newGame() {
-  haptics.light()
-  cancelAnimationFrame(raf)
-  projectile = null
-  explosion = null
-  playerHp.value = 100
-  aiHp.value = 100
-  aimAngleDeg.value = 45
-  aimPower.value = 0.6
-  shotCount.value = 0
-  turn = 'player'
-  genTerrain()
-  settleTanks()
-  newWind()
-  state.value = 'aiming'
-  draw()
+  aimDragging = false
 }
 
 function goBack() {
@@ -447,7 +718,7 @@ function howToPlay() {
 
 onMounted(() => {
   ctx = canvasEl.value.getContext('2d')
-  newGame()
+  newMatch()
 })
 onBeforeUnmount(() => cancelAnimationFrame(raf))
 </script>
@@ -463,127 +734,102 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 }
 .game-header {
   width: 100%;
-  max-width: 640px;
+  max-width: 680px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 16px;
-  padding-top: max(56px, calc(env(safe-area-inset-top) + 16px));
+  gap: 8px;
+  padding: 12px 14px;
+  padding-top: max(52px, calc(env(safe-area-inset-top) + 12px));
 }
-.hud {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #fff;
-}
-.hp {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.tag {
-  font-size: 0.72rem;
-  font-weight: 700;
-}
+.hud { flex: 1; display: flex; align-items: center; gap: 8px; color: #fff; }
+.hp { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tag { font-size: 0.68rem; font-weight: 700; white-space: nowrap; }
+.tag small { opacity: 0.85; }
 .tag.you { color: #90caf9; }
 .tag.foe { color: #ef9a9a; }
-.bar {
-  flex: 1;
-  height: 10px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-}
-.fill {
-  height: 100%;
-  transition: width 0.3s ease;
-}
+.bar { flex: 1; height: 9px; border-radius: 6px; background: rgba(0, 0, 0, 0.3); overflow: hidden; }
+.fill { height: 100%; transition: width 0.3s ease; }
 .fill.you { background: linear-gradient(90deg, #42a5f5, #90caf9); }
 .fill.foe { background: linear-gradient(90deg, #ef9a9a, #ef5350); }
-.wind {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
+.mid { text-align: center; color: #fff; }
+.round { font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+.wind { display: flex; align-items: center; gap: 3px; font-size: 0.72rem; justify-content: center; }
 .header-menu { display: flex; gap: 2px; }
 
-.board-wrap {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  padding: 8px 12px;
-  flex: 1;
-  align-items: center;
-}
-.board {
-  position: relative;
-  width: min(96vw, 640px);
-}
-.field {
-  width: 100%;
-  height: auto;
-  display: block;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.12);
-  touch-action: none;
-}
+.board-wrap { width: 100%; display: flex; justify-content: center; padding: 4px 10px; }
+.board { position: relative; width: min(96vw, 680px); }
+.field { width: 100%; height: auto; display: block; border-radius: 10px; background: rgba(0, 0, 0, 0.12); touch-action: none; }
 .turn-banner {
   position: absolute;
-  top: 10px;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: #fff;
-  background: rgba(0, 0, 0, 0.35);
-  padding: 4px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 3px 12px;
   border-radius: 999px;
   white-space: nowrap;
 }
 .turn-banner.foe { color: #ef9a9a; }
-.aim-readout {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 1rem;
-  font-weight: 700;
+
+.controls {
+  width: 100%;
+  max-width: 680px;
+  padding: 6px 14px max(12px, env(safe-area-inset-bottom));
   color: #fff;
-  background: rgba(0, 0, 0, 0.4);
-  padding: 4px 14px;
-  border-radius: 999px;
 }
-.board-overlay {
-  position: absolute;
-  inset: 0;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(3px);
+.weapons { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.wchip {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.wchip.sel { background: #f2b179; color: #2a2620; border-color: #f2b179; }
+.wchip.out { opacity: 0.4; }
+.wchip .ammo { font-size: 0.7rem; background: rgba(0, 0, 0, 0.25); border-radius: 8px; padding: 0 5px; }
+.wchip.sel .ammo { background: rgba(0, 0, 0, 0.18); }
+.dial { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.dlabel { width: 48px; font-size: 0.72rem; opacity: 0.85; }
+.dial .col { flex: 1; }
+.dval { width: 46px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.82rem; }
+.actions { display: flex; gap: 6px; margin-top: 6px; align-items: stretch; }
+.actions .fire { flex: 1; font-weight: 800; }
+.fuelrow { font-size: 0.68rem; opacity: 0.7; text-align: center; margin-top: 4px; }
+
+.shop-card {
+  background: #2a2620;
+  color: #fff;
+  border-radius: 14px;
+  min-width: 300px;
+  :deep(*) { color: #fff; }
+}
+.shop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shop-item {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  gap: 6px;
 }
-.overlay-text {
-  font-size: 2rem;
-  font-weight: 800;
-  color: #fff;
-}
-.overlay-fade-enter-active { transition: opacity 0.4s ease; }
-.overlay-fade-enter-from { opacity: 0; }
+.si-name { font-size: 0.8rem; }
+.si-own { opacity: 0.7; }
+
 .hint {
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.82rem;
   text-align: center;
   margin: 8px 24px max(16px, env(safe-area-inset-bottom));
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
-:deep(.q-btn.bg-primary) {
-  background: linear-gradient(135deg, #ef5350 0%, #42a5f5 100%) !important;
-}
+:deep(.q-btn.bg-primary) { background: linear-gradient(135deg, #ef5350 0%, #42a5f5 100%) !important; }
 </style>

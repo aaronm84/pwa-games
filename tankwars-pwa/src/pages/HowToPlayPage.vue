@@ -29,11 +29,26 @@
             </div>
             <h2>How to Play</h2>
             <ol>
-              <li><strong>Drag from your tank</strong> toward where you want to shoot</li>
-              <li>The drag <strong>direction</strong> sets the angle; the <strong>distance</strong> sets the power</li>
-              <li>A dotted line previews the start of your shot's arc</li>
-              <li><strong>Release</strong> to fire, then the CPU takes its turn</li>
+              <li>Set your <strong>angle</strong> and <strong>power</strong> with the sliders (or the −/+ steppers for fine control)</li>
+              <li>Or just <strong>drag the battlefield</strong> from your tank — direction = angle, distance = power</li>
+              <li>Pick a <strong>weapon</strong>, watch the dotted arc preview, then tap <strong>Fire</strong></li>
+              <li>Fire a free <strong>Tracer</strong> first to range a target without doing damage</li>
             </ol>
+          </div>
+
+          <!-- Weapons -->
+          <div class="instruction-card">
+            <div class="card-icon">
+              <q-icon name="rocket_launch" size="xl" color="primary" />
+            </div>
+            <h2>Weapons</h2>
+            <ul>
+              <li><strong>Missile</strong> — your reliable, unlimited shell</li>
+              <li><strong>Big Nuke</strong> — huge blast radius and damage</li>
+              <li><strong>MIRV</strong> — splits at the top of its arc into a spread of warheads</li>
+              <li><strong>Roller</strong> — lands and rolls downhill into dug-in tanks</li>
+              <li><strong>Tracer</strong> — free ranging shot, no damage</li>
+            </ul>
           </div>
 
           <!-- Rules -->
@@ -41,12 +56,13 @@
             <div class="card-icon">
               <q-icon name="rule" size="xl" color="amber" />
             </div>
-            <h2>The Rules</h2>
+            <h2>Battle &amp; Armoury</h2>
             <ul>
               <li>Shells fall under <strong>gravity</strong> and drift with the <strong>wind</strong> (shown up top)</li>
-              <li>Explosions <strong>damage</strong> nearby tanks — a direct hit hurts most</li>
-              <li>Blasts <strong>carve the terrain</strong>, changing the battlefield each shot</li>
-              <li>Reduce the enemy's health bar to zero to win</li>
+              <li>Blasts <strong>carve the terrain</strong>; lose the ground under you and you take <strong>fall damage</strong></li>
+              <li>Spend <strong>fuel</strong> to reposition, and use <strong>Repair</strong> / <strong>Shield</strong> / <strong>Parachute</strong></li>
+              <li>Earn <strong>cash</strong> for the damage you deal; spend it in the <strong>Armoury</strong> between rounds</li>
+              <li>Best of five rounds wins the war</li>
             </ul>
           </div>
 
@@ -57,10 +73,10 @@
             </div>
             <h2>Tips</h2>
             <ul>
-              <li><strong>Watch your last shot</strong> and adjust angle or power a touch</li>
-              <li><strong>Account for the wind</strong> — aim into it when it's strong</li>
-              <li>A high, steep arc is easier to walk onto a target than a flat one</li>
-              <li>Blasts that dig away terrain can leave the enemy exposed</li>
+              <li><strong>Tracer, then commit</strong> — range with a free shot, then fire for real</li>
+              <li>Nudge <strong>power by 10</strong> with the steppers to walk shots onto a target</li>
+              <li>Save <strong>Nukes and MIRVs</strong> for when the enemy is exposed or low</li>
+              <li><strong>Shield up</strong> when you're ahead; <strong>repair</strong> when you're hurt</li>
             </ul>
           </div>
         </div>
