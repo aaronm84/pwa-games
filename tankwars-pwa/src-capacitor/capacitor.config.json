@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.tankwars",
+  "appName": "Tank Wars",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#2a2620",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#2a2620"
+}
