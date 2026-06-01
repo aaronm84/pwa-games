@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.minesweeper",
+  "appName": "Minesweeper",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#1f2a44",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#1f2a44"
+}

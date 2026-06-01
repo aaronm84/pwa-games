@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.snake",
+  "appName": "Snake",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#163a1f",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#163a1f"
+}

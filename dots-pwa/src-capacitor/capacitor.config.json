@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.dots",
+  "appName": "Dots",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#262a38",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#262a38"
+}

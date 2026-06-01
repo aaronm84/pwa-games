@@ -14,6 +14,9 @@ project in its own top-level `*-pwa/` folder.
 | 🔢 **2048** — swipe & merge tile puzzle | [`2048-pwa/`](2048-pwa/) | https://aaronm84.github.io/pwa-games/2048/ |
 | 🔗 **2248** — connect & merge numbers (full board) | [`2248-pwa/`](2248-pwa/) | https://aaronm84.github.io/pwa-games/2248/ |
 | 🌊 **Flow** — connect dots with pipes, fill the grid | [`flow-pwa/`](flow-pwa/) | https://aaronm84.github.io/pwa-games/flow/ |
+| 🐍 **Snake** — modern swipe-controlled snake | [`snake-pwa/`](snake-pwa/) | https://aaronm84.github.io/pwa-games/snake/ |
+| 💣 **Minesweeper** — first-click-safe, 3 difficulties | [`minesweeper-pwa/`](minesweeper-pwa/) | https://aaronm84.github.io/pwa-games/minesweeper/ |
+| 🔵 **Dots** — connect & loop matching dots | [`dots-pwa/`](dots-pwa/) | https://aaronm84.github.io/pwa-games/dots/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
