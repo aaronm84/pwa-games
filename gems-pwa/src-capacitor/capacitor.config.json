@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.gems",
+  "appName": "Gems",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#2a1e3a",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#2a1e3a"
+}

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="512" height="512" viewBox="0 0 512 512" version="1.1"
+     xmlns="http://www.w3.org/2000/svg">
+  <!-- Background (rx swapped to 0 for the full-bleed maskable variant) -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#2a1e3a"/>
+
+  <g>
+    <!-- four gems, 2x2 -->
+    <g>
+      <rect x="92" y="92" width="150" height="150" rx="40" fill="#e74c3c"/>
+      <path d="M112,132 q30,-22 60,-8 l-50,40 Z" fill="#ffffff" fill-opacity="0.35"/>
+    </g>
+    <g>
+      <rect x="270" y="92" width="150" height="150" rx="40" fill="#3498db"/>
+      <path d="M290,132 q30,-22 60,-8 l-50,40 Z" fill="#ffffff" fill-opacity="0.35"/>
+    </g>
+    <g>
+      <rect x="92" y="270" width="150" height="150" rx="40" fill="#2ecc71"/>
+      <path d="M112,310 q30,-22 60,-8 l-50,40 Z" fill="#ffffff" fill-opacity="0.35"/>
+    </g>
+    <g>
+      <rect x="270" y="270" width="150" height="150" rx="40" fill="#f1c40f"/>
+      <path d="M290,310 q30,-22 60,-8 l-50,40 Z" fill="#ffffff" fill-opacity="0.35"/>
+    </g>
+  </g>
+</svg>

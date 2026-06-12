@@ -18,6 +18,7 @@ project in its own top-level `*-pwa/` folder.
 | 💣 **Minesweeper** — first-click-safe, 3 difficulties | [`minesweeper-pwa/`](minesweeper-pwa/) | https://aaronm84.github.io/pwa-games/minesweeper/ |
 | 🔵 **Dots** — connect & loop matching dots | [`dots-pwa/`](dots-pwa/) | https://aaronm84.github.io/pwa-games/dots/ |
 | 🪖 **Tank Wars** — turn-based artillery duel vs CPU | [`tankwars-pwa/`](tankwars-pwa/) | https://aaronm84.github.io/pwa-games/tankwars/ |
+| 💎 **Gems** — match-3 swap & combo puzzle | [`gems-pwa/`](gems-pwa/) | https://aaronm84.github.io/pwa-games/gems/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
