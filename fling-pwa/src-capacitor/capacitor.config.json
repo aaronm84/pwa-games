@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.fling",
+  "appName": "Fling",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#3a6ea5",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#3a6ea5"
+}

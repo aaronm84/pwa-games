@@ -1,0 +1,15 @@
+{
+  "name": "fling-game",
+  "version": "1.0.0",
+  "description": "Fling - Launch projectiles to topple structures and clear every target",
+  "author": "Aaron Middleton <aaronmiddleton@gmail.com>",
+  "private": true,
+  "dependencies": {
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/haptics": "^7.0.2",
+    "@capacitor/ios": "^7.4.4",
+    "@capacitor/preferences": "^7.0.2"
+  }
+}

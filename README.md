@@ -22,6 +22,7 @@ project in its own top-level `*-pwa/` folder.
 | 🧩 **Trails** — Tsuro-style path-tile game vs CPU | [`trails-pwa/`](trails-pwa/) | https://aaronm84.github.io/pwa-games/trails/ |
 | 🎯 **Pegs** — Peggle-style ball-and-peg bouncer | [`pegs-pwa/`](pegs-pwa/) | https://aaronm84.github.io/pwa-games/pegs/ |
 | 🔴 **Marbles** — Zuma-style marble-chain shooter | [`marbles-pwa/`](marbles-pwa/) | https://aaronm84.github.io/pwa-games/marbles/ |
+| 🐦 **Fling** — Angry-Birds-style slingshot physics (matter.js) | [`fling-pwa/`](fling-pwa/) | https://aaronm84.github.io/pwa-games/fling/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
