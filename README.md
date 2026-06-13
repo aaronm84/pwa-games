@@ -20,6 +20,7 @@ project in its own top-level `*-pwa/` folder.
 | 🪖 **Tank Wars** — turn-based artillery duel vs CPU | [`tankwars-pwa/`](tankwars-pwa/) | https://aaronm84.github.io/pwa-games/tankwars/ |
 | 💎 **Gems** — match-3 swap & combo puzzle | [`gems-pwa/`](gems-pwa/) | https://aaronm84.github.io/pwa-games/gems/ |
 | 🧩 **Trails** — Tsuro-style path-tile game vs CPU | [`trails-pwa/`](trails-pwa/) | https://aaronm84.github.io/pwa-games/trails/ |
+| 🎯 **Pegs** — Peggle-style ball-and-peg bouncer | [`pegs-pwa/`](pegs-pwa/) | https://aaronm84.github.io/pwa-games/pegs/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 

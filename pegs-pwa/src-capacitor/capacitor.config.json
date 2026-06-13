@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.pegs",
+  "appName": "Pegs",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#2a1a4a",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#2a1a4a"
+}

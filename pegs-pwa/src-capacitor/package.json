@@ -1,0 +1,15 @@
+{
+  "name": "pegs-game",
+  "version": "1.0.0",
+  "description": "Pegs - Aim and drop a ball to clear the pegs",
+  "author": "Aaron Middleton <aaronmiddleton@gmail.com>",
+  "private": true,
+  "dependencies": {
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/haptics": "^7.0.2",
+    "@capacitor/ios": "^7.4.4",
+    "@capacitor/preferences": "^7.0.2"
+  }
+}
