@@ -41,3 +41,10 @@ npm run build        # quasar build -m pwa  -> dist/pwa
 Ships in the [`pwa-games`](https://github.com/aaronm84/pwa-games) monorepo; the
 repo-root workflow builds it with `PUBLIC_PATH=/pwa-games/fling/` and publishes
 it to `https://aaronm84.github.io/pwa-games/fling/`.
+
+## Credits
+
+Sprites (birds, targets, wooden blocks) from the **Kenney "Physics Assets"** pack
+by Kenney — [kenney.nl](https://kenney.nl/assets/physics-assets), licensed
+**CC0** (public domain; no attribution required — credited here as a courtesy).
+Full license text in `src/assets/fling/KENNEY-LICENSE.txt`.

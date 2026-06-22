@@ -63,8 +63,37 @@ import Matter from 'matter-js'
 import { useThemeStore } from 'src/stores/theme'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
+// Kenney "Physics Assets" sprites (CC0) — see src/assets/fling/KENNEY-LICENSE.txt
+import birdRedSrc from 'src/assets/fling/bird-red.png'
+import birdSpeedySrc from 'src/assets/fling/bird-speedy.png'
+import birdBoulderSrc from 'src/assets/fling/bird-boulder.png'
+import tgStandardSrc from 'src/assets/fling/target-standard.png'
+import tgSmallSrc from 'src/assets/fling/target-small.png'
+import tgToughSrc from 'src/assets/fling/target-tough.png'
+import blockWoodSrc from 'src/assets/fling/block-wood.png'
 
 const { Engine, World, Bodies, Body, Events } = Matter
+
+// preload sprites; rendering falls back to canvas shapes until they're ready
+const IMG = {}
+for (const [key, src] of Object.entries({
+  birdRed: birdRedSrc, birdSpeedy: birdSpeedySrc, birdBoulder: birdBoulderSrc,
+  tgStandard: tgStandardSrc, tgSmall: tgSmallSrc, tgTough: tgToughSrc, blockWood: blockWoodSrc,
+})) {
+  const im = new Image()
+  im.src = src
+  IMG[key] = im
+}
+function drawSprite(key, x, y, w, h, angle) {
+  const im = IMG[key]
+  if (!im || !im.complete || !im.naturalWidth) return false
+  ctx.save()
+  ctx.translate(x, y)
+  if (angle) ctx.rotate(angle)
+  ctx.drawImage(im, -w / 2, -h / 2, w, h)
+  ctx.restore()
+  return true
+}
 
 const W = 420
 const H = 680
@@ -108,6 +137,31 @@ let raf = null
 
 const bestScore = computed(() => Math.max(progressStore.fling.bestScore, score.value))
 
+// ---------- birds ----------
+// Variety via size / mass / bounce / colour. Mass doesn't change the ballistic
+// arc, so a single trajectory preview stays accurate for every bird.
+const BIRD_TYPES = {
+  red: { r: 15, density: 0.009, restitution: 0.35, body: '#e8503a', edge: '#b53a28', belly: '#f6c89a', img: 'birdRed' },
+  boulder: { r: 19, density: 0.022, restitution: 0.2, body: '#727781', edge: '#3f4248', belly: '#aab0b8', img: 'birdBoulder' },
+  speedy: { r: 12, density: 0.006, restitution: 0.55, body: '#f5c542', edge: '#c79a14', belly: '#fdeaa8', img: 'birdSpeedy' },
+}
+let birdQueue = []
+let birdIdx = 0
+function buildBirdQueue(n) {
+  const pattern = ['red', 'speedy', 'boulder', 'red', 'boulder', 'speedy']
+  birdQueue = Array.from({ length: n }, (_, i) => pattern[i % pattern.length])
+}
+function curBird() {
+  return BIRD_TYPES[birdQueue[Math.min(birdIdx, birdQueue.length - 1)] || 'red']
+}
+
+// ---------- targets ----------
+const TARGET_TYPES = {
+  standard: { color: '#46c46a', edge: 'rgba(20,60,25,0.45)', hp: 1, pts: 100, img: 'tgStandard' },
+  small: { color: '#3ec0c4', edge: 'rgba(15,55,60,0.45)', hp: 1, pts: 150, img: 'tgSmall' },
+  tough: { color: '#9a86c4', edge: 'rgba(40,30,70,0.5)', hp: 2, pts: 220, img: 'tgTough' },
+}
+
 // ---------- levels ----------
 const G = GROUND_Y
 const LEVELS = [
@@ -124,10 +178,10 @@ const LEVELS = [
       { x: 325, y: G - 40, w: 20, h: 80 },
       { x: 295, y: G - 89, w: 110, h: 18 },
     ],
-    targets: [{ x: 295, y: G - 116, r: 18 }],
+    targets: [{ x: 295, y: G - 116, r: 18, t: 'small' }],
     shots: 4,
   }),
-  // 3 — a little house: one inside, one on the roof
+  // 3 — a little house: one inside, an armoured one on the roof
   () => ({
     blocks: [
       { x: 255, y: G - 45, w: 20, h: 90 },
@@ -136,11 +190,11 @@ const LEVELS = [
     ],
     targets: [
       { x: 290, y: G - 18, r: 16 },
-      { x: 290, y: G - 126, r: 17 },
+      { x: 290, y: G - 126, r: 18, t: 'tough' },
     ],
     shots: 5,
   }),
-  // 4 — crate tower + a guarded ground target
+  // 4 — crate tower (armoured) + a guarded ground target
   () => ({
     blocks: [
       { x: 345, y: G - 20, w: 40, h: 40 },
@@ -148,12 +202,12 @@ const LEVELS = [
       { x: 205, y: G - 35, w: 20, h: 70 },
     ],
     targets: [
-      { x: 345, y: G - 98, r: 18 },
+      { x: 345, y: G - 98, r: 18, t: 'tough' },
       { x: 235, y: G - 18, r: 17 },
     ],
     shots: 5,
   }),
-  // 5 — pyramid + a straggler near the edge
+  // 5 — pyramid + a small straggler near the edge
   () => ({
     blocks: [
       { x: 250, y: G - 20, w: 40, h: 40 },
@@ -164,7 +218,7 @@ const LEVELS = [
     ],
     targets: [
       { x: 300, y: G - 98, r: 18 },
-      { x: 392, y: G - 18, r: 15 },
+      { x: 392, y: G - 18, r: 13, t: 'small' },
     ],
     shots: 6,
   }),
@@ -186,19 +240,20 @@ function genLevel(lvl) {
       blocks.push({ x: cx - 26, y: G - 38, w: 18, h: 76 })
       blocks.push({ x: cx + 26, y: G - 38, w: 18, h: 76 })
       blocks.push({ x: cx, y: G - 85, w: 80, h: 16 })
-      targets.push({ x: cx, y: G - 110, r: 16 })
+      targets.push({ x: cx, y: G - 110, r: 14, t: 'small' })
     } else if (kind === 1) {
-      // a crate tower with a target perched up high
+      // a crate tower with an armoured target perched up high
       blocks.push({ x: cx, y: G - 20, w: 40, h: 40 })
       blocks.push({ x: cx, y: G - 60, w: 40, h: 40 })
-      targets.push({ x: cx, y: G - 98, r: 16 })
+      targets.push({ x: cx, y: G - 98, r: 16, t: 'tough' })
     } else {
       // a wall sheltering a ground target — arc over or knock it through
       blocks.push({ x: cx - 24, y: G - 48, w: 18, h: 96 })
       targets.push({ x: cx + 18, y: G - 17, r: 16 })
     }
   }
-  return { blocks, targets, shots: targets.length + 1 }
+  const tough = targets.filter((t) => t.t === 'tough').length
+  return { blocks, targets, shots: targets.length + 1 + tough }
 }
 
 // ---------- setup ----------
@@ -209,7 +264,9 @@ function startLevel() {
     World.clear(world, false)
     Engine.clear(engine)
   }
-  engine = Engine.create({ enableSleeping: true })
+  // sleeping disabled: a target resting on a structure would otherwise stay
+  // asleep (and float) when the blocks under it get knocked away
+  engine = Engine.create({ enableSleeping: false })
   engine.gravity.y = GRAVY
   world = engine.world
 
@@ -234,15 +291,22 @@ function startLevel() {
     World.add(world, body)
   }
   for (const tg of def.targets) {
+    const tt = TARGET_TYPES[tg.t || 'standard']
     const body = Bodies.circle(tg.x, tg.y, tg.r, { friction: 0.5, restitution: 0.2, density: 0.003 })
     body.gType = 'target'
     body.gR = tg.r
+    body.gTT = tt
+    body.gHp = tt.hp
+    body.gPoints = tt.pts
+    body.gHurt = 0
     targets.push(body)
     World.add(world, body)
   }
   Events.on(engine, 'collisionStart', onCollide)
 
   shots.value = def.shots
+  buildBirdQueue(def.shots)
+  birdIdx = 0
   targetsLeft.value = targets.length
   bird = null
   ready = true
@@ -279,7 +343,11 @@ function onCollide(ev) {
 function hit(t, other, rel) {
   if (t.gType !== 'target' || t.gDead) return
   const thr = other.gType === 'bird' ? 3 : 5
-  if (rel > thr) t.gDead = true
+  if (rel > thr) {
+    t.gHp--
+    if (t.gHp <= 0) t.gDead = true
+    else t.gHurt = 14 // survived a hit (tough target) — flash
+  }
 }
 
 // ---------- launch ----------
@@ -295,15 +363,18 @@ function launch(v, start) {
   flying = true
   birdAge = 0
   restTimer = 0
-  bird = Bodies.circle(start.x, start.y, BIRD_R, {
-    density: 0.009,
-    restitution: 0.35,
+  const bt = curBird()
+  bird = Bodies.circle(start.x, start.y, bt.r, {
+    density: bt.density,
+    restitution: bt.restitution,
     friction: 0.4,
     frictionAir: 0.002,
   })
   bird.gType = 'bird'
+  bird.gBird = bt
   World.add(world, bird)
   Body.setVelocity(bird, v)
+  birdIdx++
   haptics.medium()
 }
 function endShot() {
@@ -345,6 +416,7 @@ function loop() {
     if (state.value === 'playing') {
       Engine.update(engine, 1000 / 60)
       cleanup()
+      for (const t of targets) if (t.gHurt > 0) t.gHurt--
       if (flying && bird) trackBird()
     }
     draw()
@@ -359,7 +431,7 @@ function cleanup() {
       World.remove(world, t)
       targets.splice(i, 1)
       targetsLeft.value--
-      score.value += 100
+      score.value += t.gPoints || 100
       haptics.medium()
       if (targetsLeft.value <= 0) {
         win()
@@ -452,7 +524,7 @@ function draw() {
   }
 
   // flying bird
-  if (flying && bird) drawBird(bird.position.x, bird.position.y)
+  if (flying && bird) drawBird(bird.position.x, bird.position.y, bird.gBird)
 }
 function drawTrajectory() {
   let vx = SLING.x - pull.x
@@ -480,6 +552,8 @@ function drawTrajectory() {
   }
 }
 function drawBlock(b) {
+  // +8 covers the sprite's transparent margin so the wood fills the physics body
+  if (drawSprite('blockWood', b.position.x, b.position.y, b.gW + 8, b.gH + 8, b.angle)) return
   ctx.save()
   ctx.translate(b.position.x, b.position.y)
   ctx.rotate(b.angle)
@@ -503,13 +577,36 @@ function drawTarget(b) {
   const x = b.position.x
   const y = b.position.y
   const r = b.gR
+  const tt = b.gTT || TARGET_TYPES.standard
+  if (drawSprite(tt.img, x, y, r * 2.3, r * 2.3, b.angle)) {
+    if (b.gHurt > 0) {
+      ctx.save()
+      ctx.globalAlpha = 0.5
+      ctx.beginPath()
+      ctx.arc(x, y, r, 0, 6.28)
+      ctx.fillStyle = '#fff'
+      ctx.fill()
+      ctx.restore()
+    }
+    return
+  }
   ctx.beginPath()
   ctx.arc(x, y, r, 0, 6.28)
-  ctx.fillStyle = '#46c46a'
+  ctx.fillStyle = b.gHurt > 0 ? '#ffffff' : tt.color
   ctx.fill()
-  ctx.strokeStyle = 'rgba(20,60,25,0.4)'
+  ctx.strokeStyle = tt.edge
   ctx.lineWidth = 2
   ctx.stroke()
+  // tough targets wear an armour band across the top
+  if (tt.hp > 1) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.arc(x, y, r, Math.PI * 1.08, Math.PI * 1.92)
+    ctx.lineWidth = r * 0.42
+    ctx.strokeStyle = b.gHp > 1 ? '#5b4f7a' : 'rgba(91,79,122,0.4)'
+    ctx.stroke()
+    ctx.restore()
+  }
   const ex = r * 0.38
   const ey = -r * 0.2
   const er = r * 0.26
@@ -524,30 +621,33 @@ function drawTarget(b) {
     ctx.fill()
   }
 }
-function drawBird(x, y) {
+function drawBird(x, y, bt) {
+  bt = bt || curBird()
+  const R = bt.r
+  if (drawSprite(bt.img, x, y, R * 2.3, R * 2.3)) return
   ctx.beginPath()
-  ctx.arc(x, y, BIRD_R, 0, 6.28)
-  ctx.fillStyle = '#e8503a'
+  ctx.arc(x, y, R, 0, 6.28)
+  ctx.fillStyle = bt.body
   ctx.fill()
-  ctx.strokeStyle = '#b53a28'
+  ctx.strokeStyle = bt.edge
   ctx.lineWidth = 2
   ctx.stroke()
   ctx.beginPath()
-  ctx.arc(x, y + 3, BIRD_R * 0.55, 0, 6.28)
-  ctx.fillStyle = '#f6c89a'
+  ctx.arc(x, y + 3, R * 0.55, 0, 6.28)
+  ctx.fillStyle = bt.belly
   ctx.fill()
   ctx.beginPath()
-  ctx.arc(x + BIRD_R * 0.35, y - BIRD_R * 0.3, BIRD_R * 0.22, 0, 6.28)
+  ctx.arc(x + R * 0.35, y - R * 0.3, R * 0.22, 0, 6.28)
   ctx.fillStyle = '#fff'
   ctx.fill()
   ctx.beginPath()
-  ctx.arc(x + BIRD_R * 0.42, y - BIRD_R * 0.3, BIRD_R * 0.11, 0, 6.28)
+  ctx.arc(x + R * 0.42, y - R * 0.3, R * 0.11, 0, 6.28)
   ctx.fillStyle = '#222'
   ctx.fill()
   ctx.beginPath()
-  ctx.moveTo(x + BIRD_R * 0.8, y)
-  ctx.lineTo(x + BIRD_R * 1.4, y + 3)
-  ctx.lineTo(x + BIRD_R * 0.8, y + 7)
+  ctx.moveTo(x + R * 0.8, y)
+  ctx.lineTo(x + R * 1.4, y + 3)
+  ctx.lineTo(x + R * 0.8, y + 7)
   ctx.closePath()
   ctx.fillStyle = '#f5a623'
   ctx.fill()
