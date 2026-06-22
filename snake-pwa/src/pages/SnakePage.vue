@@ -92,8 +92,8 @@ import { useHaptics } from 'src/composables/useHaptics'
 
 const N = 15
 const START_DELAY = 170
-const MIN_DELAY = 80
-const DELAY_STEP = 5
+const MIN_DELAY = 95
+const DELAY_STEP = 4
 const BONUS_EVERY = 5
 const BONUS_MS = 6000
 
@@ -113,9 +113,10 @@ const state = ref('idle') // idle | running | paused | over
 const dead = ref(false)
 
 let dir = { r: 0, c: 1 }
-let queuedDir = null
+let turnQueue = [] // up to 2 buffered turns so quick corners don't get dropped
 let applesEaten = 0
 let bonusExpire = 0
+let bonusRemaining = 0
 let timer = null
 
 const wrap = computed(() => !!settingsStore.settings.snakeWrap)
@@ -148,10 +149,11 @@ function reset() {
     { r: 7, c: 3 },
   ]
   dir = { r: 0, c: 1 }
-  queuedDir = null
+  turnQueue = []
   food.value = { r: 7, c: 10 }
   bonus.value = null
   bonusExpire = 0
+  bonusRemaining = 0
   applesEaten = 0
   score.value = 0
   dead.value = false
@@ -174,9 +176,12 @@ function stopLoop() {
 }
 
 function setDirection(r, c) {
-  // ignore reversal onto the immediate neck
-  if (r === -dir.r && c === -dir.c) return
-  queuedDir = { r, c }
+  // validate against the latest *pending* turn (not just the committed direction)
+  // so two quick turns in one tick can't fold the snake back onto its own neck
+  const last = turnQueue.length ? turnQueue[turnQueue.length - 1] : dir
+  if (r === -last.r && c === -last.c) return // no 180° reversal
+  if (r === last.r && c === last.c) return // ignore a repeat of the current heading
+  if (turnQueue.length < 2) turnQueue.push({ r, c })
   if (state.value === 'idle') {
     state.value = 'running'
     startLoop()
@@ -185,10 +190,7 @@ function setDirection(r, c) {
 
 function tick() {
   if (state.value !== 'running') return
-  if (queuedDir) {
-    dir = queuedDir
-    queuedDir = null
-  }
+  if (turnQueue.length) dir = turnQueue.shift()
 
   let nr = snake.value[0].r + dir.r
   let nc = snake.value[0].c + dir.c
@@ -249,8 +251,11 @@ function togglePause() {
   if (state.value === 'running') {
     state.value = 'paused'
     stopLoop()
+    // freeze the bonus timer so pausing doesn't eat into its 6s window
+    if (bonus.value) bonusRemaining = Math.max(0, bonusExpire - Date.now())
   } else if (state.value === 'paused') {
     state.value = 'running'
+    if (bonus.value) bonusExpire = Date.now() + bonusRemaining
     startLoop()
   }
 }

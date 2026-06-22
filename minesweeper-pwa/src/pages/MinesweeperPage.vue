@@ -6,7 +6,7 @@
 
       <div class="stats">
         <div class="stat"><q-icon name="flag" size="16px" />{{ minesRemaining }}</div>
-        <div class="stat"><q-icon name="schedule" size="16px" />{{ time }}</div>
+        <div class="stat"><q-icon name="schedule" size="16px" />{{ formattedTime }}</div>
       </div>
 
       <div class="header-menu">
@@ -69,9 +69,11 @@ import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
 
 const DIFFS = {
-  easy: { n: 8, mines: 10, label: 'Easy' },
-  medium: { n: 12, mines: 26, label: 'Medium' },
-  hard: { n: 14, mines: 45, label: 'Hard' },
+  // densities tuned toward classic Minesweeper (~12.5% / 16% / 20%) so the
+  // labels match the feel and there are fewer unavoidable 50/50 deaths
+  easy: { n: 8, mines: 8, label: 'Easy' },
+  medium: { n: 12, mines: 23, label: 'Medium' },
+  hard: { n: 14, mines: 40, label: 'Hard' },
 }
 
 const router = useRouter()
@@ -93,6 +95,10 @@ const time = ref(0)
 let timer = null
 
 const diffLabel = computed(() => DIFFS[diffKey.value].label)
+const formattedTime = computed(() => {
+  const s = time.value
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')
+})
 const flagsUsed = computed(() => cells.value.filter((c) => c.flagged && !c.revealed).length)
 const minesRemaining = computed(() => mineCount.value - flagsUsed.value)
 

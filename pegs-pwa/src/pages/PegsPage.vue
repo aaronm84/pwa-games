@@ -93,6 +93,9 @@ let bucketX = W / 2
 let bucketDir = 1
 let raf = null
 let shotSteps = 0
+let restFrames = 0 // consecutive near-stationary frames → end the shot early
+let particles = [] // peg-hit bursts + flash rings
+let floats = [] // floating score popups
 
 function newGame() {
   haptics.light()
@@ -107,7 +110,10 @@ function nextLevel() {
 function startLevel() {
   cancelAnimationFrame(raf)
   ball = null
-  balls.value = 8
+  // a few more balls on later levels so higher orange counts stay winnable
+  balls.value = Math.min(8 + Math.floor((level.value - 1) / 2), 14)
+  particles = []
+  floats = []
   buildPegs()
   state.value = 'aiming'
   loop()
@@ -132,8 +138,8 @@ function buildPegs() {
       cellList.push({ x, y, hit: false, orange: false })
     }
   }
-  // choose orange targets
-  const targets = Math.min(6 + level.value, 18, cellList.length)
+  // choose orange targets (capped so a level never demands more than the balls can clear)
+  const targets = Math.min(6 + level.value, 12, cellList.length)
   const idx = [...cellList.keys()]
   for (let i = idx.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -181,16 +187,15 @@ function draw() {
   ctx.fillStyle = '#90a4ae'
   ctx.fillRect(-5, 0, 10, 26)
   ctx.restore()
-  // aim guide
+  // aim guide — a gravity-aware predicted arc, so it matches where the ball flies
   if (state.value === 'aiming') {
     ctx.save()
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-    ctx.setLineDash([4, 8])
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.moveTo(LX, LY)
-    ctx.lineTo(LX + Math.cos(aimAngle) * 130, LY + Math.sin(aimAngle) * 130)
-    ctx.stroke()
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'
+    for (const p of aimArc()) {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 2.6, 0, 6.28)
+      ctx.fill()
+    }
     ctx.restore()
   }
   // ball
@@ -200,6 +205,33 @@ function draw() {
     ctx.fillStyle = '#fff'
     ctx.fill()
   }
+  // hit bursts + score popups
+  drawFx()
+}
+
+// free-flight prediction of the launched ball (no peg bounces), sampled as dots
+function aimArc() {
+  const pts = []
+  let x = LX
+  let y = LY + 16
+  let vx = Math.cos(aimAngle) * LAUNCH
+  let vy = Math.sin(aimAngle) * LAUNCH
+  for (let s = 0; s < 96; s++) {
+    vy += GRAV
+    x += vx
+    y += vy
+    if (x < R || x > W - R || y > H) break
+    if (s % 7 === 0) pts.push({ x, y })
+    let hit = false
+    for (const pg of pegs) {
+      if (Math.hypot(x - pg.x, y - pg.y) < R + P) {
+        hit = true
+        break
+      }
+    }
+    if (hit) break
+  }
+  return pts
 }
 
 // ---------- loop ----------
@@ -211,6 +243,7 @@ function loop() {
     if (bucketX > W - 50 || bucketX < 50) bucketDir *= -1
 
     if (state.value === 'shooting' && ball) physics()
+    updateFx()
     draw()
     raf = requestAnimationFrame(step)
   }
@@ -246,8 +279,11 @@ function physics() {
         ball.y = pg.y + ny * min
         if (!pg.hit) {
           pg.hit = true
-          score.value += pg.orange ? 80 : 15
+          const gain = pg.orange ? 80 : 15
+          score.value += gain
           if (pg.orange) orangeLeft.value--
+          spawnHit(pg.x, pg.y, pg.orange)
+          spawnFloat(pg.x, pg.y, '+' + gain, pg.orange ? '#ffd28a' : '#cfe0ff')
           haptics.light()
         }
       }
@@ -256,10 +292,80 @@ function physics() {
   // bucket catch
   if (ball.y > H - 24 && ball.y < H - 4 && Math.abs(ball.x - bucketX) < 42) {
     balls.value++
+    spawnFloat(bucketX, H - 30, '+1 BALL', '#7fffd4')
     haptics.success()
     return endShot()
   }
-  if (ball.y > H + R || shotSteps > 1400) endShot()
+  // end early once the ball has effectively come to rest (no more dead time)
+  if (ball.vx * ball.vx + ball.vy * ball.vy < 0.15) restFrames++
+  else restFrames = 0
+  if (ball.y > H + R || restFrames > 45 || shotSteps > 1400) endShot()
+}
+
+// ---------- hit effects ----------
+function spawnHit(x, y, orange) {
+  const color = orange ? '#ffa726' : '#5c8bef'
+  particles.push({ x, y, ring: true, life: 0, max: 20, color })
+  for (let k = 0; k < 7; k++) {
+    const a = Math.random() * Math.PI * 2
+    const sp = 1 + Math.random() * 2.6
+    particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0, max: 20 + Math.random() * 10, color, r: 1.5 + Math.random() * 2.5,
+    })
+  }
+}
+function spawnFloat(x, y, text, color) {
+  floats.push({ x, y, text, color, life: 0, max: 46 })
+}
+function updateFx() {
+  for (const p of particles) {
+    p.life++
+    if (!p.ring) {
+      p.x += p.vx
+      p.y += p.vy
+      p.vy += 0.14
+      p.vx *= 0.96
+    }
+  }
+  particles = particles.filter((p) => p.life < p.max)
+  for (const f of floats) {
+    f.y -= 0.7
+    f.life++
+  }
+  floats = floats.filter((f) => f.life < f.max)
+}
+function drawFx() {
+  for (const p of particles) {
+    const t = p.life / p.max
+    if (p.ring) {
+      ctx.globalAlpha = (1 - t) * 0.8
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, P + t * 16, 0, 6.28)
+      ctx.strokeStyle = p.color
+      ctx.lineWidth = 3
+      ctx.stroke()
+    } else {
+      ctx.globalAlpha = 1 - t
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, p.r * (1 - t * 0.4), 0, 6.28)
+      ctx.fillStyle = p.color
+      ctx.fill()
+    }
+  }
+  ctx.globalAlpha = 1
+  ctx.textAlign = 'center'
+  ctx.font = 'bold 17px sans-serif'
+  for (const f of floats) {
+    const t = f.life / f.max
+    ctx.globalAlpha = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8
+    ctx.fillStyle = f.color
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'
+    ctx.shadowBlur = 5
+    ctx.fillText(f.text, f.x, f.y)
+    ctx.shadowBlur = 0
+  }
+  ctx.globalAlpha = 1
 }
 
 function endShot() {
@@ -317,6 +423,7 @@ function onUp() {
 function fire() {
   balls.value--
   shotSteps = 0
+  restFrames = 0
   ball = { x: LX, y: LY + 16, vx: Math.cos(aimAngle) * LAUNCH, vy: Math.sin(aimAngle) * LAUNCH }
   state.value = 'shooting'
   haptics.medium()

@@ -41,10 +41,19 @@
           :class="{ sel: selectedId === g.id, spawn: g.spawn, clearing: g.clearing }"
           :style="{ '--r': g.row, '--c': g.col }"
         >
-          <span class="disc" :style="{ background: COLORS[g.color] }">
+          <span
+            class="disc"
+            :class="{ bomb: g.type === 'bomb', blast: g.type === 'blast' }"
+            :style="{ background: COLORS[g.color] }"
+          >
             <span v-if="g.type === 'bomb'" class="sym">★</span>
             <span v-else-if="g.type !== 'normal'" class="sym">✛</span>
           </span>
+        </div>
+
+        <!-- transient activation effects -->
+        <div class="fx-layer">
+          <div v-for="fx in effects" :key="fx.id" class="fx" :class="fx.cls" :style="fx.style">{{ fx.text }}</div>
         </div>
 
         <transition name="overlay-fade">
@@ -57,7 +66,7 @@
       </div>
     </div>
 
-    <p class="hint">Swap neighbours to line up 3+ · match 4 for a ✛ blast, 5 for a ★ bomb</p>
+    <p class="hint">Line up 3+ · match 4 → ✛ blast, 5 → ★ bomb · swap a special to set it off</p>
   </q-page>
 </template>
 
@@ -85,8 +94,10 @@ const score = ref(0)
 const movesLeft = ref(START_MOVES)
 const gameOver = ref(false)
 const selectedId = ref(null)
+const effects = ref([]) // transient activation visuals (beams / rings / combo text)
 
 let nextId = 1
+let fxId = 1
 let busy = false
 let dragStart = null
 
@@ -129,6 +140,7 @@ function newGame() {
   movesLeft.value = START_MOVES
   gameOver.value = false
   selectedId.value = null
+  effects.value = []
   busy = false
   fillBoard()
 }
@@ -211,7 +223,8 @@ async function trySwap(a, b) {
   ;[a.col, b.col] = [b.col, a.col]
   await sleep(160)
 
-  if (findRuns().length === 0) {
+  const special = a.type !== 'normal' || b.type !== 'normal'
+  if (findRuns().length === 0 && !special) {
     // invalid: swap back
     ;[a.row, b.row] = [b.row, a.row]
     ;[a.col, b.col] = [b.col, a.col]
@@ -223,6 +236,8 @@ async function trySwap(a, b) {
 
   movesLeft.value--
   haptics.light()
+  // swapping a special sets it off (and special+special makes a combo)
+  if (special) await commitClear(detonateClearSet(a, b), 1)
   await resolveCascades(new Set([a.id, b.id]))
 
   if (movesLeft.value <= 0) {
@@ -248,6 +263,10 @@ async function resolveCascades(swapIds) {
     const runs = findRuns()
     if (runs.length === 0) break
     combo++
+    if (combo >= 2) {
+      const c0 = runs[0].cells[0]
+      spawnCombo(combo, c0.row, c0.col)
+    }
 
     const clear = new Set()
     const conversions = [] // { id, type }
@@ -299,13 +318,85 @@ function expandSpecials(clear) {
       g._expanded = true
       changed = true
       if (g.type === 'blast') {
+        spawnBeam(g.row, g.col)
         for (const o of gems.value) if (o.row === g.row || o.col === g.col) clear.add(o.id)
       } else if (g.type === 'bomb') {
+        spawnRing(g.row, g.col, COLORS[g.color])
         for (const o of gems.value) if (o.color === g.color) clear.add(o.id)
       }
     }
   }
   for (const g of gems.value) delete g._expanded
+}
+
+// ---------- activation effects ----------
+const pct = (n) => (n / N) * 100
+function addFx(fx, ms = 480) {
+  const id = fxId++
+  effects.value.push({ id, ...fx })
+  setTimeout(() => {
+    effects.value = effects.value.filter((e) => e.id !== id)
+  }, ms)
+}
+function spawnBeam(row, col) {
+  // a ✛ blast fires a bright cross down its whole row and column
+  addFx({ cls: 'beam beam-h', style: { top: pct(row) + '%', height: pct(1) + '%' } })
+  addFx({ cls: 'beam beam-v', style: { left: pct(col) + '%', width: pct(1) + '%' } })
+}
+function spawnRing(row, col, color) {
+  // a ★ bomb sends a coloured shockwave out from where it sat
+  addFx({ cls: 'ring', style: { left: pct(col + 0.5) + '%', top: pct(row + 0.5) + '%', '--fx': color } }, 540)
+}
+function spawnCombo(n, row, col) {
+  addFx({ cls: 'combo', text: `COMBO ×${n}`, style: { left: pct(col + 0.5) + '%', top: pct(row + 0.5) + '%' } }, 700)
+}
+
+// detonate a clear set produced outside the normal run loop (special-swap / combo)
+async function commitClear(clear, combo) {
+  expandSpecials(clear)
+  if (clear.size === 0) return
+  score.value += clear.size * 10 * combo
+  haptics.medium()
+  for (const g of gems.value) if (clear.has(g.id)) g.clearing = true
+  await sleep(140)
+  gems.value = gems.value.filter((g) => !clear.has(g.id))
+  applyGravity()
+  await sleep(180)
+}
+
+// cells cleared when a special is swapped — swap-to-detonate + special+special combos
+function detonateClearSet(a, b) {
+  const clear = new Set()
+  const aT = a.type
+  const bT = b.type
+
+  if (aT === 'bomb' && bT === 'bomb') {
+    // ★ + ★ : clear the whole board
+    for (const o of gems.value) clear.add(o.id)
+    return clear
+  }
+  if ((aT === 'bomb' && bT === 'blast') || (aT === 'blast' && bT === 'bomb')) {
+    // ★ + ✛ : every gem of the bomb's colour erupts into a row+col blast
+    const bomb = aT === 'bomb' ? a : b
+    for (const o of gems.value)
+      if (o.color === bomb.color)
+        for (const p of gems.value) if (p.row === o.row || p.col === o.col) clear.add(p.id)
+    clear.add(a.id)
+    clear.add(b.id)
+    return clear
+  }
+  // remaining: ✛ + ✛, or one special + one normal. Seed the special ids and let
+  // expandSpecials() do the row/col (blast) or colour (bomb) expansion; recolour a
+  // colour-bomb to the gem it was swapped with so it clears that colour.
+  if (aT !== 'normal') {
+    if (aT === 'bomb' && bT === 'normal') a.color = b.color
+    clear.add(a.id)
+  }
+  if (bT !== 'normal') {
+    if (bT === 'bomb' && aT === 'normal') b.color = a.color
+    clear.add(b.id)
+  }
+  return clear
 }
 
 function applyGravity() {
@@ -468,6 +559,70 @@ onMounted(newGame)
   transform: scale(0.86);
   outline: 3px solid #fff;
   outline-offset: 1px;
+}
+/* specials look "charged" so you know they're worth setting off */
+.disc.blast {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.85), 0 0 10px rgba(255, 255, 255, 0.5);
+  animation: charged 1.1s ease-in-out infinite;
+}
+.disc.bomb {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 255, 255, 0.75);
+  animation: charged 0.9s ease-in-out infinite;
+}
+@keyframes charged {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.4); }
+}
+
+/* transient activation effects */
+.fx-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 14px;
+  z-index: 4;
+}
+.fx { position: absolute; }
+.beam {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 18px 4px rgba(255, 255, 255, 0.9);
+  animation: beamflash 0.42s ease-out forwards;
+}
+.beam-h { left: 0; width: 100%; }
+.beam-v { top: 0; height: 100%; }
+@keyframes beamflash {
+  0% { opacity: 0; transform: scale(0.4); }
+  18% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; }
+}
+.ring {
+  width: 12%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 4px solid var(--fx, #fff);
+  box-shadow: 0 0 22px var(--fx, #fff), inset 0 0 14px var(--fx, #fff);
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: ringpop 0.54s ease-out forwards;
+}
+@keyframes ringpop {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0.95; }
+  100% { transform: translate(-50%, -50%) scale(3.6); opacity: 0; }
+}
+.combo {
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(1rem, 5vw, 1.5rem);
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+  white-space: nowrap;
+  animation: combopop 0.7s ease-out forwards;
+}
+@keyframes combopop {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+  25% { opacity: 1; transform: translate(-50%, -55%) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -95%) scale(1); }
 }
 .gem.spawn .disc {
   animation: pop 0.2s ease;

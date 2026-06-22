@@ -49,6 +49,17 @@
               stroke-linecap="round"
             />
           </g>
+          <!-- tappable empty cells (shown once a tile is picked) -->
+          <rect
+            v-for="cell in emptyCells"
+            :key="'e' + cell.key"
+            :x="cell.c * S"
+            :y="cell.r * S"
+            :width="S"
+            :height="S"
+            class="placeable"
+            @click="pickCell(cell.r, cell.c)"
+          />
           <!-- target cell highlight -->
           <rect
             v-if="!gameOver && activePlayer && !activePlayer.isAI && targetCell"
@@ -60,9 +71,10 @@
             stroke="#ffd54f"
             stroke-width="4"
             class="target"
+            pointer-events="none"
           />
           <!-- preview of selected tile in target cell -->
-          <g v-if="previewPaths">
+          <g v-if="previewPaths" pointer-events="none">
             <path
               v-for="(d, i) in previewPaths"
               :key="'pv' + i"
@@ -84,6 +96,7 @@
             :fill="pl.color"
             stroke="#fff"
             stroke-width="2.5"
+            pointer-events="none"
           />
         </svg>
 
@@ -114,11 +127,11 @@
       </div>
       <div class="actions">
         <q-btn dense unelevated color="grey-8" text-color="white" icon="rotate_right" label="Rotate" :disable="selectedIdx < 0" @click="rotateSel" />
-        <q-btn dense unelevated color="primary" text-color="white" label="Place" class="place" :disable="selectedIdx < 0" @click="placeSelected" />
+        <q-btn dense unelevated color="primary" text-color="white" label="Place" class="place" :disable="selectedIdx < 0 || !targetCell || (selectedFatal && hasSafeOption)" @click="placeSelected" />
       </div>
     </div>
 
-    <p class="hint">Lay a tile in the highlighted square, then follow your path — don't run off the board</p>
+    <p class="hint">{{ controlHint }}</p>
   </q-page>
 </template>
 
@@ -177,10 +190,16 @@ const placedCount = computed(() => {
   for (let r = 0; r < B; r++) for (let c = 0; c < B; c++) if (cells.value[r]?.[c]) n++
   return n
 })
-const targetCell = computed(() => {
+const targetCell = ref(null) // the empty cell the human has chosen to tile
+// empty cells the human can place on this turn (shown as tap targets)
+const emptyCells = computed(() => {
+  tickRef.value
   const p = activePlayer.value
-  if (!p || p.isAI) return null
-  return { r: p.r, c: p.c }
+  if (gameOver.value || !p || p.isAI || selectedIdx.value < 0) return []
+  const list = []
+  for (let r = 0; r < B; r++)
+    for (let c = 0; c < B; c++) if (!cells.value[r]?.[c]) list.push({ r, c, key: r * B + c })
+  return list
 })
 const turnText = computed(() => {
   if (gameOver.value) return win.value ? 'You win' : 'You lost'
@@ -260,10 +279,10 @@ function handPreview(tile) {
 }
 const previewPaths = computed(() => {
   const p = activePlayer.value
-  if (gameOver.value || !p || p.isAI || selectedIdx.value < 0) return null
+  if (gameOver.value || !p || p.isAI || selectedIdx.value < 0 || !targetCell.value) return null
   const base = playerHand.value[selectedIdx.value]
   if (!base) return null
-  return tilePaths(rotateN(base, selectedRot.value), p.c * S, p.r * S)
+  return tilePaths(rotateN(base, selectedRot.value), targetCell.value.c * S, targetCell.value.r * S)
 })
 
 function stoneXY(pl) {
@@ -271,12 +290,70 @@ function stoneXY(pl) {
   return portXY(pl.port, pl.c * S, pl.r * S)
 }
 
+// would placing `link` on cell (r,c) run the human's own token off-board or into
+// a fatal head-on collision? (only their own token's cell moves them)
+function fatalAt(r, c, link) {
+  const p = activePlayer.value
+  if (!p || p.r !== r || p.c !== c) return false
+  const res = resolveAssuming(p.r, p.c, p.port, r, c, link)
+  if (res.off) return true
+  return players.value.some(
+    (o) => o !== p && o.alive && o.r === res.r && o.c === res.c && o.port === res.port,
+  )
+}
+// is there any placement that doesn't eliminate the human? (almost always yes —
+// any empty cell other than your own token's cell is safe)
+const hasSafeOption = computed(() => {
+  tickRef.value
+  const p = activePlayer.value
+  if (!p || p.isAI) return true
+  for (let r = 0; r < B; r++)
+    for (let c = 0; c < B; c++) if (!cells.value[r]?.[c] && !(r === p.r && c === p.c)) return true
+  for (const tile of playerHand.value)
+    for (let rot = 0; rot < 4; rot++) if (!fatalAt(p.r, p.c, rotateN(tile, rot))) return true
+  return false
+})
+// would the chosen tile+rotation on the chosen cell kill the player?
+const selectedFatal = computed(() => {
+  tickRef.value
+  const p = activePlayer.value
+  if (!p || p.isAI || selectedIdx.value < 0 || !targetCell.value) return false
+  const base = playerHand.value[selectedIdx.value]
+  if (!base) return false
+  return fatalAt(targetCell.value.r, targetCell.value.c, rotateN(base, selectedRot.value))
+})
+const controlHint = computed(() => {
+  if (gameOver.value) return ''
+  if (selectedFatal.value && hasSafeOption.value)
+    return 'That tile runs your own token off the board — rotate or place elsewhere'
+  if (selectedIdx.value < 0) return 'Pick a tile, then tap any empty square to place it'
+  if (!targetCell.value) return 'Tap an empty square to drop your tile'
+  return 'Place it — or tap another square / rotate first'
+})
+
 // ---------- movement ----------
 function resolve(r, c, port) {
   let guard = 0
   while (guard++ < 200) {
     if (r < 0 || r >= B || c < 0 || c >= B) return { off: true }
     const tile = cells.value[r]?.[c]
+    if (!tile) return { off: false, r, c, port }
+    const exit = tile.link[port]
+    const e = EXIT[exit]
+    r += e.dr
+    c += e.dc
+    port = e.e
+  }
+  return { off: true }
+}
+
+// Pure resolve that pretends `aLink` occupies cell (ar,ac) — for previewing a
+// placement without mutating the reactive board (safe to call inside computeds).
+function resolveAssuming(r, c, port, ar, ac, aLink) {
+  let guard = 0
+  while (guard++ < 200) {
+    if (r < 0 || r >= B || c < 0 || c >= B) return { off: true }
+    const tile = r === ar && c === ac ? { link: aLink } : cells.value[r]?.[c]
     if (!tile) return { off: false, r, c, port }
     const exit = tile.link[port]
     const e = EXIT[exit]
@@ -307,25 +384,42 @@ function applyMove(pl) {
 }
 
 // ---------- turn flow ----------
-function placeTile(pl, link) {
-  if (!cells.value[pl.r]) cells.value[pl.r] = []
-  cells.value[pl.r][pl.c] = { link }
-  applyMove(pl)
+// place a tile on any empty cell; every token resting against that cell then
+// advances along the new path (free-placement variant)
+function placeTile(r, c, link) {
+  if (!cells.value[r]) cells.value[r] = []
+  cells.value[r][c] = { link }
+  for (const o of players.value) {
+    if (!o.alive) continue
+    if (o.r === r && o.c === c) applyMove(o)
+  }
   tickRef.value++
 }
 
+function pickCell(r, c) {
+  if (busy || gameOver.value) return
+  const p = activePlayer.value
+  if (!p || p.isAI || selectedIdx.value < 0) return
+  if (cells.value[r]?.[c]) return
+  targetCell.value = { r, c }
+  haptics.light()
+}
+
 async function placeSelected() {
-  if (busy || selectedIdx.value < 0) return
+  if (busy || selectedIdx.value < 0 || !targetCell.value) return
   const pl = activePlayer.value
   if (!pl || pl.isAI) return
+  const { r, c } = targetCell.value
+  if (cells.value[r]?.[c]) return
   busy = true
   const base = pl.hand[selectedIdx.value]
   const link = rotateN(base, selectedRot.value)
   pl.hand.splice(selectedIdx.value, 1)
   selectedIdx.value = -1
   selectedRot.value = 0
+  targetCell.value = null
   haptics.medium()
-  placeTile(pl, link)
+  placeTile(r, c, link)
   drawTile(pl)
   await sleep(450)
   endTurn()
@@ -348,8 +442,12 @@ function endTurn() {
   }
   current.value = n
   busy = false
-  if (activePlayer.value.isAI) {
+  const act = activePlayer.value
+  if (act.isAI) {
     aiTimer = setTimeout(aiMove, 650)
+  } else {
+    // default the target to your own cell (the Tsuro-style move); tap to change
+    targetCell.value = { r: act.r, c: act.c }
   }
 }
 
@@ -374,6 +472,15 @@ function checkOver() {
     progressStore.recordTrailsGame(true)
     return true
   }
+  // board completely tiled -> nowhere left to play; survivors win
+  let empties = 0
+  for (let r = 0; r < B; r++) for (let c = 0; c < B; c++) if (!cells.value[r]?.[c]) empties++
+  if (empties === 0) {
+    gameOver.value = true
+    win.value = true
+    progressStore.recordTrailsGame(true)
+    return true
+  }
   return false
 }
 
@@ -384,26 +491,43 @@ function aiMove() {
     endTurn()
     return
   }
-  // try all tiles x rotations; prefer ones that keep the stone alive
-  let safe = []
-  let any = []
+  // free placement: search every tile × rotation × empty cell. Reward sending an
+  // opponent off the board, heavily penalise self-elimination, otherwise place
+  // neutrally (with a little noise so it doesn't always pick the same corner).
+  const empties = []
+  for (let r = 0; r < B; r++) for (let c = 0; c < B; c++) if (!cells.value[r]?.[c]) empties.push({ r, c })
+  if (!empties.length) {
+    endTurn()
+    return
+  }
+  let best = null
   for (let i = 0; i < pl.hand.length; i++) {
     for (let rot = 0; rot < 4; rot++) {
       const link = rotateN(pl.hand[i], rot)
-      // simulate on a temp: place link at (pl.r,pl.c) then resolve
-      const saved = cells.value[pl.r]?.[pl.c]
-      if (!cells.value[pl.r]) cells.value[pl.r] = []
-      cells.value[pl.r][pl.c] = { link }
-      const res = resolve(pl.r, pl.c, pl.port)
-      cells.value[pl.r][pl.c] = saved || null
-      any.push({ i, rot })
-      if (!res.off) safe.push({ i, rot, dist: Math.abs(res.r - pl.r) + Math.abs(res.c - pl.c) })
+      for (const cell of empties) {
+        let score = Math.random() * 0.5
+        let selfDies = false
+        for (const o of players.value) {
+          if (!o.alive || o.r !== cell.r || o.c !== cell.c) continue
+          const res = resolveAssuming(o.r, o.c, o.port, cell.r, cell.c, link)
+          const dies =
+            res.off ||
+            players.value.some((q) => q !== o && q.alive && q.r === res.r && q.c === res.c && q.port === res.port)
+          if (o === pl) {
+            if (dies) selfDies = true
+            else score += Math.min(res.r, B - 1 - res.r, res.c, B - 1 - res.c) * 0.2
+          } else if (dies) {
+            score += 100 // knock an opponent off the board
+          }
+        }
+        if (selfDies) score -= 1000
+        if (!best || score > best.score) best = { i, rot, cell, score }
+      }
     }
   }
-  const pick = (safe.length ? safe[Math.floor(Math.random() * safe.length)] : any[Math.floor(Math.random() * any.length)])
-  const link = rotateN(pl.hand[pick.i], pick.rot)
-  pl.hand.splice(pick.i, 1)
-  placeTile(pl, link)
+  const link = rotateN(pl.hand[best.i], best.rot)
+  pl.hand.splice(best.i, 1)
+  placeTile(best.cell.r, best.cell.c, link)
   drawTile(pl)
   haptics.light()
   setTimeout(endTurn, 400)
@@ -430,6 +554,7 @@ function newGame() {
   win.value = false
   selectedIdx.value = -1
   selectedRot.value = 0
+  targetCell.value = null
   cells.value = Array.from({ length: B }, () => new Array(B).fill(null))
   deck = []
   for (let i = 0; i < 40; i++) deck.push(randomTile())
@@ -440,6 +565,9 @@ function newGame() {
   ]
   for (const p of players.value) for (let k = 0; k < 3; k++) drawTile(p)
   current.value = 0
+  // default placement target to the human's own cell (tap any square to change)
+  const human = players.value.find((p) => !p.isAI)
+  targetCell.value = human ? { r: human.r, c: human.c } : null
   tickRef.value++
 }
 
@@ -493,6 +621,14 @@ onBeforeUnmount(() => clearTimeout(aiTimer))
   backdrop-filter: blur(6px);
 }
 .target { animation: pulse 1.2s ease-in-out infinite; }
+.placeable {
+  fill: rgba(255, 213, 79, 0.08);
+  stroke: rgba(255, 213, 79, 0.3);
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: fill 0.15s;
+}
+.placeable:hover { fill: rgba(255, 213, 79, 0.2); }
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }

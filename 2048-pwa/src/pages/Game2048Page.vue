@@ -146,6 +146,7 @@ const keepPlaying = ref(false)
 const gameOver = ref(false)
 const showMenu = ref(false)
 const isAnimating = ref(false)
+let queuedMove = null // one buffered input, replayed when the slide finishes
 const previous = ref(null)
 
 let nextId = 1
@@ -226,7 +227,12 @@ function movesAvailable() {
 
 // --- the move ---
 function move(dir) {
-  if (isAnimating.value || showOverlay.value) return
+  if (showOverlay.value) return
+  // buffer one input during the slide instead of dropping it
+  if (isAnimating.value) {
+    queuedMove = dir
+    return
+  }
 
   const before = tiles.value.map((t) => ({ id: t.id, value: t.value, row: t.row, col: t.col }))
   const beforeScore = score.value
@@ -314,6 +320,13 @@ function move(dir) {
     }
     progressStore.update2048Best(score.value, maxTile())
     save()
+
+    // replay a buffered input now that the slide is done
+    if (!gameOver.value && queuedMove) {
+      const q = queuedMove
+      queuedMove = null
+      move(q)
+    }
   }, SLIDE_MS)
 }
 
@@ -346,6 +359,8 @@ function setup() {
 function newGame() {
   haptics.light()
   showMenu.value = false
+  queuedMove = null
+  isAnimating.value = false
   // A new game after moves were made counts the abandoned board as played.
   if (score.value > 0 && !gameOver.value) {
     progressStore.update2048Best(score.value, maxTile())
@@ -415,8 +430,9 @@ function onTouchEnd(e) {
   const absX = Math.abs(dx)
   const absY = Math.abs(dy)
   if (Math.max(absX, absY) < 24) return // ignore taps
-  if (absX > absY) move(dx > 0 ? 'right' : 'left')
-  else move(dy > 0 ? 'down' : 'up')
+  // require a clear dominant axis so near-diagonal flicks don't misfire
+  if (absX > absY * 1.2) move(dx > 0 ? 'right' : 'left')
+  else if (absY > absX * 1.2) move(dy > 0 ? 'down' : 'up')
 }
 
 // --- persistence ---

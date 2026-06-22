@@ -223,7 +223,20 @@ function tileAt(row, col) {
   return tiles.value.find((t) => t.row === row && t.col === col) || null
 }
 function spawnValue() {
+  // raise the spawn floor as the board climbs, so late boards can actually get
+  // stuck (tension) instead of self-healing forever with tiny tiles
+  const m = maxTile()
   const r = Math.random()
+  if (m >= 512) {
+    if (r < 0.58) return 8
+    if (r < 0.88) return 16
+    return 32
+  }
+  if (m >= 128) {
+    if (r < 0.6) return 4
+    if (r < 0.9) return 8
+    return 16
+  }
   if (r < 0.62) return 2
   if (r < 0.9) return 4
   return 8

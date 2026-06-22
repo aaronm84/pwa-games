@@ -6,7 +6,7 @@
 
       <div class="status">
         <div class="level-label">Level {{ level }}</div>
-        <div class="level-sub">{{ connectedCount }}/{{ totalColors }} flows · {{ coverage }}%</div>
+        <div class="level-sub">{{ connectedCount }}/{{ totalColors }} flows · {{ coverage }}% · {{ moves }} moves</div>
       </div>
 
       <div class="header-menu">
@@ -137,6 +137,7 @@ const boardEl = ref(null)
 const level = ref(1)
 const size = ref(5)
 const totalColors = ref(4)
+const moves = ref(0)
 const showMenu = ref(false)
 const solved = ref(false)
 const rev = ref(0) // bump to re-render after path mutations
@@ -222,9 +223,12 @@ function make2D(n, v) {
   return Array.from({ length: n }, () => new Array(n).fill(v))
 }
 
-function splitLengths(total, k, rng) {
-  const len = new Array(k).fill(2)
-  let rem = total - 2 * k
+function splitLengths(total, k, rng, minLen = 3) {
+  // longer minimum flows avoid trivial two-cell (adjacent-dot) connections;
+  // fall back to 2 only if the board genuinely can't fit length-3 everywhere
+  const m = total >= minLen * k ? minLen : 2
+  const len = new Array(k).fill(m)
+  let rem = total - m * k
   while (rem-- > 0) len[Math.floor(rng() * k)]++
   return len
 }
@@ -245,7 +249,9 @@ function levelConfig(lvl) {
 function generatePuzzle(lvl) {
   const cfg = levelConfig(lvl)
   const n = cfg.size
-  const colorCount = Math.min(cfg.colors, COLORS.length, Math.floor((n * n) / 2))
+  // cap colours below the board size: more colours = more endpoints = a more
+  // *constrained* (often forced/easier) board, so fewer, longer flows are harder
+  const colorCount = Math.min(cfg.colors, COLORS.length, n - 1, Math.floor((n * n) / 2))
   const rng = mulberry32((Math.imul(lvl, 2654435761) >>> 0) || 1)
 
   let order = null
@@ -279,6 +285,7 @@ function loadLevel(lvl, savedPaths) {
   pathsData = {}
   drawing = false
   activeColor = -1
+  moves.value = 0
   solved.value = false
   totalColors.value = puz.colorCount
   size.value = puz.n
@@ -443,6 +450,7 @@ function onPointerUp() {
   if (!drawing) return
   drawing = false
   activeColor = -1
+  moves.value++
   checkSolved()
   save()
 }

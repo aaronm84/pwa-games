@@ -30,9 +30,9 @@
             <h2>How to Play</h2>
             <ol>
               <li>On your turn, <strong>pick a tile</strong> from your hand of three</li>
-              <li>Use <strong>Rotate</strong> to spin it — a preview shows in the highlighted square</li>
-              <li>Tap <strong>Place</strong> to lay it in the square in front of your token</li>
-              <li>Your token <strong>follows the path</strong>, continuing across any tiles it meets</li>
+              <li>Use <strong>Rotate</strong> to spin it, then <strong>tap any empty square</strong> to choose where it goes</li>
+              <li>Tap <strong>Place</strong> to lay it down (it defaults to the square in front of your token)</li>
+              <li>Any token sitting against that square <strong>follows the new path</strong>, on across any tiles it meets</li>
             </ol>
           </div>
 
@@ -45,7 +45,7 @@
             <ul>
               <li>If your path leads <strong>off the board</strong>, your token is eliminated</li>
               <li>If two tokens are sent into the <strong>same point</strong>, both are out</li>
-              <li>You must place a tile each turn, even if it's risky</li>
+              <li>A tile in front of a rival's token can <strong>send them off the board</strong> — place to attack</li>
               <li>You draw back up to three tiles after each placement</li>
             </ul>
           </div>

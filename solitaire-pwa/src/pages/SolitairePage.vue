@@ -819,6 +819,7 @@ async function dealFromStock() {
   if (dealingCard.value) return // Prevent multiple clicks during animation
 
   haptics.light()
+  pushUndoState()
 
   if (stock.value.length === 0) {
     // Recycle waste back to stock - counts as a move
@@ -861,19 +862,57 @@ async function dealFromStock() {
   saveGameState()
 }
 
+// Snapshot the full board before a move so it can be reverted. Cards are plain
+// { id, suit, rank, faceUp } objects, so a JSON deep-clone is safe and isolates
+// the snapshot from later mutations (e.g. flipping a newly-exposed card).
+const MAX_UNDO = 200
+function pushUndoState() {
+  moves.value.push({
+    stock: JSON.parse(JSON.stringify(stock.value)),
+    waste: JSON.parse(JSON.stringify(waste.value)),
+    foundation: JSON.parse(JSON.stringify(foundation.value)),
+    tableau: JSON.parse(JSON.stringify(tableau.value)),
+    score: score.value,
+    moveCount: moveCount.value,
+  })
+  if (moves.value.length > MAX_UNDO) moves.value.shift()
+}
+
 function undo() {
   if (!canUndo.value) return
   haptics.light()
-  // TODO: Implement undo functionality
+  const prev = moves.value.pop()
+  // Snapshots are unique clones, so assigning them straight in is safe.
+  stock.value = prev.stock
+  waste.value = prev.waste
+  foundation.value = prev.foundation
+  tableau.value = prev.tableau
+  score.value = prev.score
+  moveCount.value = prev.moveCount
+  clearDrag()
+  trackMove()
+  saveGameState()
 }
 
 // Auto-move to foundation on double-click
 async function tryAutoMoveToFoundation(card, source, sourceElement) {
+  // Only the top card of a pile may be sent to a foundation — guards against a
+  // double-tap on a buried card popping the wrong (top) card.
+  if (source.type === 'tableau') {
+    const pile = tableau.value[source.index]
+    if (pile[pile.length - 1]?.id !== card.id) return false
+  } else if (source.type === 'waste') {
+    if (waste.value[waste.value.length - 1]?.id !== card.id) return false
+  } else if (source.type === 'foundation') {
+    if (foundation.value[source.index][foundation.value[source.index].length - 1]?.id !== card.id) return false
+  }
+
   // Find the correct foundation pile for this card
   const foundationIndex = card.suit
 
   if (canDropOnFoundation(foundationIndex, card)) {
     haptics.success()
+    pushUndoState()
 
     // Get source position
     const sourceRect = sourceElement.getBoundingClientRect()
@@ -950,9 +989,27 @@ async function handleCardClick(event, source, card, cards = [card]) {
   handleDragStart(event, source, card, cards)
 }
 
+// A grabbed tableau run is only legal if every card sits on a face-up card of
+// the opposite colour and one rank lower (standard Klondike).
+function isValidTableauRun(cards) {
+  for (let i = 0; i < cards.length - 1; i++) {
+    const upper = cards[i]
+    const lower = cards[i + 1]
+    if (!upper.faceUp || !lower.faceUp) return false
+    if (isRedCard(upper) === isRedCard(lower)) return false
+    if (lower.rank !== upper.rank - 1) return false
+  }
+  return true
+}
+
 // Drag and drop handlers
 function handleDragStart(event, source, card, cards = [card]) {
   event.preventDefault()
+
+  // Can't pick up an illegal pile of cards from the tableau
+  if (source.type === 'tableau' && cards.length > 1 && !isValidTableauRun(cards)) {
+    return
+  }
 
   const clientX = event.touches ? event.touches[0].clientX : event.clientX
   const clientY = event.touches ? event.touches[0].clientY : event.clientY
@@ -1102,6 +1159,7 @@ function dropOnFoundation(foundationIndex) {
   }
 
   haptics.success()
+  pushUndoState()
 
   // Remove card from source
   if (dragSource.value.type === 'waste') {
@@ -1153,6 +1211,7 @@ function dropOnTableau(tableauIndex) {
   }
 
   haptics.success()
+  pushUndoState()
 
   // Remove cards from source
   if (dragSource.value.type === 'waste') {
@@ -1194,6 +1253,7 @@ async function autoComplete() {
   if (!canAutoComplete.value) return
 
   haptics.light()
+  pushUndoState()
 
   // Continuously move cards to foundation until done
   let movedCard = true

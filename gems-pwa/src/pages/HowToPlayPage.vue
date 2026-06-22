@@ -43,9 +43,10 @@
             </div>
             <h2>Special Gems</h2>
             <ul>
-              <li>Match <strong>4</strong> to create a <strong>✛ blast</strong> — clears its whole row and column when cleared</li>
-              <li>Match <strong>5</strong> to create a <strong>★ bomb</strong> — clears every gem of that colour</li>
-              <li>Set off specials by matching them like any other gem</li>
+              <li>Match <strong>4</strong> to create a <strong>✛ blast</strong> — clears its whole row and column</li>
+              <li>Match <strong>5</strong> to create a <strong>★ bomb</strong> — clears every gem of one colour</li>
+              <li><strong>Swap a special</strong> with any gem to set it off — or match it like normal</li>
+              <li>Combine two specials for a bigger blast: <strong>✛+✛</strong> clears both lines, <strong>★+✛</strong> erupts a whole colour, <strong>★+★</strong> clears the board</li>
               <li>Chain reactions multiply your score — the longer the cascade, the better</li>
             </ul>
           </div>

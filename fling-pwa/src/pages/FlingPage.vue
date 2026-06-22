@@ -171,15 +171,34 @@ const LEVELS = [
 ]
 
 function genLevel(lvl) {
-  const n = Math.min(3 + Math.floor((lvl - 5) / 2), 6)
-  const blocks = [{ x: 215, y: G - 55, w: 22, h: 110 }] // a wall to arc over
+  // build real structures (tables / crate towers / sheltered targets) that the
+  // bird must topple — not a flat exposed row — and keep shots tight
+  const blocks = []
   const targets = []
-  const span = W - 50 - 250
-  for (let i = 0; i < n; i++) {
-    const x = 250 + (n === 1 ? span / 2 : Math.round((span * i) / (n - 1)))
-    targets.push({ x, y: G - 17, r: 16 })
+  const mods = Math.min(2 + Math.floor((lvl - 5) / 4), 3)
+  const left = 210
+  const right = 385
+  for (let i = 0; i < mods; i++) {
+    const cx = mods === 1 ? (left + right) / 2 : Math.round(left + ((right - left) * i) / (mods - 1))
+    const kind = (lvl + i) % 3
+    if (kind === 0) {
+      // a table with a target balanced on top
+      blocks.push({ x: cx - 26, y: G - 38, w: 18, h: 76 })
+      blocks.push({ x: cx + 26, y: G - 38, w: 18, h: 76 })
+      blocks.push({ x: cx, y: G - 85, w: 80, h: 16 })
+      targets.push({ x: cx, y: G - 110, r: 16 })
+    } else if (kind === 1) {
+      // a crate tower with a target perched up high
+      blocks.push({ x: cx, y: G - 20, w: 40, h: 40 })
+      blocks.push({ x: cx, y: G - 60, w: 40, h: 40 })
+      targets.push({ x: cx, y: G - 98, r: 16 })
+    } else {
+      // a wall sheltering a ground target — arc over or knock it through
+      blocks.push({ x: cx - 24, y: G - 48, w: 18, h: 96 })
+      targets.push({ x: cx + 18, y: G - 17, r: 16 })
+    }
   }
-  return { blocks, targets, shots: n + 2 }
+  return { blocks, targets, shots: targets.length + 1 }
 }
 
 // ---------- setup ----------
@@ -308,7 +327,9 @@ function endShot() {
 function win() {
   if (state.value !== 'playing') return
   state.value = 'won'
-  score.value += 200 + shots.value * 60 + level.value * 40
+  // the in-flight shot is spent, so leftover = remaining minus the one in the air
+  const leftover = Math.max(0, shots.value - (flying ? 1 : 0))
+  score.value += 200 + leftover * 60 + level.value * 40
   progressStore.recordFling(level.value, score.value, true)
   haptics.success()
 }
@@ -444,9 +465,12 @@ function drawTrajectory() {
   let py = SLING.y
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
   for (let i = 0; i < 32; i++) {
+    // match the bird's integration: gravity, then frictionAir damping, then move
+    vy += GP
+    vx *= 0.998
+    vy *= 0.998
     px += vx
     py += vy
-    vy += GP
     if (py > GROUND_Y - BIRD_R || px > W) break
     if (i % 2 === 0) {
       ctx.beginPath()

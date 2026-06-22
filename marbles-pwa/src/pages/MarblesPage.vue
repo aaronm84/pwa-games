@@ -96,6 +96,8 @@ let aimAngle = -Math.PI / 2
 let aiming = false
 let downPt = null
 let raf = null
+let particles = [] // pop bursts
+let floats = [] // floating combo text
 
 const bestScore = computed(() => Math.max(progressStore.marbles.bestScore, score.value))
 
@@ -132,12 +134,17 @@ function ballDist(i) {
 function startLevel() {
   cancelAnimationFrame(raf)
   buildPath()
-  const n = 26 + level.value * 4
+  // ramp difficulty by colour variety, with capped speed & length so endless
+  // levels stay winnable instead of running away
+  const colorCount = Math.min(3 + Math.floor((level.value - 1) / 2), COLORS.length)
+  const n = Math.min(26 + level.value * 4, 60)
   chain = []
-  for (let i = 0; i < n; i++) chain.push(Math.floor(Math.random() * COLORS.length))
+  for (let i = 0; i < n; i++) chain.push(Math.floor(Math.random() * colorCount))
   frontDist = 9 * SP
-  speed = 0.5 + level.value * 0.06
+  speed = Math.min(0.5 + level.value * 0.06, 1.4)
   fly = null
+  particles = []
+  floats = []
   cur = pickColor()
   nxt = pickColor()
   state.value = 'playing'
@@ -214,6 +221,8 @@ function draw() {
   }
   // flying
   if (fly) marble(fly.x, fly.y, COLORS[fly.color])
+  // pop bursts + combo text
+  drawFx()
 }
 function marble(x, y, color, scale = 1) {
   ctx.beginPath()
@@ -235,6 +244,7 @@ function loop() {
       if (fly) moveFly()
       if (chain.length && frontDist >= pathLen) lose()
     }
+    updateFx()
     draw()
     raf = requestAnimationFrame(step)
   }
@@ -253,7 +263,15 @@ function moveFly() {
       if (d < 0 || d > pathLen) continue
       const pos = posAt(d)
       if (Math.hypot(fly.x - pos.x, fly.y - pos.y) < 2 * R - 4) {
-        insertAt(i, fly.color)
+        // insert on the side the marble actually struck: compare proximity to
+        // the gap toward the hole (ahead of ball i) vs toward the tail (behind)
+        const ahead = posAt(ballDist(i) - SP * 0.5)
+        const behind = posAt(ballDist(i) + SP * 0.5)
+        const idx =
+          Math.hypot(fly.x - behind.x, fly.y - behind.y) <= Math.hypot(fly.x - ahead.x, fly.y - ahead.y)
+            ? i + 1
+            : i
+        insertAt(idx, fly.color)
         fly = null
         return
       }
@@ -266,7 +284,18 @@ function insertAt(i, color) {
   chain.splice(i, 0, color)
   resolveMatches()
   chainLen.value = chain.length
-  if (chain.length === 0) winLevel()
+  if (chain.length === 0) {
+    winLevel()
+    return
+  }
+  reculColors()
+}
+
+function reculColors() {
+  // never leave the launcher holding a colour that's no longer on the chain
+  const present = new Set(chain)
+  if (!present.has(cur)) cur = pickColor()
+  if (!present.has(nxt)) nxt = pickColor()
 }
 
 function resolveMatches() {
@@ -286,11 +315,71 @@ function resolveMatches() {
     const count = found - runStart + 1
     combo++
     score.value += count * 10 * combo
+    // burst each popped marble so the clear is visible, before the chain shifts
+    const popColor = COLORS[chain[runStart]]
+    for (let i = runStart; i <= found; i++) {
+      const d = ballDist(i)
+      if (d >= 0 && d <= pathLen) spawnBurst(posAt(d), popColor)
+    }
+    if (combo >= 2) {
+      const d = Math.max(0, Math.min(pathLen, ballDist(runStart)))
+      spawnFloat(posAt(d), `COMBO ×${combo}`)
+    }
     chain.splice(runStart, count)
-    if (runStart === 0) frontDist -= count * SP
+    if (runStart === 0) frontDist = Math.max(0, frontDist - count * SP)
     haptics.light()
   }
   if (combo > 1) haptics.success()
+}
+
+// ---------- pop effects ----------
+function spawnBurst(pos, color) {
+  for (let k = 0; k < 9; k++) {
+    const a = Math.random() * Math.PI * 2
+    const sp = 1 + Math.random() * 3.2
+    particles.push({
+      x: pos.x, y: pos.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0, max: 26 + Math.random() * 12, color, r: 2 + Math.random() * 3,
+    })
+  }
+}
+function spawnFloat(pos, text) {
+  floats.push({ x: pos.x, y: pos.y, text, life: 0, max: 52 })
+}
+function updateFx() {
+  for (const p of particles) {
+    p.life++
+    p.x += p.vx
+    p.y += p.vy
+    p.vy += 0.12
+    p.vx *= 0.96
+  }
+  particles = particles.filter((p) => p.life < p.max)
+  for (const f of floats) f.y -= 0.8, f.life++
+  floats = floats.filter((f) => f.life < f.max)
+}
+function drawFx() {
+  for (const p of particles) {
+    const t = p.life / p.max
+    ctx.globalAlpha = 1 - t
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, p.r * (1 - t * 0.5), 0, 6.28)
+    ctx.fillStyle = p.color
+    ctx.fill()
+  }
+  ctx.globalAlpha = 1
+  ctx.textAlign = 'center'
+  ctx.font = 'bold 22px sans-serif'
+  for (const f of floats) {
+    const t = f.life / f.max
+    ctx.globalAlpha = t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'
+    ctx.shadowBlur = 6
+    ctx.fillStyle = '#fff59d'
+    ctx.fillText(f.text, f.x, f.y)
+    ctx.shadowBlur = 0
+  }
+  ctx.globalAlpha = 1
 }
 
 function lose() {

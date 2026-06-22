@@ -184,13 +184,19 @@ const matchOver = ref(false)
 const roundWinner = ref('player')
 
 const inv = reactive({ nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
+// the CPU has its own stock + wallet so the shop economy is symmetric, not a
+// free, infinite arsenal it never has to ration
+const aiInv = reactive({ nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
+const aiMoney = ref(0)
 
+let tracerShot = false
 let ctx = null
 let ground = new Float32Array(W)
 let player = { x: 120, y: 0 }
 let ai = { x: W - 120, y: 0 }
 let projectiles = []
 let explosions = []
+let floats = [] // floating damage / cash popups
 let tracerMark = null
 let shooter = 'player'
 let aimDragging = false
@@ -235,8 +241,9 @@ function settleTanks(fall = false) {
     const ny = groundAt(t.x)
     if (fall && ny - t.y > 18) {
       const drop = ny - t.y
-      if (t === player && inv.parachute > 0) {
-        inv.parachute--
+      const chutes = t === player ? inv : aiInv
+      if (chutes.parachute > 0) {
+        chutes.parachute--
       } else {
         damageTank(t, Math.min(45, Math.round((drop - 18) * 0.4)))
       }
@@ -295,6 +302,7 @@ function draw() {
     ctx.fillStyle = `rgba(255,${Math.round(170 - e.t * 130)},40,${(0.85 - e.t * 0.8).toFixed(3)})`
     ctx.fill()
   }
+  drawFloats()
 }
 function drawTank(t, color, hp, shield) {
   ctx.save()
@@ -405,7 +413,8 @@ function playerFire() {
   if (!w.infinite && inv[key] <= 0) return
   if (!w.infinite) inv[key]--
   shooter = 'player'
-  tracerMark = null
+  tracerShot = key === 'tracer'
+  if (!tracerShot) tracerMark = null
   fireProjectile(spawn(player, angleDeg.value, power.value, key, 1))
 }
 function fireProjectile(p) {
@@ -426,8 +435,9 @@ function loop() {
       e.r = e.maxR * Math.min(1, e.t * 1.6)
     }
     explosions = explosions.filter((e) => e.t < 1)
+    updateFloats()
     draw()
-    if (projectiles.length === 0 && explosions.length === 0) {
+    if (projectiles.length === 0 && explosions.length === 0 && floats.length === 0) {
       afterVolley()
       return
     }
@@ -528,9 +538,41 @@ function blastDamage(x, y, blast, dmg) {
       const before = t === player ? playerHp.value : aiHp.value
       damageTank(t, dm)
       const dealt = before - (t === player ? playerHp.value : aiHp.value)
-      if (shooter === 'player' && t === ai && dealt > 0) money.value += dealt * 2
+      if (dm > 0) {
+        if (dealt > 0) spawnFloat(t.x, t.y - 30, '-' + dealt, '#ff5252')
+        else spawnFloat(t.x, t.y - 30, '🛡', '#7fdfff') // shield ate it all
+      }
+      if (shooter === 'player' && t === ai && dealt > 0) {
+        money.value += dealt * 2
+        spawnFloat(ai.x, ai.y - 52, '+$' + dealt * 2, '#ffd54f')
+      }
+      if (shooter === 'ai' && t === player && dealt > 0) aiMoney.value += dealt * 2
     }
   }
+}
+function spawnFloat(x, y, text, color) {
+  floats.push({ x, y, text, color, life: 0, max: 34 })
+}
+function updateFloats() {
+  for (const f of floats) {
+    f.y -= 1.1
+    f.life++
+  }
+  floats = floats.filter((f) => f.life < f.max)
+}
+function drawFloats() {
+  ctx.textAlign = 'center'
+  ctx.font = 'bold 22px sans-serif'
+  for (const f of floats) {
+    const t = f.life / f.max
+    ctx.globalAlpha = t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85
+    ctx.fillStyle = f.color
+    ctx.shadowColor = 'rgba(0,0,0,0.7)'
+    ctx.shadowBlur = 6
+    ctx.fillText(f.text, f.x, f.y)
+    ctx.shadowBlur = 0
+  }
+  ctx.globalAlpha = 1
 }
 function damageTank(t, dmg) {
   if (dmg <= 0) return
@@ -550,6 +592,14 @@ function afterVolley() {
     endRound()
     return
   }
+  // a tracer is a free ranging shot — keep the turn (and the same wind) so the
+  // mark actually helps you line up the real shot
+  if (shooter === 'player' && tracerShot) {
+    tracerShot = false
+    state.value = 'aiming'
+    draw()
+    return
+  }
   newWind()
   if (shooter === 'player') {
     state.value = 'ai'
@@ -562,13 +612,36 @@ function afterVolley() {
   }
 }
 
+function aiChooseWeapon() {
+  // favour a nuke while the player is healthy; otherwise sometimes another
+  // special — but only what's actually in stock, else the infinite missile
+  if (aiInv.nuke > 0 && playerHp.value > 55 && Math.random() < 0.6) return 'nuke'
+  const specials = []
+  if (aiInv.nuke > 0) specials.push('nuke')
+  if (aiInv.mirv > 0) specials.push('mirv')
+  if (aiInv.roller > 0) specials.push('roller')
+  if (specials.length && Math.random() < 0.45) return specials[Math.floor(Math.random() * specials.length)]
+  return 'missile'
+}
+
 function aiTurn() {
   if (state.value !== 'ai') return
+  // defensive utilities before firing
+  if (aiHp.value <= 45 && aiInv.repair > 0) {
+    aiInv.repair--
+    aiHp.value = Math.min(100, aiHp.value + 45)
+  }
+  if (aiHp.value <= 60 && aiShield.value === 0 && aiInv.shield > 0 && Math.random() < 0.7) {
+    aiInv.shield--
+    aiShield.value += 50
+  }
   const sol = aiSolve()
-  aiAngle = sol.ang + (Math.random() * 2 - 1) * 5
-  const pw = Math.min(1000, Math.max(120, sol.pw + (Math.random() * 2 - 1) * 70))
-  const r = Math.random()
-  const key = r < 0.18 ? 'mirv' : r < 0.32 ? 'roller' : r < 0.42 ? 'nuke' : 'missile'
+  // aim tightens as the match wears on, so a best-of-5 escalates in tension
+  const acc = Math.max(0.4, 1 - (round.value - 1) * 0.13)
+  aiAngle = sol.ang + (Math.random() * 2 - 1) * 5 * acc
+  const pw = Math.min(1000, Math.max(120, sol.pw + (Math.random() * 2 - 1) * 70 * acc))
+  const key = aiChooseWeapon()
+  if (key !== 'missile' && key !== 'tracer') aiInv[key]--
   shooter = 'ai'
   fireProjectile(spawn(ai, aiAngle, pw, key, -1))
 }
@@ -579,9 +652,11 @@ function endRound() {
   if (roundWinner.value === 'player') {
     playerWins.value++
     money.value += 70
+    aiMoney.value += 25
   } else {
     aiWins.value++
     money.value += 25
+    aiMoney.value += 70
   }
   draw()
   if (playerWins.value >= WIN_ROUNDS || aiWins.value >= WIN_ROUNDS) {
@@ -597,6 +672,7 @@ function endRound() {
 }
 function startRound() {
   shopOpen.value = false
+  aiAutoBuy()
   round.value++
   playerHp.value = 100
   aiHp.value = 100
@@ -605,6 +681,7 @@ function startRound() {
   fuel.value = 4
   projectiles = []
   explosions = []
+  floats = []
   tracerMark = null
   shooter = 'player'
   genTerrain()
@@ -623,6 +700,9 @@ function newMatch() {
   aiWins.value = 0
   money.value = 100
   Object.assign(inv, { nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
+  Object.assign(aiInv, { nuke: 1, mirv: 1, roller: 1, repair: 1, shield: 1, parachute: 1 })
+  aiMoney.value = 0
+  tracerShot = false
   playerHp.value = 100
   aiHp.value = 100
   playerShield.value = 0
@@ -630,6 +710,7 @@ function newMatch() {
   fuel.value = 4
   projectiles = []
   explosions = []
+  floats = []
   tracerMark = null
   shooter = 'player'
   selected.value = 'missile'
@@ -649,6 +730,28 @@ function buy(item) {
   money.value -= item.cost
   inv[item.key] = (inv[item.key] || 0) + 1
   haptics.light()
+}
+function aiAutoBuy() {
+  // the CPU spends its winnings on a simple priority list between rounds
+  const plan = [
+    { key: 'shield', cost: 90, max: 2 },
+    { key: 'nuke', cost: 120, max: 2 },
+    { key: 'repair', cost: 70, max: 2 },
+    { key: 'roller', cost: 100, max: 1 },
+    { key: 'mirv', cost: 150, max: 1 },
+    { key: 'parachute', cost: 40, max: 1 },
+  ]
+  let bought = true
+  while (bought) {
+    bought = false
+    for (const it of plan) {
+      if (aiMoney.value >= it.cost && (aiInv[it.key] || 0) < it.max) {
+        aiMoney.value -= it.cost
+        aiInv[it.key]++
+        bought = true
+      }
+    }
+  }
 }
 function useRepair() {
   if (inv.repair <= 0 || playerHp.value >= 100) return
@@ -700,7 +803,7 @@ function updateAim(e) {
   let ang = (Math.atan2(-dy, dx) * 180) / Math.PI
   ang = Math.max(1, Math.min(179, ang))
   angleDeg.value = Math.round(ang)
-  power.value = Math.round(Math.max(50, Math.min(1000, (Math.hypot(dx, dy) / 260) * 1000)))
+  power.value = Math.round(Math.max(50, Math.min(1000, (Math.hypot(dx, dy) / 380) * 1000)))
   draw()
 }
 function onUp() {
