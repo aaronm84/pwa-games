@@ -72,7 +72,7 @@ import tgSmallSrc from 'src/assets/fling/target-small.png'
 import tgToughSrc from 'src/assets/fling/target-tough.png'
 import blockWoodSrc from 'src/assets/fling/block-wood.png'
 
-const { Engine, World, Bodies, Body, Events } = Matter
+const { Engine, World, Bodies, Body, Events, Sleeping } = Matter
 
 // preload sprites; rendering falls back to canvas shapes until they're ready
 const IMG = {}
@@ -264,9 +264,10 @@ function startLevel() {
     World.clear(world, false)
     Engine.clear(engine)
   }
-  // sleeping disabled: a target resting on a structure would otherwise stay
-  // asleep (and float) when the blocks under it get knocked away
-  engine = Engine.create({ enableSleeping: false })
+  // sleeping ON so resting targets settle and stay put between shots (no
+  // auto-rolling); we explicitly wake the structure during a shot so a target
+  // still falls when the blocks under it are knocked away (see loop)
+  engine = Engine.create({ enableSleeping: true })
   engine.gravity.y = GRAVY
   world = engine.world
 
@@ -414,6 +415,13 @@ function loop() {
   cancelAnimationFrame(raf)
   const step = () => {
     if (state.value === 'playing') {
+      // while a shot is live, keep the structure awake so a target whose support
+      // is knocked out actually falls (a sleeping body wouldn't notice). Once
+      // woken it stays awake ~1s, long enough to finish any collapse, then sleeps.
+      if (flying) {
+        for (const b of blocks) Sleeping.set(b, false)
+        for (const t of targets) Sleeping.set(t, false)
+      }
       Engine.update(engine, 1000 / 60)
       cleanup()
       for (const t of targets) if (t.gHurt > 0) t.gHurt--
