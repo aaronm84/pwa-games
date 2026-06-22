@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.wildcard",
+  "appName": "Wildcard",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#2e2140",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#2e2140"
+}
