@@ -123,6 +123,21 @@ import { useRouter } from 'vue-router'
 import { useThemeStore } from 'src/stores/theme'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
+// Kenney "Tower Defense (Top-Down)" sprites (CC0) — src/assets/towers/KENNEY-LICENSE.txt
+import grassSrc from 'src/assets/towers/grass.png'
+import towerCannonSrc from 'src/assets/towers/tower-cannon.png'
+import towerMortarSrc from 'src/assets/towers/tower-mortar.png'
+import towerFrostSrc from 'src/assets/towers/tower-frost.png'
+import towerTeslaSrc from 'src/assets/towers/tower-tesla.png'
+import towerSniperSrc from 'src/assets/towers/tower-sniper.png'
+import towerPoisonSrc from 'src/assets/towers/tower-poison.png'
+import enemyGruntSrc from 'src/assets/towers/enemy-grunt.png'
+import enemyRunnerSrc from 'src/assets/towers/enemy-runner.png'
+import enemyArmoredSrc from 'src/assets/towers/enemy-armored.png'
+import enemyBruteSrc from 'src/assets/towers/enemy-brute.png'
+import enemyFlyerSrc from 'src/assets/towers/enemy-flyer.png'
+import projBulletSrc from 'src/assets/towers/proj-bullet.png'
+import projMissileSrc from 'src/assets/towers/proj-missile.png'
 
 // ---------- geometry ----------
 const COLS = 8
@@ -138,12 +153,62 @@ const haptics = useHaptics()
 
 const canvasEl = ref(null)
 
+// ---------- sprites ----------
+const IMG = {}
+for (const [key, src] of Object.entries({
+  grass: grassSrc,
+  towerCannon: towerCannonSrc, towerMortar: towerMortarSrc, towerFrost: towerFrostSrc,
+  towerTesla: towerTeslaSrc, towerSniper: towerSniperSrc, towerPoison: towerPoisonSrc,
+  enemyGrunt: enemyGruntSrc, enemyRunner: enemyRunnerSrc, enemyArmored: enemyArmoredSrc,
+  enemyBrute: enemyBruteSrc, enemyFlyer: enemyFlyerSrc,
+  projBullet: projBulletSrc, projMissile: projMissileSrc,
+})) {
+  const im = new Image()
+  im.src = src
+  IMG[key] = im
+}
+// re-render the static board once the grass tile is available
+IMG.grass.addEventListener('load', () => {
+  if (samples.length) renderStaticLayer()
+})
+// cache of colour-tinted sprite canvases (tint only where the sprite is opaque)
+const TINTED = {}
+function tinted(key, color) {
+  const ck = key + '|' + color
+  if (TINTED[ck]) return TINTED[ck]
+  const im = IMG[key]
+  if (!im || !im.complete || !im.naturalWidth) return null
+  const cv = document.createElement('canvas')
+  cv.width = im.naturalWidth
+  cv.height = im.naturalHeight
+  const g = cv.getContext('2d')
+  g.drawImage(im, 0, 0)
+  g.globalCompositeOperation = 'source-atop'
+  g.fillStyle = color
+  g.fillRect(0, 0, cv.width, cv.height)
+  TINTED[ck] = cv
+  return cv
+}
+function drawSprite(key, x, y, w, h, angle, tint) {
+  let src = tint ? tinted(key, tint) : IMG[key]
+  if (!src) src = IMG[key]
+  if (!src || (!src.naturalWidth && !src.width)) return false
+  ctx.save()
+  ctx.translate(x, y)
+  if (angle) ctx.rotate(angle)
+  ctx.drawImage(src, -w / 2, -h / 2, w, h)
+  ctx.restore()
+  return true
+}
+
 // ---------- towers ----------
 const TOWERS = {
-  cannon: { name: 'Cannon', tag: 'ground', cost: 70, range: 130, rate: 1.1, dmg: 18, air: false, color: '#bcaaa4', proj: 'bolt' },
-  mortar: { name: 'Mortar', tag: 'splash', cost: 120, range: 155, rate: 0.5, dmg: 22, air: false, splash: 42, color: '#90a4ae', proj: 'lob' },
-  frost: { name: 'Frost', tag: 'air · slow', cost: 90, range: 115, rate: 0.9, dmg: 6, air: true, slow: 0.55, slowDur: 1.5, color: '#4fc3f7', proj: 'frost' },
-  tesla: { name: 'Tesla', tag: 'air · chain', cost: 150, range: 125, rate: 1.3, dmg: 14, air: true, chain: 2, color: '#ce93d8', proj: 'spark' },
+  cannon: { name: 'Cannon', tag: 'ground', cost: 70, range: 130, rate: 1.1, dmg: 18, air: false, color: '#bcaaa4', img: 'towerCannon' },
+  mortar: { name: 'Mortar', tag: 'splash', cost: 120, range: 155, rate: 0.5, dmg: 22, air: false, splash: 42, color: '#90a4ae', img: 'towerMortar' },
+  frost: { name: 'Frost', tag: 'air·slow', cost: 90, range: 115, rate: 0.9, dmg: 6, air: true, slow: 0.55, slowDur: 1.5, color: '#4fc3f7', img: 'towerFrost', tint: 'rgba(79,195,247,0.55)' },
+  tesla: { name: 'Tesla', tag: 'air·chain', cost: 150, range: 125, rate: 1.3, dmg: 14, air: true, chain: 2, color: '#ce93d8', img: 'towerTesla', tint: 'rgba(206,147,216,0.6)' },
+  sniper: { name: 'Sniper', tag: 'long·pierce', cost: 160, range: 250, rate: 0.5, dmg: 55, air: false, pierce: true, color: '#a1887f', img: 'towerSniper', tint: 'rgba(120,144,156,0.35)' },
+  poison: { name: 'Poison', tag: 'toxin·DoT', cost: 110, range: 120, rate: 0.8, dmg: 4, air: false, poison: 9, poisonDur: 3, color: '#9ccc65', img: 'towerPoison' },
 }
 const towerList = Object.entries(TOWERS).map(([key, t]) => ({ key, ...t }))
 
@@ -162,18 +227,22 @@ function towerRate(t) {
 
 // ---------- enemies ----------
 const ENEMIES = {
-  grunt: { name: 'Grunt', hp: 14, speed: 36, reward: 4, leak: 1, air: false, r: 11, color: '#ef5350' },
-  runner: { name: 'Runner', hp: 9, speed: 66, reward: 3, leak: 1, air: false, r: 9, color: '#ffb300' },
-  armored: { name: 'Armored', hp: 30, speed: 32, reward: 7, leak: 2, air: false, armor: 6, r: 13, color: '#90a4ae' },
-  brute: { name: 'Brute', hp: 48, speed: 24, reward: 9, leak: 2, air: false, r: 16, color: '#8d6e63' },
-  flyer: { name: 'Flyer', hp: 20, speed: 46, reward: 6, leak: 1, air: true, r: 11, color: '#ab47bc' },
-  boss: { name: 'Boss', hp: 340, speed: 20, reward: 60, leak: 6, air: false, boss: true, r: 22, color: '#c62828' },
+  grunt: { name: 'Grunt', hp: 14, speed: 36, reward: 4, leak: 1, air: false, r: 14, color: '#ef5350', img: 'enemyGrunt' },
+  runner: { name: 'Runner', hp: 9, speed: 66, reward: 3, leak: 1, air: false, r: 11, color: '#ffb300', img: 'enemyRunner' },
+  armored: { name: 'Armored', hp: 30, speed: 32, reward: 7, leak: 2, air: false, armor: 6, r: 15, color: '#90a4ae', img: 'enemyArmored' },
+  brute: { name: 'Brute', hp: 48, speed: 24, reward: 9, leak: 2, air: false, r: 20, color: '#8d6e63', img: 'enemyBrute' },
+  flyer: { name: 'Flyer', hp: 20, speed: 46, reward: 6, leak: 1, air: true, r: 15, color: '#ab47bc', img: 'enemyFlyer' },
+  // healer slowly mends nearby enemies; splitter bursts into grunts when it dies
+  healer: { name: 'Healer', hp: 26, speed: 30, reward: 8, leak: 1, air: false, r: 14, color: '#26c6da', img: 'enemyGrunt', tint: 'rgba(38,198,218,0.6)', heal: 7, healRange: 80 },
+  splitter: { name: 'Splitter', hp: 22, speed: 40, reward: 6, leak: 1, air: false, r: 15, color: '#7e57c2', img: 'enemyRunner', tint: 'rgba(126,87,194,0.6)', splits: 2 },
+  boss: { name: 'Boss', hp: 340, speed: 20, reward: 60, leak: 6, air: false, boss: true, r: 30, color: '#c62828', img: 'enemyBrute', tint: 'rgba(140,20,20,0.45)' },
 }
 
 function waveScript(w) {
   if (w % 10 === 0) {
     return [
       { type: 'boss', count: 1, gap: 0 },
+      { type: 'healer', count: 1 + Math.floor(w / 10), gap: 0.8 },
       { type: 'grunt', count: 6 + Math.floor(w / 2), gap: 0.5 },
       { type: 'flyer', count: 4 + Math.floor(w / 3), gap: 0.5 },
     ]
@@ -183,6 +252,8 @@ function waveScript(w) {
   if (w >= 4) groups.push({ type: 'armored', count: Math.round(1 + w * 0.25), gap: 0.6 })
   if (w >= 5) groups.push({ type: 'flyer', count: Math.round(2 + w * 0.3), gap: 0.5 })
   if (w >= 6) groups.push({ type: 'brute', count: Math.round(1 + w * 0.2), gap: 0.9 })
+  if (w >= 7) groups.push({ type: 'healer', count: Math.round(1 + w * 0.12), gap: 1.0 })
+  if (w >= 8) groups.push({ type: 'splitter', count: Math.round(1 + w * 0.18), gap: 0.7 })
   return groups
 }
 function enemyHp(type, w) {
@@ -200,6 +271,21 @@ const maps = [
     name: 'Hairpin',
     desc: 'Wider sweeps — fewer but longer firing lanes',
     corners: [[0, 6], [3, 6], [3, 1], [6, 1], [6, 6], [9, 6], [9, 2], [11, 2]],
+  },
+  {
+    name: 'Zigzag',
+    desc: 'Tight staircase — towers cover two lanes at once',
+    corners: [[0, 2], [3, 2], [3, 5], [6, 5], [6, 2], [9, 2], [9, 5], [11, 5]],
+  },
+  {
+    name: 'Esses',
+    desc: 'Long S-curves that double back past your guns',
+    corners: [[0, 6], [2, 6], [2, 1], [5, 1], [5, 6], [8, 6], [8, 1], [11, 1]],
+  },
+  {
+    name: 'Long March',
+    desc: 'The longest road — maximum time on target',
+    corners: [[0, 3], [1, 3], [1, 6], [4, 6], [4, 1], [7, 1], [7, 6], [10, 6], [10, 2], [11, 2]],
   },
 ]
 
@@ -288,29 +374,35 @@ function renderStaticLayer() {
   cv.width = W
   cv.height = H
   const g = cv.getContext('2d')
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      if (pathCells.has(r * COLS + c)) continue
-      g.fillStyle = 'rgba(255,255,255,0.05)'
-      g.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4)
-      g.strokeStyle = 'rgba(255,255,255,0.07)'
-      g.strokeRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4)
-    }
+  // grassy field (tiled sprite, or a flat green fallback until it loads)
+  const grass = IMG.grass
+  if (grass && grass.complete && grass.naturalWidth) {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) g.drawImage(grass, c * CELL, r * CELL, CELL, CELL)
+  } else {
+    g.fillStyle = '#5a9e54'
+    g.fillRect(0, 0, W, H)
   }
+  // dirt road ribbon along the path
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
   g.beginPath()
   g.moveTo(samples[0].x, samples[0].y)
   for (let i = 1; i < samples.length; i += 3) g.lineTo(samples[i].x, samples[i].y)
-  g.strokeStyle = 'rgba(0,0,0,0.32)'
-  g.lineWidth = CELL - 8
-  g.lineCap = 'round'
-  g.lineJoin = 'round'
+  g.strokeStyle = 'rgba(60,42,26,0.55)'
+  g.lineWidth = CELL - 6
   g.stroke()
-  g.strokeStyle = 'rgba(255,255,255,0.10)'
-  g.lineWidth = CELL - 20
+  g.strokeStyle = '#8a6a44'
+  g.lineWidth = CELL - 14
   g.stroke()
+  g.strokeStyle = '#9d7c52'
+  g.lineWidth = CELL - 26
+  g.stroke()
+  // gate at the exit
   const exit = samples[samples.length - 1]
-  g.fillStyle = 'rgba(255,80,80,0.7)'
-  g.fillRect(exit.x - 26, exit.y - 8, 52, 10)
+  g.fillStyle = 'rgba(210,55,55,0.9)'
+  g.fillRect(exit.x - 26, exit.y - 9, 52, 12)
+  g.fillStyle = 'rgba(255,255,255,0.25)'
+  g.fillRect(exit.x - 26, exit.y - 9, 52, 3)
   staticLayer = cv
 }
 
@@ -407,11 +499,14 @@ function startWave() {
   haptics.medium()
   bump()
 }
-function spawnEnemy(type) {
+function spawnAt(type, dist) {
   const def = ENEMIES[type]
   const hp = enemyHp(type, wave.value)
-  enemies.push({ type, def, dist: 0, hp, maxHp: hp, slowT: 0, slowMag: 1, dead: false, x: 0, y: 0 })
+  enemies.push({ type, def, dist: Math.max(0, dist), hp, maxHp: hp, slowT: 0, slowMag: 1, poisonT: 0, poisonDps: 0, dead: false, x: 0, y: 0 })
   if (def.boss) haptics.heavy()
+}
+function spawnEnemy(type) {
+  spawnAt(type, 0)
 }
 
 // ---------- combat update ----------
@@ -423,6 +518,15 @@ function update(dt) {
 
   for (const e of enemies) {
     if (e.dead) continue
+    // poison damage-over-time
+    if (e.poisonT > 0) {
+      e.poisonT -= dt
+      e.hp -= e.poisonDps * dt
+      if (e.hp <= 0) {
+        killEnemy(e)
+        continue
+      }
+    }
     if (e.slowT > 0) e.slowT -= dt
     const slow = e.slowT > 0 ? (e.def.boss ? Math.max(0.85, e.slowMag) : e.slowMag) : 1
     e.dist += e.def.speed * slow * dt
@@ -436,6 +540,15 @@ function update(dt) {
       lives.value -= e.def.leak
       spawnFloat(W / 2, H - 30, `-${e.def.leak} ♥`, '#ff6b6b')
       haptics.heavy()
+    }
+  }
+
+  // healers mend nearby wounded enemies
+  for (const h of enemies) {
+    if (h.dead || !h.def.heal) continue
+    for (const e of enemies) {
+      if (e === h || e.dead || e.hp >= e.maxHp) continue
+      if (Math.hypot(e.x - h.x, e.y - h.y) <= h.def.healRange) e.hp = Math.min(e.maxHp, e.hp + h.def.heal * dt)
     }
   }
 
@@ -544,10 +657,16 @@ function fire(t, target) {
     return
   }
   if (t.key === 'mortar') {
-    projectiles.push({ kind: 'lob', sx: t.x, sy: t.y, tx: target.x, ty: target.y, t: 0, dur: 0.55, dmg, splash: base.splash, x: t.x, y: t.y })
+    projectiles.push({ kind: 'lob', sx: t.x, sy: t.y, tx: target.x, ty: target.y, t: 0, dur: 0.55, dmg, splash: base.splash, x: t.x, y: t.y, vis: 'missile' })
     return
   }
-  projectiles.push({ kind: 'homing', x: t.x, y: t.y, target, speed: 420, dmg, color: base.color, slow: base.slow || 0, slowDur: base.slowDur || 0 })
+  projectiles.push({
+    kind: 'homing', x: t.x, y: t.y, target,
+    speed: t.key === 'sniper' ? 720 : 420, dmg, color: base.color,
+    slow: base.slow || 0, slowDur: base.slowDur || 0,
+    pierce: !!base.pierce, poison: base.poison || 0, poisonDur: base.poisonDur || 0,
+    vis: t.key === 'frost' ? 'frost' : t.key === 'poison' ? 'poison' : 'bullet',
+  })
 }
 
 function teslaChain(t, target, dmg, chain) {
@@ -576,10 +695,14 @@ function teslaChain(t, target, dmg, chain) {
 }
 
 function applyHit(e, p) {
-  dealDamage(e, p.dmg)
+  dealDamage(e, p.dmg, p.pierce)
   if (p.slow) {
     e.slowT = Math.max(e.slowT, p.slowDur)
     e.slowMag = p.slow
+  }
+  if (p.poison) {
+    e.poisonT = Math.max(e.poisonT || 0, p.poisonDur)
+    e.poisonDps = Math.max(e.poisonDps || 0, p.poison)
   }
   spawnSpark(e.x, e.y, p.color || '#fff')
 }
@@ -591,18 +714,22 @@ function mortarSplash(x, y, dmg, radius) {
   }
   spawnSpark(x, y, '#ffcc80', 10)
 }
-function dealDamage(e, dmg) {
+function dealDamage(e, dmg, pierce) {
   if (e.dead) return
-  const armor = e.def.armor || 0
+  const armor = pierce ? 0 : e.def.armor || 0
   const d = Math.max(1, Math.round(dmg) - armor)
   e.hp -= d
-  if (e.hp <= 0) {
-    e.dead = true
-    gold.value += e.def.reward
-    goldEarned += e.def.reward
-    spawnFloat(e.x, e.y - 12, `+$${e.def.reward}`, '#ffe082')
-    spawnSpark(e.x, e.y, e.def.color, e.def.boss ? 20 : 8)
-  }
+  if (e.hp <= 0) killEnemy(e)
+}
+function killEnemy(e) {
+  if (e.dead) return
+  e.dead = true
+  gold.value += e.def.reward
+  goldEarned += e.def.reward
+  spawnFloat(e.x, e.y - 12, `+$${e.def.reward}`, '#ffe082')
+  spawnSpark(e.x, e.y, e.def.color, e.def.boss ? 20 : 8)
+  // splitters burst into a couple of grunts where they fell
+  if (e.def.splits) for (let i = 0; i < e.def.splits; i++) spawnAt('grunt', e.dist + (i ? -7 : 7))
 }
 
 // ---------- fx ----------
@@ -634,12 +761,20 @@ function draw() {
   for (const e of enemies) drawEnemy(e)
 
   for (const p of projectiles) {
-    if (p.kind === 'lob') {
-      ctx.fillStyle = '#cfd8dc'
+    if (p.vis === 'missile') {
+      const a = Math.atan2(p.ty - p.sy, p.tx - p.sx) + Math.PI / 2
+      if (!drawSprite('projMissile', p.x, p.y, 18, 18, a)) {
+        ctx.fillStyle = '#cfd8dc'
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 5, 0, 6.28)
+        ctx.fill()
+      }
+    } else if (p.vis === 'frost' || p.vis === 'poison') {
+      ctx.fillStyle = p.vis === 'frost' ? '#7fe0ff' : '#aadd55'
       ctx.beginPath()
-      ctx.arc(p.x, p.y, 5, 0, 6.28)
+      ctx.arc(p.x, p.y, 4.5, 0, 6.28)
       ctx.fill()
-    } else {
+    } else if (!drawSprite('projBullet', p.x, p.y, 11, 11)) {
       ctx.strokeStyle = p.color || '#fff'
       ctx.lineWidth = 3
       const back = p.target ? norm(p.x - p.target.x, p.y - p.target.y) : { x: 0, y: 0 }
@@ -706,60 +841,76 @@ function drawRange(x, y, r, tone) {
 }
 function drawTower(t) {
   const base = TOWERS[t.key]
+  // colour-coded base platform
   ctx.save()
   ctx.translate(t.x, t.y)
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'
+  ctx.fillStyle = 'rgba(0,0,0,0.30)'
   ctx.beginPath()
-  ctx.arc(0, 0, 20, 0, 6.28)
+  ctx.arc(0, 2, 19, 0, 6.28)
   ctx.fill()
   ctx.fillStyle = base.color
   ctx.beginPath()
-  ctx.arc(0, 0, 16, 0, 6.28)
+  ctx.arc(0, 0, 17, 0, 6.28)
   ctx.fill()
-  ctx.rotate(t.angle || -Math.PI / 2)
-  ctx.fillStyle = 'rgba(0,0,0,0.5)'
-  ctx.fillRect(0, -4, 22, 8)
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'
+  ctx.lineWidth = 2
+  ctx.stroke()
   ctx.restore()
+  // turret top sprite, rotated to aim (Kenney tops point up → +90°)
+  const ang = (t.angle ?? -Math.PI / 2) + Math.PI / 2
+  if (!drawSprite(base.img, t.x, t.y, 38, 38, ang, base.tint)) {
+    ctx.save()
+    ctx.translate(t.x, t.y)
+    ctx.rotate(t.angle || -Math.PI / 2)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    ctx.fillRect(0, -4, 22, 8)
+    ctx.restore()
+  }
   for (let i = 0; i < t.level; i++) {
     ctx.fillStyle = '#fff'
     ctx.beginPath()
-    ctx.arc(t.x - 8 + i * 8, t.y + 22, 2.2, 0, 6.28)
+    ctx.arc(t.x - 8 + i * 8, t.y + 21, 2.2, 0, 6.28)
     ctx.fill()
   }
 }
 function drawEnemy(e) {
   const def = e.def
+  const sz = def.r * 2.4
   if (def.air) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'
     ctx.beginPath()
-    ctx.ellipse(e.x, e.y + 12, def.r * 0.8, def.r * 0.3, 0, 0, 6.28)
+    ctx.ellipse(e.x, e.y + def.r * 0.85, def.r * 0.8, def.r * 0.3, 0, 0, 6.28)
     ctx.fill()
   }
-  ctx.fillStyle = e.slowT > 0 ? '#80d8ff' : def.color
-  ctx.beginPath()
-  ctx.arc(e.x, e.y, def.r, 0, 6.28)
-  ctx.fill()
-  if (def.armor) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)'
-    ctx.lineWidth = 2.5
-    ctx.beginPath()
-    ctx.arc(e.x, e.y, def.r - 2, 0, 6.28)
-    ctx.stroke()
-  }
-  if (def.air) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.7)'
+  if (def.heal) {
+    ctx.strokeStyle = 'rgba(38,198,218,0.4)'
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.moveTo(e.x - def.r - 4, e.y)
-    ctx.lineTo(e.x + def.r + 4, e.y)
+    ctx.arc(e.x, e.y, def.r + 6, 0, 6.28)
     ctx.stroke()
+  }
+  if (!drawSprite(def.img, e.x, e.y, sz, sz, 0, def.tint)) {
+    ctx.fillStyle = def.color
+    ctx.beginPath()
+    ctx.arc(e.x, e.y, def.r, 0, 6.28)
+    ctx.fill()
+  }
+  // status glow
+  if (e.slowT > 0 || e.poisonT > 0) {
+    ctx.save()
+    ctx.globalAlpha = 0.38
+    ctx.fillStyle = e.slowT > 0 ? '#80d8ff' : '#9ccc65'
+    ctx.beginPath()
+    ctx.arc(e.x, e.y, def.r, 0, 6.28)
+    ctx.fill()
+    ctx.restore()
   }
   if (e.hp < e.maxHp) {
     const w = def.r * 2
     ctx.fillStyle = 'rgba(0,0,0,0.5)'
-    ctx.fillRect(e.x - def.r, e.y - def.r - 8, w, 4)
-    ctx.fillStyle = '#7cf07c'
-    ctx.fillRect(e.x - def.r, e.y - def.r - 8, w * Math.max(0, e.hp / e.maxHp), 4)
+    ctx.fillRect(e.x - def.r, e.y - def.r - 9, w, 4)
+    ctx.fillStyle = def.boss ? '#ffb74d' : '#7cf07c'
+    ctx.fillRect(e.x - def.r, e.y - def.r - 9, w * Math.max(0, e.hp / e.maxHp), 4)
   }
 }
 
@@ -939,7 +1090,7 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 }
 .overlay-text { font-size: 1.6rem; font-weight: 800; color: #fff; text-align: center; }
 .overlay-sub { color: rgba(255, 255, 255, 0.85); margin-top: -8px; text-align: center; }
-.map-list { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px; }
+.map-list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; max-height: 62vh; overflow-y: auto; }
 .map-card {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -965,9 +1116,10 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
   padding: 6px 12px max(12px, env(safe-area-inset-bottom));
   min-height: 64px;
 }
-.palette { display: flex; gap: 6px; }
+.palette { display: flex; flex-wrap: wrap; gap: 6px; }
 .tchip {
-  flex: 1;
+  flex: 1 1 calc(33.333% - 4px);
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.3);
   border-radius: 10px;

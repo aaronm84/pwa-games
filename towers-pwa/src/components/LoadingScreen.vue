@@ -11,7 +11,7 @@
           <h1 class="app-title">
             <span class="title-emphasis">Towers</span>
           </h1>
-          <div class="tagline">Match the chain before it falls</div>
+          <div class="tagline">Hold the line, wave after wave</div>
         </div>
 
         <!-- Animated Zen Circle (Enso) - instantly hide during transition -->
@@ -48,13 +48,13 @@ import { useThemeStore } from 'src/stores/theme'
 const themeStore = useThemeStore()
 const isLoading = ref(true)
 const isTransitioning = ref(false)
-const loadingMessage = ref('Rolling the towers...')
+const loadingMessage = ref('Raising the towers...')
 
 const loadingMessages = [
-  'Rolling the towers...',
-  'Winding the track...',
-  'Mixing the colours...',
-  'Loading the launcher...',
+  'Raising the towers...',
+  'Paving the road...',
+  'Mustering the enemy...',
+  'Loading the cannons...',
 ]
 
 let messageIndex = 0
