@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.spacewolf",
+  "appName": "SpaceWolf",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#05071a",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#05071a"
+}
