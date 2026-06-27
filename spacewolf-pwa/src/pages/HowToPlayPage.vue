@@ -30,10 +30,10 @@
             <h2>Controls</h2>
             <ul>
               <li><strong>Left / Right arrows</strong> at the far edges — steer your ship</li>
+              <li><strong>Roll L / Roll R</strong> (above each arrow) — barrel-roll dodge in that direction</li>
               <li><strong>Fire</strong> — main cannon (tap repeatedly or hold)</li>
               <li><strong>Special</strong> — fire your current special weapon</li>
               <li><strong>Cycle</strong> — switch to the next special weapon</li>
-              <li><strong>Roll</strong> — barrel roll to deflect shots</li>
               <li><strong>Turbo</strong> — boost forward for a few seconds</li>
             </ul>
           </div>
@@ -45,7 +45,7 @@
             </div>
             <h2>Tips</h2>
             <ul>
-              <li><strong>Barrel roll</strong> deflects incoming fire — use it when you see lasers locked on</li>
+              <li><strong>Barrel rolls dodge sideways</strong> — pick the direction that takes you away from incoming fire</li>
               <li><strong>Turbo</strong> is great for catching up to fleeing enemies but burns fuel</li>
               <li>Cycle specials between waves so you have the right tool ready</li>
               <li>Lead your shots — enemies dodge if you fire straight at them</li>

@@ -1,17 +1,27 @@
 <template>
   <div class="touch-hud" :class="{ 'is-portrait': isPortrait }">
-    <!-- Left steer arrow -->
-    <button
-      class="hud-btn steer left"
-      :class="{ pressed: pressed.steerLeft }"
-      @pointerdown.prevent="onDown('steerLeft', $event)"
-      @pointerup.prevent="onUp('steerLeft', $event)"
-      @pointercancel.prevent="onUp('steerLeft', $event)"
-      @pointerleave.prevent="onUp('steerLeft', $event)"
-      aria-label="Steer left"
-    >
-      <span class="arrow">‹</span>
-    </button>
+    <!-- Left side: roll-left above, steer-left below -->
+    <div class="side">
+      <button
+        class="hud-btn roll roll-left"
+        @pointerdown.prevent="onRoll(-1)"
+        aria-label="Barrel roll left"
+      >
+        <span class="roll-icon">↺</span>
+        <span class="roll-label">Roll</span>
+      </button>
+      <button
+        class="hud-btn steer left"
+        :class="{ pressed: pressed.steerLeft }"
+        @pointerdown.prevent="onDown('steerLeft', $event)"
+        @pointerup.prevent="onUp('steerLeft', $event)"
+        @pointercancel.prevent="onUp('steerLeft', $event)"
+        @pointerleave.prevent="onUp('steerLeft', $event)"
+        aria-label="Steer left"
+      >
+        <span class="arrow">‹</span>
+      </button>
+    </div>
 
     <!-- Center action cluster -->
     <div class="actions">
@@ -45,14 +55,6 @@
       </button>
 
       <button
-        class="hud-btn action roll"
-        @pointerdown.prevent="onPulse('barrelRoll')"
-        aria-label="Barrel roll"
-      >
-        <span class="label">Roll</span>
-      </button>
-
-      <button
         class="hud-btn action turbo"
         @pointerdown.prevent="onPulse('turbo')"
         aria-label="Turbo boost"
@@ -61,18 +63,28 @@
       </button>
     </div>
 
-    <!-- Right steer arrow -->
-    <button
-      class="hud-btn steer right"
-      :class="{ pressed: pressed.steerRight }"
-      @pointerdown.prevent="onDown('steerRight', $event)"
-      @pointerup.prevent="onUp('steerRight', $event)"
-      @pointercancel.prevent="onUp('steerRight', $event)"
-      @pointerleave.prevent="onUp('steerRight', $event)"
-      aria-label="Steer right"
-    >
-      <span class="arrow">›</span>
-    </button>
+    <!-- Right side: roll-right above, steer-right below -->
+    <div class="side">
+      <button
+        class="hud-btn roll roll-right"
+        @pointerdown.prevent="onRoll(1)"
+        aria-label="Barrel roll right"
+      >
+        <span class="roll-icon">↻</span>
+        <span class="roll-label">Roll</span>
+      </button>
+      <button
+        class="hud-btn steer right"
+        :class="{ pressed: pressed.steerRight }"
+        @pointerdown.prevent="onDown('steerRight', $event)"
+        @pointerup.prevent="onUp('steerRight', $event)"
+        @pointercancel.prevent="onUp('steerRight', $event)"
+        @pointerleave.prevent="onUp('steerRight', $event)"
+        aria-label="Steer right"
+      >
+        <span class="arrow">›</span>
+      </button>
+    </div>
   </div>
 </template>
 
@@ -128,6 +140,11 @@ function onPulse(key) {
   haptics.medium()
 }
 
+function onRoll(dir) {
+  inputStore.pulseBarrelRoll(dir)
+  haptics.medium()
+}
+
 // Keyboard fallback for desktop testing
 const keyMap = {
   ArrowLeft: 'steerLeft',
@@ -139,8 +156,12 @@ const keyMap = {
 const pulseKeyMap = {
   KeyJ: 'special',
   KeyK: 'cycleSpecial',
-  KeyL: 'barrelRoll',
   KeyU: 'turbo',
+}
+// Roll keys: Q = left, E = right
+const rollKeyMap = {
+  KeyQ: -1,
+  KeyE: 1,
 }
 
 function onKeyDown(e) {
@@ -155,6 +176,12 @@ function onKeyDown(e) {
   const pulse = pulseKeyMap[e.code]
   if (pulse) {
     inputStore.pulse(pulse)
+    e.preventDefault()
+    return
+  }
+  const rollDir = rollKeyMap[e.code]
+  if (rollDir) {
+    inputStore.pulseBarrelRoll(rollDir)
     e.preventDefault()
   }
 }
@@ -241,9 +268,45 @@ onBeforeUnmount(() => {
   transform: translateY(1px);
 }
 
-.steer {
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
   width: 84px;
+}
+
+.roll {
+  // Smaller secondary button above the steer arrow
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  background: rgba(80, 50, 120, 0.5);
+  border-color: rgba(200, 170, 240, 0.5);
+}
+
+.roll:active {
+  background: rgba(140, 90, 220, 0.8);
+}
+
+.roll-icon {
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.roll-label {
+  font-size: 0.65rem;
+  opacity: 0.85;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.steer {
+  // Steer is the dominant target — fills the rest of the side column.
+  flex: 1 1 auto;
   font-size: 36px;
+  // Min-height ensures a comfortable touch target even when content is short.
+  min-height: 64px;
 }
 
 .steer .arrow {
@@ -306,11 +369,18 @@ onBeforeUnmount(() => {
     gap: 8px;
     padding: 10px;
   }
-  .steer {
-    width: 60px;
+  .side {
+    width: 64px;
+    gap: 5px;
   }
   .steer .arrow {
     font-size: 36px;
+  }
+  .roll-icon {
+    font-size: 18px;
+  }
+  .roll-label {
+    font-size: 0.6rem;
   }
   .action {
     padding: 6px 8px;
@@ -327,11 +397,21 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 480px) {
-  .steer {
-    width: 52px;
+  .side {
+    width: 56px;
+    gap: 4px;
   }
   .steer .arrow {
     font-size: 32px;
+  }
+  .roll {
+    padding: 4px 6px;
+  }
+  .roll-icon {
+    font-size: 16px;
+  }
+  .roll-label {
+    display: none;
   }
   .actions {
     gap: 4px;

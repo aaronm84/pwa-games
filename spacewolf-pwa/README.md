@@ -13,10 +13,10 @@ for fire, special weapon, weapon cycle, barrel roll, and turbo boost.
 The on-screen control bar sits at the bottom of the screen:
 
 - **Left / right arrows** (far edges) — steer
+- **Roll L / Roll R** (above each arrow) — barrel-roll dodge in that direction
 - **Fire** — main cannon
 - **Special** — fire current special weapon
 - **Cycle** — switch special weapon
-- **Roll** — barrel roll
 - **Turbo** — boost forward
 
 The ship auto-flies forward; the camera is a 3/4 chase view.

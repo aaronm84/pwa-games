@@ -22,6 +22,9 @@ const STEER_ACCEL = 90
 const STEER_DAMP = 6
 const MAX_STEER_VEL = 18
 const ROLL_TILT = Tools.ToRadians(45)
+// Barrel roll: lateral dodge speed and animation frames at 60fps
+const ROLL_DODGE_VEL = 26
+const ROLL_FRAMES = 32
 const SPECIALS = ['bombs', 'lasers', 'missiles']
 
 export function createGameScene(canvas, inputStore) {
@@ -125,12 +128,15 @@ export function createGameScene(canvas, inputStore) {
     lateralVel: 0,
     forwardSpeed: BASE_FORWARD,
     turboUntil: 0,
-    rolling: false,
+    rollDir: 0, // -1 = rolling left, +1 = rolling right, 0 = not rolling
   }
 
-  function triggerBarrelRoll() {
-    if (state.rolling) return
-    state.rolling = true
+  function triggerBarrelRoll(dir) {
+    if (state.rollDir !== 0) return
+    if (dir !== -1 && dir !== 1) return
+    state.rollDir = dir
+    // Lunge sideways immediately so the roll actually dodges incoming fire.
+    state.lateralVel = dir * ROLL_DODGE_VEL
     const start = shipTilt.rotation.z
     const anim = new Animation(
       'roll',
@@ -139,12 +145,14 @@ export function createGameScene(canvas, inputStore) {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT,
     )
+    // Spin in the dodge direction: rolling right turns the ship CW from the
+    // pilot's POV, which is -Z rotation in Babylon's right-handed coords.
     anim.setKeys([
       { frame: 0, value: start },
-      { frame: 36, value: start + Math.PI * 2 },
+      { frame: ROLL_FRAMES, value: start - dir * Math.PI * 2 },
     ])
-    scene.beginDirectAnimation(shipTilt, [anim], 0, 36, false, 1, () => {
-      state.rolling = false
+    scene.beginDirectAnimation(shipTilt, [anim], 0, ROLL_FRAMES, false, 1, () => {
+      state.rollDir = 0
       shipTilt.rotation.z = 0
     })
   }
@@ -162,15 +170,25 @@ export function createGameScene(canvas, inputStore) {
   scene.onBeforeRenderObservable.add(() => {
     const dt = engine.getDeltaTime() / 1000
 
-    // Steering: left/right from HUD held flags
-    const steerIn = (inputStore.held.steerLeft ? -1 : 0) + (inputStore.held.steerRight ? 1 : 0)
-    state.lateralVel += steerIn * STEER_ACCEL * dt
-    // Damp when not steering
-    if (steerIn === 0) {
-      const damp = Math.exp(-STEER_DAMP * dt)
-      state.lateralVel *= damp
+    // Barrel roll pulse — start before reading steer so the dodge takes over
+    // immediately even if a steer arrow is also held this frame.
+    const rollPulse = inputStore.consumeBarrelRoll()
+    if (rollPulse) triggerBarrelRoll(rollPulse)
+
+    if (state.rollDir !== 0) {
+      // During a roll: ignore steer input, keep dodge velocity locked.
+      state.lateralVel = state.rollDir * ROLL_DODGE_VEL
+    } else {
+      // Steering: left/right from HUD held flags
+      const steerIn =
+        (inputStore.held.steerLeft ? -1 : 0) + (inputStore.held.steerRight ? 1 : 0)
+      state.lateralVel += steerIn * STEER_ACCEL * dt
+      if (steerIn === 0) {
+        const damp = Math.exp(-STEER_DAMP * dt)
+        state.lateralVel *= damp
+      }
+      state.lateralVel = Math.max(-MAX_STEER_VEL, Math.min(MAX_STEER_VEL, state.lateralVel))
     }
-    state.lateralVel = Math.max(-MAX_STEER_VEL, Math.min(MAX_STEER_VEL, state.lateralVel))
 
     // Turbo (boost forward briefly)
     if (inputStore.consumeTurbo()) triggerTurbo()
@@ -185,20 +203,18 @@ export function createGameScene(canvas, inputStore) {
     const lane = 24
     if (shipRig.position.x > lane) {
       shipRig.position.x = lane
-      state.lateralVel = 0
+      if (state.rollDir === 0) state.lateralVel = 0
     } else if (shipRig.position.x < -lane) {
       shipRig.position.x = -lane
-      state.lateralVel = 0
+      if (state.rollDir === 0) state.lateralVel = 0
     }
 
-    // Tilt visual: bank into steering when not in a barrel roll
-    if (!state.rolling) {
+    // Tilt visual: bank into steering when not in a barrel roll (the roll's
+    // own animation owns the rotation.z channel for its duration).
+    if (state.rollDir === 0) {
       const targetTilt = (state.lateralVel / MAX_STEER_VEL) * ROLL_TILT
       shipTilt.rotation.z += (targetTilt - shipTilt.rotation.z) * Math.min(1, 8 * dt)
     }
-
-    // Barrel roll pulse
-    if (inputStore.consumeBarrelRoll()) triggerBarrelRoll()
 
     // Special / cycle pulses (stubbed for now)
     if (inputStore.consumeCycleSpecial()) cycleSpecial()

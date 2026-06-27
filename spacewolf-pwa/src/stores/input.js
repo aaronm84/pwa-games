@@ -5,9 +5,12 @@ import { ref, reactive } from 'vue'
  * Shared input state — Touch HUD writes, Babylon update loop reads each frame.
  *
  * Held flags (steerLeft, steerRight, fire) reflect button-down state.
- * Edge events (cycleSpecial, barrelRoll, turbo, special) are one-shot pulses
- * that the game loop consumes via `consume*` helpers so a single tap
- * triggers a single action regardless of frame rate.
+ * Edge events (cycleSpecial, turbo, special) are one-shot pulses that the
+ * game loop consumes via `consume*` helpers so a single tap triggers a
+ * single action regardless of frame rate.
+ *
+ * barrelRoll carries a direction (-1 left / +1 right / 0 none) so the
+ * roll-left and roll-right buttons can both feed the same channel.
  */
 export const useInputStore = defineStore('input', () => {
   const held = reactive({
@@ -19,9 +22,11 @@ export const useInputStore = defineStore('input', () => {
   const pending = reactive({
     special: false,
     cycleSpecial: false,
-    barrelRoll: false,
     turbo: false,
   })
+
+  // Roll direction: -1 = left, +1 = right, 0 = none
+  const pendingRollDir = ref(0)
 
   const activeSpecial = ref('bombs')
 
@@ -31,6 +36,11 @@ export const useInputStore = defineStore('input', () => {
 
   function pulse(key) {
     if (key in pending) pending[key] = true
+  }
+
+  function pulseBarrelRoll(dir) {
+    if (dir !== -1 && dir !== 1) return
+    pendingRollDir.value = dir
   }
 
   function consumeSpecial() {
@@ -44,8 +54,8 @@ export const useInputStore = defineStore('input', () => {
     return v
   }
   function consumeBarrelRoll() {
-    const v = pending.barrelRoll
-    pending.barrelRoll = false
+    const v = pendingRollDir.value
+    pendingRollDir.value = 0
     return v
   }
   function consumeTurbo() {
@@ -60,6 +70,7 @@ export const useInputStore = defineStore('input', () => {
     activeSpecial,
     setHeld,
     pulse,
+    pulseBarrelRoll,
     consumeSpecial,
     consumeCycleSpecial,
     consumeBarrelRoll,
