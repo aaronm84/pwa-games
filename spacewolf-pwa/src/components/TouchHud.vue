@@ -23,20 +23,8 @@
       </button>
     </div>
 
-    <!-- Center action cluster -->
-    <div class="actions">
-      <button
-        class="hud-btn action fire"
-        :class="{ pressed: pressed.fire }"
-        @pointerdown.prevent="onDown('fire', $event)"
-        @pointerup.prevent="onUp('fire', $event)"
-        @pointercancel.prevent="onUp('fire', $event)"
-        @pointerleave.prevent="onUp('fire', $event)"
-        aria-label="Fire main cannon"
-      >
-        <span class="label">Fire</span>
-      </button>
-
+    <!-- Left-of-Fire actions -->
+    <div class="actions actions-left">
       <button
         class="hud-btn action special"
         @pointerdown.prevent="onPulse('special')"
@@ -45,7 +33,6 @@
         <span class="label">Special</span>
         <span class="sub">{{ activeSpecial }}</span>
       </button>
-
       <button
         class="hud-btn action cycle"
         @pointerdown.prevent="onPulse('cycleSpecial')"
@@ -53,7 +40,23 @@
       >
         <span class="label">Cycle</span>
       </button>
+    </div>
 
+    <!-- Centered primary FIRE button -->
+    <button
+      class="hud-btn fire-center"
+      :class="{ pressed: pressed.fire }"
+      @pointerdown.prevent="onDown('fire', $event)"
+      @pointerup.prevent="onUp('fire', $event)"
+      @pointercancel.prevent="onUp('fire', $event)"
+      @pointerleave.prevent="onUp('fire', $event)"
+      aria-label="Fire main cannon"
+    >
+      <span class="fire-label">Fire</span>
+    </button>
+
+    <!-- Right-of-Fire actions -->
+    <div class="actions actions-right">
       <button
         class="hud-btn action turbo"
         @pointerdown.prevent="onPulse('turbo')"
@@ -218,12 +221,14 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   z-index: 5;
-  // Grid keeps the steer arrows in fixed-size columns at the edges so the
-  // centre action cluster can never push them off-screen.
+  // Five columns put the FIRE button in the dead-centre column. The two
+  // 1fr columns hold the secondary actions; the auto edges hold the
+  // roll/steer stacks. This guarantees Fire is always centred regardless
+  // of how many side actions exist.
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto 1fr auto;
   align-items: stretch;
-  gap: 12px;
+  gap: 10px;
   padding: 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
   padding-left: max(14px, env(safe-area-inset-left));
@@ -277,19 +282,21 @@ onBeforeUnmount(() => {
 }
 
 .roll {
-  // Smaller secondary button above the steer arrow
+  // Substantial secondary button above the steer arrow — bigger touch
+  // target than before so it's easy to slap during evasive flying.
   flex: 0 0 auto;
-  padding: 6px 8px;
-  background: rgba(80, 50, 120, 0.5);
-  border-color: rgba(200, 170, 240, 0.5);
+  min-height: 58px;
+  padding: 8px;
+  background: rgba(80, 50, 120, 0.55);
+  border-color: rgba(200, 170, 240, 0.55);
 }
 
 .roll:active {
-  background: rgba(140, 90, 220, 0.8);
+  background: rgba(140, 90, 220, 0.85);
 }
 
 .roll-icon {
-  font-size: 20px;
+  font-size: 24px;
   line-height: 1;
   font-weight: 700;
 }
@@ -299,14 +306,14 @@ onBeforeUnmount(() => {
   opacity: 0.85;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  margin-top: 2px;
 }
 
 .steer {
   // Steer is the dominant target — fills the rest of the side column.
   flex: 1 1 auto;
   font-size: 36px;
-  // Min-height ensures a comfortable touch target even when content is short.
-  min-height: 64px;
+  min-height: 70px;
 }
 
 .steer .arrow {
@@ -315,14 +322,20 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+// Secondary action clusters flanking the centred FIRE button.
 .actions {
-  // Centre column: take whatever space the grid gives it, never overflow it.
   min-width: 0;
   display: flex;
   gap: 8px;
-  justify-content: center;
   align-items: stretch;
-  overflow: hidden;
+}
+
+.actions-left {
+  justify-content: flex-end;
+}
+
+.actions-right {
+  justify-content: flex-start;
 }
 
 .action {
@@ -345,13 +358,34 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
 }
 
-.fire {
-  background: rgba(220, 60, 60, 0.55);
-  border-color: rgba(255, 180, 180, 0.6);
+// Primary central FIRE button — visually dominant, dead centre of the HUD.
+.fire-center {
+  width: 96px;
+  min-height: 70px;
+  padding: 0;
+  align-self: stretch;
+  background: rgba(220, 60, 60, 0.7);
+  border: 2px solid rgba(255, 200, 200, 0.7);
+  border-radius: 50%;
+  box-shadow:
+    0 0 12px rgba(255, 80, 80, 0.45),
+    inset 0 0 12px rgba(255, 180, 180, 0.25);
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
-.fire:active,
-.fire.pressed {
-  background: rgba(255, 80, 80, 0.85);
+
+.fire-center:active,
+.fire-center.pressed {
+  background: rgba(255, 80, 80, 0.9);
+  box-shadow:
+    0 0 18px rgba(255, 100, 100, 0.7),
+    inset 0 0 12px rgba(255, 200, 200, 0.4);
+}
+
+.fire-label {
+  font-size: 1.05rem;
+  font-weight: 700;
 }
 
 .turbo {
@@ -373,14 +407,27 @@ onBeforeUnmount(() => {
     width: 64px;
     gap: 5px;
   }
+  .roll {
+    min-height: 50px;
+  }
+  .steer {
+    min-height: 64px;
+  }
   .steer .arrow {
     font-size: 36px;
   }
   .roll-icon {
-    font-size: 18px;
+    font-size: 20px;
   }
   .roll-label {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
+  }
+  .fire-center {
+    width: 78px;
+    min-height: 60px;
+  }
+  .fire-label {
+    font-size: 0.9rem;
   }
   .action {
     padding: 6px 8px;
@@ -398,20 +445,31 @@ onBeforeUnmount(() => {
 
 @media (max-width: 480px) {
   .side {
-    width: 56px;
+    width: 54px;
     gap: 4px;
+  }
+  .roll {
+    min-height: 42px;
+    padding: 4px 6px;
+  }
+  .steer {
+    min-height: 56px;
   }
   .steer .arrow {
     font-size: 32px;
   }
-  .roll {
-    padding: 4px 6px;
-  }
   .roll-icon {
-    font-size: 16px;
+    font-size: 18px;
   }
   .roll-label {
     display: none;
+  }
+  .fire-center {
+    width: 64px;
+    min-height: 52px;
+  }
+  .fire-label {
+    font-size: 0.78rem;
   }
   .actions {
     gap: 4px;
