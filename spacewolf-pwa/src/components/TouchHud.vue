@@ -191,9 +191,11 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   z-index: 5;
-  display: flex;
+  // Grid keeps the steer arrows in fixed-size columns at the edges so the
+  // centre action cluster can never push them off-screen.
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: stretch;
-  justify-content: space-between;
   gap: 12px;
   padding: 14px;
   padding-bottom: max(14px, env(safe-area-inset-bottom));
@@ -240,8 +242,7 @@ onBeforeUnmount(() => {
 }
 
 .steer {
-  width: 88px;
-  flex: 0 0 auto;
+  width: 84px;
   font-size: 36px;
 }
 
@@ -252,16 +253,19 @@ onBeforeUnmount(() => {
 }
 
 .actions {
+  // Centre column: take whatever space the grid gives it, never overflow it.
+  min-width: 0;
   display: flex;
-  gap: 10px;
-  flex: 1 1 auto;
+  gap: 8px;
   justify-content: center;
   align-items: stretch;
+  overflow: hidden;
 }
 
 .action {
-  min-width: 64px;
-  padding: 8px 12px;
+  min-width: 0;
+  flex: 0 1 auto;
+  padding: 8px 10px;
   font-size: 0.85rem;
 }
 
@@ -297,27 +301,54 @@ onBeforeUnmount(() => {
 }
 
 // Tighter layout on small phones / portrait
-@media (max-width: 600px) {
+@media (max-width: 700px) {
   .touch-hud {
     gap: 8px;
     padding: 10px;
   }
   .steer {
-    width: 68px;
+    width: 60px;
+  }
+  .steer .arrow {
+    font-size: 36px;
   }
   .action {
-    min-width: 54px;
     padding: 6px 8px;
+  }
+  .actions {
+    gap: 6px;
   }
   .action .label {
     font-size: 0.75rem;
   }
   .action .sub {
-    font-size: 0.6rem;
+    font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .steer {
+    width: 52px;
+  }
+  .steer .arrow {
+    font-size: 32px;
+  }
+  .actions {
+    gap: 4px;
+  }
+  .action {
+    padding: 6px 6px;
+  }
+  .action .label {
+    font-size: 0.7rem;
+  }
+  // Hide the sub-label on very small screens — actions get too cramped
+  .action .sub {
+    display: none;
   }
 }
 
 .touch-hud.is-portrait .actions {
-  gap: 6px;
+  gap: 4px;
 }
 </style>
