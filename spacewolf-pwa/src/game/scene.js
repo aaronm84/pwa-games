@@ -27,7 +27,22 @@ const ROLL_DODGE_VEL = 26
 const ROLL_FRAMES = 32
 const SPECIALS = ['bombs', 'lasers', 'missiles']
 
-export function createGameScene(canvas, inputStore) {
+// Combat tuning
+const FIRE_COOLDOWN_MS = 130
+const BOLT_SPEED = 140
+const BOLT_LIFETIME_MS = 1500
+const BOLT_POOL = 24
+const ENEMY_POOL = 8
+const ENEMY_HP = 2
+const ENEMY_FORWARD = 12 // speed they fly toward the player (in -Z relative to player)
+const ENEMY_DRIFT_AMPL = 8
+const ENEMY_SPAWN_INTERVAL_MS = 2000
+const ENEMY_SPAWN_AHEAD = 200
+const ENEMY_HIT_RADIUS = 2.4
+const PLAYER_HIT_RADIUS = 2.6
+const SCORE_PER_KILL = 100
+
+export function createGameScene(canvas, inputStore, gameStateStore) {
   const engine = new Engine(canvas, true, {
     preserveDrawingBuffer: false,
     stencil: false,
@@ -39,7 +54,7 @@ export function createGameScene(canvas, inputStore) {
   scene.fogMode = Scene.FOGMODE_LINEAR
   scene.fogColor = new Color3(0.02, 0.03, 0.1)
   scene.fogStart = 80
-  scene.fogEnd = 240
+  scene.fogEnd = 260
 
   // Lights
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene)
@@ -87,7 +102,6 @@ export function createGameScene(canvas, inputStore) {
     scene,
   )
   camera.lockedTarget = shipRig
-  // Disable orbital input so user can't drag the camera
   camera.inputs.clear()
 
   // Starfield (point cloud streaming behind the ship)
@@ -107,35 +121,89 @@ export function createGameScene(canvas, inputStore) {
   })
   stars.buildMeshAsync()
 
-  // Some obstacle cubes scattered ahead so motion is visible
+  // Faint asteroid-like backdrop (no collision) — gives depth & motion cues.
   const obstacles = []
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 30; i++) {
     const o = MeshBuilder.CreateBox(`obs${i}`, { size: 2 + Math.random() * 3 }, scene)
     o.position.set(
-      (Math.random() - 0.5) * 40,
-      (Math.random() - 0.5) * 20,
-      i * 30 + 40,
+      (Math.random() - 0.5) * 60,
+      (Math.random() - 0.5) * 30,
+      i * 32 + 60,
     )
     const m = new StandardMaterial(`obsMat${i}`, scene)
-    m.diffuseColor = new Color3(0.3 + Math.random() * 0.3, 0.4, 0.6)
-    m.emissiveColor = m.diffuseColor.scale(0.2)
+    m.diffuseColor = new Color3(0.25 + Math.random() * 0.2, 0.3, 0.5)
+    m.emissiveColor = m.diffuseColor.scale(0.15)
     o.material = m
     obstacles.push(o)
   }
 
-  // State
+  // === Projectile pool ===
+  const boltMat = new StandardMaterial('boltMat', scene)
+  boltMat.diffuseColor = new Color3(0, 0, 0)
+  boltMat.emissiveColor = new Color3(0.9, 1.0, 0.3)
+  boltMat.specularColor = new Color3(0, 0, 0)
+
+  const bolts = []
+  for (let i = 0; i < BOLT_POOL; i++) {
+    const m = MeshBuilder.CreateCylinder(
+      `bolt${i}`,
+      { diameter: 0.25, height: 2.2, tessellation: 6 },
+      scene,
+    )
+    m.material = boltMat
+    m.rotation.x = Math.PI / 2
+    m.setEnabled(false)
+    bolts.push({ mesh: m, alive: false, spawnedAt: 0, vz: 0 })
+  }
+
+  // === Enemy pool ===
+  const enemyMat = new StandardMaterial('enemyMat', scene)
+  enemyMat.diffuseColor = new Color3(1.0, 0.3, 0.25)
+  enemyMat.emissiveColor = new Color3(0.4, 0.05, 0.05)
+  enemyMat.specularColor = new Color3(0.4, 0.2, 0.2)
+
+  const enemies = []
+  for (let i = 0; i < ENEMY_POOL; i++) {
+    const rig = new TransformNode(`enemyRig${i}`, scene)
+    const body = MeshBuilder.CreateCylinder(
+      `enemyBody${i}`,
+      { diameterTop: 0, diameterBottom: 2, height: 3.5, tessellation: 8 },
+      scene,
+    )
+    body.parent = rig
+    // Point the cone toward -Z so it faces the player as it approaches.
+    body.rotation.x = -Math.PI / 2
+    body.material = enemyMat
+
+    const w = MeshBuilder.CreateBox(`enemyWing${i}`, { width: 3, height: 0.25, depth: 1.1 }, scene)
+    w.parent = rig
+    w.material = enemyMat
+
+    rig.setEnabled(false)
+    enemies.push({
+      rig,
+      alive: false,
+      hp: ENEMY_HP,
+      t: 0,
+      seedX: 0,
+      phase: 0,
+    })
+  }
+
+  // === Combat state ===
   const state = {
     lateralVel: 0,
     forwardSpeed: BASE_FORWARD,
     turboUntil: 0,
-    rollDir: 0, // -1 = rolling left, +1 = rolling right, 0 = not rolling
+    rollDir: 0,
+    lastFiredAt: 0,
+    lastEnemySpawnAt: 0,
   }
 
   function triggerBarrelRoll(dir) {
     if (state.rollDir !== 0) return
     if (dir !== -1 && dir !== 1) return
     state.rollDir = dir
-    // Lunge sideways immediately so the roll actually dodges incoming fire.
     state.lateralVel = dir * ROLL_DODGE_VEL
     const start = shipTilt.rotation.z
     const anim = new Animation(
@@ -145,8 +213,6 @@ export function createGameScene(canvas, inputStore) {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT,
     )
-    // Spin in the dodge direction: rolling right turns the ship CW from the
-    // pilot's POV, which is -Z rotation in Babylon's right-handed coords.
     anim.setKeys([
       { frame: 0, value: start },
       { frame: ROLL_FRAMES, value: start - dir * Math.PI * 2 },
@@ -160,26 +226,158 @@ export function createGameScene(canvas, inputStore) {
   function cycleSpecial() {
     const idx = SPECIALS.indexOf(inputStore.activeSpecial)
     inputStore.activeSpecial = SPECIALS[(idx + 1) % SPECIALS.length]
-    console.log('[Special] now', inputStore.activeSpecial)
   }
 
   function triggerTurbo() {
     state.turboUntil = performance.now() + 1500
   }
 
+  function fireCannon(now) {
+    if (now - state.lastFiredAt < FIRE_COOLDOWN_MS) return
+    // Find two free bolts (one per wing).
+    let lb = null
+    let rb = null
+    for (const b of bolts) {
+      if (!b.alive) {
+        if (!lb) lb = b
+        else {
+          rb = b
+          break
+        }
+      }
+    }
+    if (!lb || !rb) return // pool exhausted; skip this shot
+    state.lastFiredAt = now
+    const wingOffsets = [
+      [lb, -1.6],
+      [rb, 1.6],
+    ]
+    for (const [b, sideX] of wingOffsets) {
+      b.alive = true
+      b.spawnedAt = now
+      b.mesh.position.set(
+        shipRig.position.x + sideX,
+        shipRig.position.y,
+        shipRig.position.z + 2,
+      )
+      b.vz = BOLT_SPEED
+      b.mesh.setEnabled(true)
+    }
+  }
+
+  function spawnEnemyIfNeeded(now) {
+    if (now - state.lastEnemySpawnAt < ENEMY_SPAWN_INTERVAL_MS) return
+    const e = enemies.find((en) => !en.alive)
+    if (!e) return
+    state.lastEnemySpawnAt = now
+    e.alive = true
+    e.hp = ENEMY_HP
+    e.t = 0
+    e.seedX = (Math.random() - 0.5) * 30
+    e.phase = Math.random() * Math.PI * 2
+    e.rig.position.set(
+      e.seedX,
+      (Math.random() - 0.5) * 10,
+      shipRig.position.z + ENEMY_SPAWN_AHEAD + Math.random() * 60,
+    )
+    e.rig.setEnabled(true)
+  }
+
+  function despawnEnemy(e) {
+    e.alive = false
+    e.rig.setEnabled(false)
+  }
+
+  function despawnBolt(b) {
+    b.alive = false
+    b.mesh.setEnabled(false)
+  }
+
+  function updateBolts(dt, now) {
+    for (const b of bolts) {
+      if (!b.alive) continue
+      b.mesh.position.z += b.vz * dt
+      if (now - b.spawnedAt > BOLT_LIFETIME_MS) {
+        despawnBolt(b)
+      }
+    }
+  }
+
+  function updateEnemies(dt) {
+    for (const e of enemies) {
+      if (!e.alive) continue
+      e.t += dt
+      // Sin-wave lateral drift around the spawn seedX
+      e.rig.position.x = e.seedX + Math.sin(e.t * 1.4 + e.phase) * ENEMY_DRIFT_AMPL
+      // Approach the player (move toward -Z relative to ship, which means
+      // their Z decreases relative to the ship's z; but the ship is also
+      // advancing, so enemies move at ENEMY_FORWARD toward -Z in world.)
+      e.rig.position.z -= ENEMY_FORWARD * dt
+      // Bank visually toward the drift direction (a touch of personality)
+      const bank = Math.cos(e.t * 1.4 + e.phase) * 0.3
+      e.rig.rotation.z = bank
+
+      const dz = e.rig.position.z - shipRig.position.z
+      if (dz < -10) {
+        // Passed behind the player without being shot — no cost (they "got away")
+        despawnEnemy(e)
+        continue
+      }
+      if (Math.abs(dz) < PLAYER_HIT_RADIUS + 1) {
+        const dx = e.rig.position.x - shipRig.position.x
+        const dy = e.rig.position.y - shipRig.position.y
+        if (dx * dx + dy * dy < PLAYER_HIT_RADIUS * PLAYER_HIT_RADIUS) {
+          // Rammed the player — cost a life, despawn.
+          despawnEnemy(e)
+          gameStateStore.loseLife()
+        }
+      }
+    }
+  }
+
+  function checkBoltHits() {
+    const r2 = ENEMY_HIT_RADIUS * ENEMY_HIT_RADIUS
+    for (const b of bolts) {
+      if (!b.alive) continue
+      for (const e of enemies) {
+        if (!e.alive) continue
+        const dz = b.mesh.position.z - e.rig.position.z
+        if (Math.abs(dz) > 6) continue
+        const dx = b.mesh.position.x - e.rig.position.x
+        const dy = b.mesh.position.y - e.rig.position.y
+        if (dx * dx + dy * dy + dz * dz < r2) {
+          despawnBolt(b)
+          e.hp -= 1
+          if (e.hp <= 0) {
+            despawnEnemy(e)
+            gameStateStore.addScore(SCORE_PER_KILL)
+          }
+          break // bolt consumed
+        }
+      }
+    }
+  }
+
+  function clearCombat() {
+    for (const b of bolts) despawnBolt(b)
+    for (const e of enemies) despawnEnemy(e)
+    state.lastFiredAt = 0
+    state.lastEnemySpawnAt = 0
+  }
+
   scene.onBeforeRenderObservable.add(() => {
     const dt = engine.getDeltaTime() / 1000
+    const now = performance.now()
+    const playing = gameStateStore.status === 'playing'
 
-    // Barrel roll pulse — start before reading steer so the dodge takes over
-    // immediately even if a steer arrow is also held this frame.
+    // Barrel roll pulse — even when game is over, lets the player keep
+    // toying with the controls while the overlay is up.
     const rollPulse = inputStore.consumeBarrelRoll()
     if (rollPulse) triggerBarrelRoll(rollPulse)
 
     if (state.rollDir !== 0) {
-      // During a roll: ignore steer input, keep dodge velocity locked.
       state.lateralVel = state.rollDir * ROLL_DODGE_VEL
     } else {
-      // Steering: left/right from HUD held flags
       const steerIn =
         (inputStore.held.steerLeft ? -1 : 0) + (inputStore.held.steerRight ? 1 : 0)
       state.lateralVel += steerIn * STEER_ACCEL * dt
@@ -190,16 +388,13 @@ export function createGameScene(canvas, inputStore) {
       state.lateralVel = Math.max(-MAX_STEER_VEL, Math.min(MAX_STEER_VEL, state.lateralVel))
     }
 
-    // Turbo (boost forward briefly)
     if (inputStore.consumeTurbo()) triggerTurbo()
-    const turboActive = performance.now() < state.turboUntil
+    const turboActive = now < state.turboUntil
     state.forwardSpeed = turboActive ? TURBO_FORWARD : BASE_FORWARD
 
-    // Move ship rig
     shipRig.position.x += state.lateralVel * dt
     shipRig.position.z += state.forwardSpeed * dt
 
-    // Keep ship within a lane
     const lane = 24
     if (shipRig.position.x > lane) {
       shipRig.position.x = lane
@@ -209,34 +404,40 @@ export function createGameScene(canvas, inputStore) {
       if (state.rollDir === 0) state.lateralVel = 0
     }
 
-    // Tilt visual: bank into steering when not in a barrel roll (the roll's
-    // own animation owns the rotation.z channel for its duration).
     if (state.rollDir === 0) {
       const targetTilt = (state.lateralVel / MAX_STEER_VEL) * ROLL_TILT
       shipTilt.rotation.z += (targetTilt - shipTilt.rotation.z) * Math.min(1, 8 * dt)
     }
 
-    // Special / cycle pulses (stubbed for now)
-    if (inputStore.consumeCycleSpecial()) cycleSpecial()
-    if (inputStore.consumeSpecial()) {
-      console.log('[Special] fire', inputStore.activeSpecial)
-    }
-
-    // Main cannon fire (held) — stubbed
-    if (inputStore.held.fire) {
-      // throttle so we don't log every frame
-      if (!state._lastFireLog || performance.now() - state._lastFireLog > 200) {
-        state._lastFireLog = performance.now()
-        console.log('[Fire] cannon')
+    // Combat — only ticks while playing
+    if (playing) {
+      if (inputStore.consumeCycleSpecial()) cycleSpecial()
+      if (inputStore.consumeSpecial()) {
+        // Special weapons not implemented yet
+      }
+      if (inputStore.held.fire) fireCannon(now)
+      spawnEnemyIfNeeded(now)
+      updateBolts(dt, now)
+      updateEnemies(dt)
+      checkBoltHits()
+    } else {
+      // Game over: keep bolts/enemies coasting visually but don't spawn new
+      // enemies and don't apply damage. The player can still steer/roll.
+      updateBolts(dt, now)
+      for (const e of enemies) {
+        if (!e.alive) continue
+        e.t += dt
+        e.rig.position.z -= ENEMY_FORWARD * dt
+        if (e.rig.position.z - shipRig.position.z < -30) despawnEnemy(e)
       }
     }
 
-    // Recycle obstacles that pass behind the ship
+    // Recycle backdrop asteroids
     for (const o of obstacles) {
-      if (o.position.z < shipRig.position.z - 30) {
-        o.position.z += obstacles.length * 30
-        o.position.x = (Math.random() - 0.5) * 40
-        o.position.y = (Math.random() - 0.5) * 20
+      if (o.position.z < shipRig.position.z - 40) {
+        o.position.z += obstacles.length * 32
+        o.position.x = (Math.random() - 0.5) * 60
+        o.position.y = (Math.random() - 0.5) * 30
       }
     }
   })
@@ -251,6 +452,15 @@ export function createGameScene(canvas, inputStore) {
   return {
     engine,
     scene,
+    startRun() {
+      clearCombat()
+      shipRig.position.set(0, 0, 0)
+      state.lateralVel = 0
+      state.turboUntil = 0
+      state.rollDir = 0
+      shipTilt.rotation.z = 0
+      gameStateStore.startRun()
+    },
     dispose() {
       window.removeEventListener('resize', onResize)
       engine.stopRenderLoop()

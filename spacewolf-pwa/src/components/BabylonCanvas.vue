@@ -3,17 +3,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, defineExpose } from 'vue'
 import { useInputStore } from 'src/stores/input'
+import { useGameStateStore } from 'src/stores/gameState'
 import { createGameScene } from 'src/game/scene'
 
 const canvasEl = ref(null)
 const inputStore = useInputStore()
+const gameStateStore = useGameStateStore()
 let game = null
 
 onMounted(() => {
   if (!canvasEl.value) return
-  game = createGameScene(canvasEl.value, inputStore)
+  game = createGameScene(canvasEl.value, inputStore, gameStateStore)
+  game.startRun()
 })
 
 onBeforeUnmount(() => {
@@ -22,6 +25,12 @@ onBeforeUnmount(() => {
     game = null
   }
 })
+
+function startRun() {
+  if (game) game.startRun()
+}
+
+defineExpose({ startRun })
 </script>
 
 <style scoped>
