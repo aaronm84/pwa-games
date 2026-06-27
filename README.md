@@ -23,6 +23,7 @@ project in its own top-level `*-pwa/` folder.
 | 🎯 **Pegs** — Peggle-style ball-and-peg bouncer | [`pegs-pwa/`](pegs-pwa/) | https://aaronm84.github.io/pwa-games/pegs/ |
 | 🔴 **Marbles** — Zuma-style marble-chain shooter | [`marbles-pwa/`](marbles-pwa/) | https://aaronm84.github.io/pwa-games/marbles/ |
 | 🐦 **Fling** — Angry-Birds-style slingshot physics (matter.js) | [`fling-pwa/`](fling-pwa/) | https://aaronm84.github.io/pwa-games/fling/ |
+| 🚀 **SpaceWolf** — on-rails 3D space dogfighter (Babylon.js) | [`spacewolf-pwa/`](spacewolf-pwa/) | https://aaronm84.github.io/pwa-games/spacewolf/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
