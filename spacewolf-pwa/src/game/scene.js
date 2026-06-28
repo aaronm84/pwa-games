@@ -79,34 +79,148 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
   const sun = new DirectionalLight('sun', new Vector3(-0.4, -0.6, 0.7), scene)
   sun.intensity = 0.8
 
-  // === Player ship ===
+  // === Player ship (Arwing-style fighter, all primitives) ===
   const shipRig = new TransformNode('shipRig', scene)
   const shipTilt = new TransformNode('shipTilt', scene)
   shipTilt.parent = shipRig
 
-  const shipBody = MeshBuilder.CreateCylinder(
-    'shipBody',
-    { diameterTop: 0, diameterBottom: 1.6, height: 3, tessellation: 12 },
+  const playerBodyMat = new StandardMaterial('playerBodyMat', scene)
+  playerBodyMat.diffuseColor = new Color3(0.82, 0.86, 0.94)
+  playerBodyMat.specularColor = new Color3(0.7, 0.7, 0.75)
+  playerBodyMat.emissiveColor = new Color3(0.05, 0.07, 0.12)
+
+  const playerAccentMat = new StandardMaterial('playerAccentMat', scene)
+  playerAccentMat.diffuseColor = new Color3(0.18, 0.42, 0.95)
+  playerAccentMat.emissiveColor = new Color3(0.1, 0.25, 0.6)
+  playerAccentMat.specularColor = new Color3(0.4, 0.4, 0.6)
+
+  const playerCockpitMat = new StandardMaterial('playerCockpitMat', scene)
+  playerCockpitMat.diffuseColor = new Color3(0.08, 0.14, 0.28)
+  playerCockpitMat.emissiveColor = new Color3(0.05, 0.12, 0.3)
+  playerCockpitMat.specularColor = new Color3(0.95, 0.95, 1.0)
+
+  const playerEngineGlowMat = new StandardMaterial('playerEngineGlowMat', scene)
+  playerEngineGlowMat.diffuseColor = new Color3(0, 0, 0)
+  playerEngineGlowMat.emissiveColor = new Color3(0.5, 0.8, 1.0)
+  playerEngineGlowMat.disableLighting = true
+
+  // Fuselage — long streamlined body pointing +Z (the flight direction).
+  const fuselage = MeshBuilder.CreateCylinder(
+    'fuselage',
+    { diameterTop: 0.5, diameterBottom: 1.3, height: 3.4, tessellation: 14 },
     scene,
   )
-  shipBody.parent = shipTilt
-  shipBody.rotation.x = Math.PI / 2
+  fuselage.parent = shipTilt
+  fuselage.rotation.x = Math.PI / 2
+  fuselage.material = playerBodyMat
 
-  const shipMat = new StandardMaterial('shipMat', scene)
-  shipMat.diffuseColor = new Color3(0.7, 0.8, 1.0)
-  shipMat.emissiveColor = new Color3(0.1, 0.15, 0.3)
-  shipMat.specularColor = new Color3(0.6, 0.6, 0.6)
-  shipBody.material = shipMat
+  // Nose — pointed cone in front of the fuselage.
+  const nose = MeshBuilder.CreateCylinder(
+    'nose',
+    { diameterTop: 0, diameterBottom: 0.55, height: 1.4, tessellation: 14 },
+    scene,
+  )
+  nose.parent = shipTilt
+  nose.rotation.x = Math.PI / 2
+  nose.position.z = 2.4
+  nose.material = playerBodyMat
 
-  const wingL = MeshBuilder.CreateBox('wingL', { width: 2.4, height: 0.2, depth: 1 }, scene)
-  wingL.parent = shipTilt
-  wingL.position.set(-1.6, 0, -0.3)
-  wingL.material = shipMat
+  // Cockpit canopy — flattened sphere on top of the fuselage.
+  const cockpit = MeshBuilder.CreateSphere('cockpit', { diameter: 1, segments: 14 }, scene)
+  cockpit.parent = shipTilt
+  cockpit.position.set(0, 0.32, 0.55)
+  cockpit.scaling.set(0.65, 0.42, 1.15)
+  cockpit.material = playerCockpitMat
 
-  const wingR = wingL.clone('wingR')
-  wingR.position.x = 1.6
+  // Wings — forward-swept (Arwing-style) angled boxes.
+  function createPlayerWing(sideX) {
+    const wing = MeshBuilder.CreateBox(
+      `playerWing${sideX > 0 ? 'R' : 'L'}`,
+      { width: 2.6, height: 0.18, depth: 1.3 },
+      scene,
+    )
+    wing.parent = shipTilt
+    wing.position.set(sideX * 1.55, -0.05, -0.3)
+    // Slight dihedral up at the tips, forward-sweep along the leading edge.
+    wing.rotation.z = sideX * -0.1
+    wing.rotation.y = sideX * 0.22
+    wing.material = playerBodyMat
+    return wing
+  }
+  const wingL = createPlayerWing(-1)
+  const wingR = createPlayerWing(1)
 
-  const playerMeshes = [shipBody, wingL, wingR]
+  // Wing-tip laser pods — small boxes at each wing tip in accent blue.
+  function createPlayerGun(sideX) {
+    const gun = MeshBuilder.CreateBox(
+      `playerGun${sideX > 0 ? 'R' : 'L'}`,
+      { width: 0.22, height: 0.22, depth: 1.5 },
+      scene,
+    )
+    gun.parent = shipTilt
+    gun.position.set(sideX * 2.65, 0, 0.05)
+    gun.material = playerAccentMat
+    return gun
+  }
+  const gunL = createPlayerGun(-1)
+  const gunR = createPlayerGun(1)
+
+  // Engine pods — twin cylinders at the rear.
+  function createPlayerEngine(sideX) {
+    const eng = MeshBuilder.CreateCylinder(
+      `playerEngine${sideX > 0 ? 'R' : 'L'}`,
+      { diameter: 0.55, height: 1.8, tessellation: 10 },
+      scene,
+    )
+    eng.parent = shipTilt
+    eng.rotation.x = Math.PI / 2
+    eng.position.set(sideX * 0.75, -0.1, -1.5)
+    eng.material = playerBodyMat
+    return eng
+  }
+  const engineL = createPlayerEngine(-1)
+  const engineR = createPlayerEngine(1)
+
+  // Exhaust glow discs at the back of each engine — strong emissive blue.
+  function createPlayerExhaust(sideX) {
+    const ex = MeshBuilder.CreateDisc(
+      `playerExhaust${sideX > 0 ? 'R' : 'L'}`,
+      { radius: 0.26, tessellation: 14 },
+      scene,
+    )
+    ex.parent = shipTilt
+    ex.rotation.x = Math.PI / 2
+    ex.position.set(sideX * 0.75, -0.1, -2.42)
+    ex.material = playerEngineGlowMat
+    return ex
+  }
+  const exhaustL = createPlayerExhaust(-1)
+  const exhaustR = createPlayerExhaust(1)
+
+  // A glowing dorsal accent strip running along the top of the fuselage.
+  const dorsalAccent = MeshBuilder.CreateBox(
+    'dorsalAccent',
+    { width: 0.18, height: 0.08, depth: 2.6 },
+    scene,
+  )
+  dorsalAccent.parent = shipTilt
+  dorsalAccent.position.set(0, 0.7, -0.1)
+  dorsalAccent.material = playerAccentMat
+
+  const playerMeshes = [
+    fuselage,
+    nose,
+    cockpit,
+    wingL,
+    wingR,
+    gunL,
+    gunR,
+    engineL,
+    engineR,
+    exhaustL,
+    exhaustR,
+    dorsalAccent,
+  ]
 
   // === Camera ===
   const camera = new ArcRotateCamera(
@@ -203,16 +317,30 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
   }
 
   // === Asteroid hazards (collidable backdrop) ===
-  const asteroidMat = new StandardMaterial('asteroidMat', scene)
-  asteroidMat.diffuseColor = new Color3(0.45, 0.42, 0.5)
-  asteroidMat.emissiveColor = new Color3(0.06, 0.06, 0.1)
-  asteroidMat.specularColor = new Color3(0.2, 0.2, 0.2)
+  // Pre-mix a few materials so the field looks varied (grey/tan/blue-grey
+  // rock tints) without spawning a fresh material per asteroid.
+  const asteroidMats = [
+    new Color3(0.45, 0.42, 0.5),
+    new Color3(0.55, 0.45, 0.4),
+    new Color3(0.38, 0.4, 0.5),
+    new Color3(0.5, 0.42, 0.38),
+  ].map((c, i) => {
+    const m = new StandardMaterial(`asteroidMat${i}`, scene)
+    m.diffuseColor = c
+    m.emissiveColor = c.scale(0.18)
+    m.specularColor = new Color3(0.18, 0.18, 0.18)
+    return m
+  })
+  // Babylon polyhedron types 1, 2, 3, 5 give octahedron / dodecahedron /
+  // icosahedron / variant respectively — collectively the field reads
+  // like proper chunky asteroids rather than 22 identical octahedra.
+  const polyTypes = [1, 2, 3, 5]
 
   const asteroids = []
   for (let i = 0; i < ASTEROID_COUNT; i++) {
-    // Polyhedron type 1 (octahedron) reads as a chunky asteroid.
-    const m = MeshBuilder.CreatePolyhedron(`ast${i}`, { type: 1, size: 1 }, scene)
-    m.material = asteroidMat
+    const type = polyTypes[i % polyTypes.length]
+    const m = MeshBuilder.CreatePolyhedron(`ast${i}`, { type, size: 1 }, scene)
+    m.material = asteroidMats[i % asteroidMats.length]
     m.setEnabled(false)
     asteroids.push({
       mesh: m,
@@ -271,27 +399,103 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
     bolts.push({ mesh: m, alive: false, spawnedAt: 0, vz: 0 })
   }
 
-  // === Enemy ships ===
-  const enemyMat = new StandardMaterial('enemyMat', scene)
-  enemyMat.diffuseColor = new Color3(1.0, 0.3, 0.25)
-  enemyMat.emissiveColor = new Color3(0.4, 0.05, 0.05)
-  enemyMat.specularColor = new Color3(0.4, 0.2, 0.2)
+  // === Enemy ships — angular, wider-than-tall wedge fighters ===
+  const enemyBodyMat = new StandardMaterial('enemyBodyMat', scene)
+  enemyBodyMat.diffuseColor = new Color3(0.65, 0.18, 0.18)
+  enemyBodyMat.emissiveColor = new Color3(0.2, 0.04, 0.04)
+  enemyBodyMat.specularColor = new Color3(0.3, 0.2, 0.2)
+
+  const enemyAccentMat = new StandardMaterial('enemyAccentMat', scene)
+  enemyAccentMat.diffuseColor = new Color3(0.2, 0.05, 0.05)
+  enemyAccentMat.emissiveColor = new Color3(0.1, 0.02, 0.02)
+  enemyAccentMat.specularColor = new Color3(0.2, 0.1, 0.1)
+
+  const enemyEyeMat = new StandardMaterial('enemyEyeMat', scene)
+  enemyEyeMat.diffuseColor = new Color3(0, 0, 0)
+  enemyEyeMat.emissiveColor = new Color3(1.0, 0.25, 0.15)
+  enemyEyeMat.disableLighting = true
+
+  const enemyEngineGlowMat = new StandardMaterial('enemyEngineGlowMat', scene)
+  enemyEngineGlowMat.diffuseColor = new Color3(0, 0, 0)
+  enemyEngineGlowMat.emissiveColor = new Color3(1.0, 0.35, 0.2)
+  enemyEngineGlowMat.disableLighting = true
 
   const enemies = []
   for (let i = 0; i < ENEMY_POOL; i++) {
     const rig = new TransformNode(`enemyRig${i}`, scene)
+
+    // Wide wedge body (cone, base facing -Z so the point leads into the
+    // player). Squished on the vertical to read as a hawkish wedge, not
+    // a cone-on-its-side like the old version.
     const body = MeshBuilder.CreateCylinder(
       `enemyBody${i}`,
-      { diameterTop: 0, diameterBottom: 2, height: 3.5, tessellation: 8 },
+      { diameterTop: 0, diameterBottom: 2.2, height: 3.6, tessellation: 8 },
       scene,
     )
     body.parent = rig
     body.rotation.x = -Math.PI / 2
-    body.material = enemyMat
+    body.scaling.set(1, 0.55, 1)
+    body.material = enemyBodyMat
 
-    const w = MeshBuilder.CreateBox(`enemyWing${i}`, { width: 3, height: 0.25, depth: 1.1 }, scene)
-    w.parent = rig
-    w.material = enemyMat
+    // Swept-back wings angled rearward (the opposite sweep direction
+    // from the player's forward-swept wings — silhouette reads as
+    // aggressive/attacking).
+    const wingL = MeshBuilder.CreateBox(
+      `enemyWingL${i}`,
+      { width: 2.2, height: 0.22, depth: 1.4 },
+      scene,
+    )
+    wingL.parent = rig
+    wingL.position.set(-1.6, -0.05, -0.3)
+    wingL.rotation.y = -0.25
+    wingL.material = enemyBodyMat
+
+    const wingR = MeshBuilder.CreateBox(
+      `enemyWingR${i}`,
+      { width: 2.2, height: 0.22, depth: 1.4 },
+      scene,
+    )
+    wingR.parent = rig
+    wingR.position.set(1.6, -0.05, -0.3)
+    wingR.rotation.y = 0.25
+    wingR.material = enemyBodyMat
+
+    // Glowing red "eye" at the front of the body — menacing focal point.
+    const eye = MeshBuilder.CreateSphere(`enemyEye${i}`, { diameter: 0.5, segments: 8 }, scene)
+    eye.parent = rig
+    eye.position.set(0, 0.05, 1.05)
+    eye.material = enemyEyeMat
+
+    // Dark accent stripe across the wings.
+    const stripe = MeshBuilder.CreateBox(
+      `enemyStripe${i}`,
+      { width: 4.3, height: 0.05, depth: 0.4 },
+      scene,
+    )
+    stripe.parent = rig
+    stripe.position.set(0, 0.12, -0.3)
+    stripe.material = enemyAccentMat
+
+    // Twin engine glows at the rear — bright orange.
+    const engL = MeshBuilder.CreateDisc(
+      `enemyEngL${i}`,
+      { radius: 0.22, tessellation: 10 },
+      scene,
+    )
+    engL.parent = rig
+    engL.rotation.x = Math.PI / 2
+    engL.position.set(-0.55, -0.05, -1.85)
+    engL.material = enemyEngineGlowMat
+
+    const engR = MeshBuilder.CreateDisc(
+      `enemyEngR${i}`,
+      { radius: 0.22, tessellation: 10 },
+      scene,
+    )
+    engR.parent = rig
+    engR.rotation.x = Math.PI / 2
+    engR.position.set(0.55, -0.05, -1.85)
+    engR.material = enemyEngineGlowMat
 
     rig.setEnabled(false)
     enemies.push({
