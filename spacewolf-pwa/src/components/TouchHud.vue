@@ -23,8 +23,30 @@
       </button>
     </div>
 
-    <!-- Left-of-Fire actions -->
-    <div class="actions actions-left">
+    <!-- Center action row: Fire | Cycle | Special | Turbo | Fire.
+         Two Fire buttons so either thumb can reach without crossing.
+         Both buttons feed the same fire input via ref-counted sources. -->
+    <div class="actions">
+      <button
+        class="hud-btn action fire"
+        :class="{ pressed: fireSrc.left }"
+        @pointerdown.prevent="onFireDown('left', $event)"
+        @pointerup.prevent="onFireUp('left', $event)"
+        @pointercancel.prevent="onFireUp('left', $event)"
+        @pointerleave.prevent="onFireUp('left', $event)"
+        aria-label="Fire main cannon (left)"
+      >
+        <span class="label">Fire</span>
+      </button>
+
+      <button
+        class="hud-btn action cycle"
+        @pointerdown.prevent="onPulse('cycleSpecial')"
+        aria-label="Cycle special weapon"
+      >
+        <span class="label">Cycle</span>
+      </button>
+
       <button
         class="hud-btn action special"
         @pointerdown.prevent="onPulse('special')"
@@ -33,36 +55,25 @@
         <span class="label">Special</span>
         <span class="sub">{{ activeSpecial }}</span>
       </button>
-      <button
-        class="hud-btn action cycle"
-        @pointerdown.prevent="onPulse('cycleSpecial')"
-        aria-label="Cycle special weapon"
-      >
-        <span class="label">Cycle</span>
-      </button>
-    </div>
 
-    <!-- Centered primary FIRE button -->
-    <button
-      class="hud-btn fire-center"
-      :class="{ pressed: pressed.fire }"
-      @pointerdown.prevent="onDown('fire', $event)"
-      @pointerup.prevent="onUp('fire', $event)"
-      @pointercancel.prevent="onUp('fire', $event)"
-      @pointerleave.prevent="onUp('fire', $event)"
-      aria-label="Fire main cannon"
-    >
-      <span class="fire-label">Fire</span>
-    </button>
-
-    <!-- Right-of-Fire actions -->
-    <div class="actions actions-right">
       <button
         class="hud-btn action turbo"
         @pointerdown.prevent="onPulse('turbo')"
         aria-label="Turbo boost"
       >
         <span class="label">Turbo</span>
+      </button>
+
+      <button
+        class="hud-btn action fire"
+        :class="{ pressed: fireSrc.right }"
+        @pointerdown.prevent="onFireDown('right', $event)"
+        @pointerup.prevent="onFireUp('right', $event)"
+        @pointercancel.prevent="onFireUp('right', $event)"
+        @pointerleave.prevent="onFireUp('right', $event)"
+        aria-label="Fire main cannon (right)"
+      >
+        <span class="label">Fire</span>
       </button>
     </div>
 
@@ -92,7 +103,7 @@
 </template>
 
 <script setup>
-import { reactive, computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { reactive, onMounted, onBeforeUnmount, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useInputStore } from 'src/stores/input'
 import { useHaptics } from 'src/composables/useHaptics'
@@ -104,8 +115,21 @@ const haptics = useHaptics()
 const pressed = reactive({
   steerLeft: false,
   steerRight: false,
-  fire: false,
 })
+
+// Each independent fire source tracks its own down state. The held flag
+// stays true as long as ANY source is down — so releasing the left Fire
+// button while the right is still held doesn't stop firing, and the
+// keyboard Space behaves like a third source.
+const fireSrc = reactive({
+  left: false,
+  right: false,
+  key: false,
+})
+function setFireSrc(name, down) {
+  fireSrc[name] = down
+  inputStore.setHeld('fire', fireSrc.left || fireSrc.right || fireSrc.key)
+}
 
 const isPortrait = ref(false)
 function recalcOrientation() {
@@ -138,6 +162,31 @@ function onUp(key, ev) {
   inputStore.setHeld(key, false)
 }
 
+function onFireDown(side, ev) {
+  if (ev?.target?.setPointerCapture && ev.pointerId != null) {
+    try {
+      ev.target.setPointerCapture(ev.pointerId)
+    } catch {
+      // ignore
+    }
+  }
+  if (fireSrc[side]) return
+  setFireSrc(side, true)
+  haptics.light()
+}
+
+function onFireUp(side, ev) {
+  if (!fireSrc[side]) return
+  if (ev?.target?.releasePointerCapture && ev.pointerId != null) {
+    try {
+      ev.target.releasePointerCapture(ev.pointerId)
+    } catch {
+      // ignore
+    }
+  }
+  setFireSrc(side, false)
+}
+
 function onPulse(key) {
   inputStore.pulse(key)
   haptics.medium()
@@ -154,14 +203,12 @@ const keyMap = {
   KeyA: 'steerLeft',
   ArrowRight: 'steerRight',
   KeyD: 'steerRight',
-  Space: 'fire',
 }
 const pulseKeyMap = {
   KeyJ: 'special',
   KeyK: 'cycleSpecial',
   KeyU: 'turbo',
 }
-// Roll keys: Q = left, E = right
 const rollKeyMap = {
   KeyQ: -1,
   KeyE: 1,
@@ -169,6 +216,11 @@ const rollKeyMap = {
 
 function onKeyDown(e) {
   if (e.repeat) return
+  if (e.code === 'Space') {
+    setFireSrc('key', true)
+    e.preventDefault()
+    return
+  }
   const held = keyMap[e.code]
   if (held) {
     pressed[held] = true
@@ -189,6 +241,10 @@ function onKeyDown(e) {
   }
 }
 function onKeyUp(e) {
+  if (e.code === 'Space') {
+    setFireSrc('key', false)
+    return
+  }
   const held = keyMap[e.code]
   if (held) {
     pressed[held] = false
@@ -221,21 +277,17 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   z-index: 5;
-  // Five columns put the FIRE button in the dead-centre column. The two
-  // 1fr columns hold the secondary actions; the auto edges hold the
-  // roll/steer stacks. This guarantees Fire is always centred regardless
-  // of how many side actions exist.
+  // 3-column grid: side stacks anchor the edges, actions fill the middle.
   display: grid;
-  grid-template-columns: auto 1fr auto 1fr auto;
+  grid-template-columns: auto 1fr auto;
   align-items: stretch;
-  gap: 10px;
-  padding: 14px;
-  padding-bottom: max(14px, env(safe-area-inset-bottom));
-  padding-left: max(14px, env(safe-area-inset-left));
-  padding-right: max(14px, env(safe-area-inset-right));
+  gap: 14px;
+  padding: 18px;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  padding-left: max(18px, env(safe-area-inset-left));
+  padding-right: max(18px, env(safe-area-inset-right));
   pointer-events: none;
 
-  // Subtle gradient backdrop so buttons read against bright space
   background: linear-gradient(to top, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
 }
 
@@ -243,16 +295,17 @@ onBeforeUnmount(() => {
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(20, 30, 60, 0.55);
   backdrop-filter: blur(6px);
   color: white;
-  border-radius: 14px;
+  border-radius: 16px;
   font-family: 'Quicksand', sans-serif;
   font-weight: 600;
-  padding: 10px 14px;
+  padding: 12px 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -276,17 +329,15 @@ onBeforeUnmount(() => {
 .side {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   align-items: stretch;
-  width: 84px;
+  width: 112px;
 }
 
 .roll {
-  // Substantial secondary button above the steer arrow — bigger touch
-  // target than before so it's easy to slap during evasive flying.
   flex: 0 0 auto;
-  min-height: 58px;
-  padding: 8px;
+  min-height: 76px;
+  padding: 10px;
   background: rgba(80, 50, 120, 0.55);
   border-color: rgba(200, 170, 240, 0.55);
 }
@@ -296,96 +347,69 @@ onBeforeUnmount(() => {
 }
 
 .roll-icon {
-  font-size: 24px;
+  font-size: 32px;
   line-height: 1;
   font-weight: 700;
 }
 
 .roll-label {
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   opacity: 0.85;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .steer {
-  // Steer is the dominant target — fills the rest of the side column.
   flex: 1 1 auto;
   font-size: 36px;
-  min-height: 70px;
+  min-height: 92px;
 }
 
 .steer .arrow {
   line-height: 1;
-  font-size: 44px;
+  font-size: 58px;
   font-weight: 700;
 }
 
-// Secondary action clusters flanking the centred FIRE button.
 .actions {
   min-width: 0;
   display: flex;
-  gap: 8px;
+  gap: 10px;
   align-items: stretch;
-}
-
-.actions-left {
-  justify-content: flex-end;
-}
-
-.actions-right {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .action {
   min-width: 0;
   flex: 0 1 auto;
-  padding: 8px 10px;
-  font-size: 0.85rem;
+  padding: 11px 14px;
+  font-size: 1.1rem;
 }
 
 .action .label {
-  font-size: 0.85rem;
+  font-size: 1.1rem;
   line-height: 1;
+  font-weight: 700;
 }
 
 .action .sub {
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   opacity: 0.7;
-  margin-top: 2px;
+  margin-top: 3px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
-// Primary central FIRE button — visually dominant, dead centre of the HUD.
-.fire-center {
-  width: 96px;
-  min-height: 70px;
-  padding: 0;
-  align-self: stretch;
-  background: rgba(220, 60, 60, 0.7);
-  border: 2px solid rgba(255, 200, 200, 0.7);
-  border-radius: 50%;
-  box-shadow:
-    0 0 12px rgba(255, 80, 80, 0.45),
-    inset 0 0 12px rgba(255, 180, 180, 0.25);
-  font-size: 1.1rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+.fire {
+  background: rgba(220, 60, 60, 0.65);
+  border-color: rgba(255, 180, 180, 0.65);
+  box-shadow: 0 0 12px rgba(255, 80, 80, 0.3);
 }
-
-.fire-center:active,
-.fire-center.pressed {
+.fire:active,
+.fire.pressed {
   background: rgba(255, 80, 80, 0.9);
-  box-shadow:
-    0 0 18px rgba(255, 100, 100, 0.7),
-    inset 0 0 12px rgba(255, 200, 200, 0.4);
-}
-
-.fire-label {
-  font-size: 1.05rem;
-  font-weight: 700;
+  box-shadow: 0 0 16px rgba(255, 100, 100, 0.55);
 }
 
 .turbo {
@@ -397,96 +421,122 @@ onBeforeUnmount(() => {
   background: rgba(255, 210, 60, 0.85);
 }
 
-// Tighter layout on small phones / portrait
-@media (max-width: 700px) {
+// Phone landscape — keep all controls big enough to slap, scale slightly
+// down from the iPad/desktop defaults but still meaningfully bigger
+// than the previous layout.
+@media (max-width: 820px) {
+  .touch-hud {
+    gap: 10px;
+    padding: 14px;
+  }
+  .side {
+    width: 92px;
+    gap: 6px;
+  }
+  .roll {
+    min-height: 64px;
+  }
+  .steer {
+    min-height: 82px;
+  }
+  .steer .arrow {
+    font-size: 50px;
+  }
+  .roll-icon {
+    font-size: 26px;
+  }
+  .roll-label {
+    font-size: 0.72rem;
+  }
+  .action {
+    padding: 9px 12px;
+  }
+  .actions {
+    gap: 8px;
+  }
+  .action .label {
+    font-size: 0.98rem;
+  }
+  .action .sub {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 600px) {
   .touch-hud {
     gap: 8px;
     padding: 10px;
   }
   .side {
-    width: 64px;
+    width: 76px;
     gap: 5px;
   }
   .roll {
-    min-height: 50px;
+    min-height: 56px;
+    padding: 7px 8px;
   }
   .steer {
-    min-height: 64px;
+    min-height: 72px;
   }
   .steer .arrow {
-    font-size: 36px;
+    font-size: 42px;
   }
   .roll-icon {
-    font-size: 20px;
+    font-size: 22px;
   }
   .roll-label {
-    font-size: 0.58rem;
-  }
-  .fire-center {
-    width: 78px;
-    min-height: 60px;
-  }
-  .fire-label {
-    font-size: 0.9rem;
+    font-size: 0.62rem;
   }
   .action {
-    padding: 6px 8px;
+    padding: 8px 9px;
   }
   .actions {
     gap: 6px;
   }
   .action .label {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
   }
   .action .sub {
-    font-size: 0.58rem;
+    font-size: 0.6rem;
   }
 }
 
 @media (max-width: 480px) {
   .side {
-    width: 54px;
+    width: 64px;
     gap: 4px;
   }
   .roll {
-    min-height: 42px;
-    padding: 4px 6px;
+    min-height: 48px;
+    padding: 5px 6px;
   }
   .steer {
-    min-height: 56px;
+    min-height: 64px;
   }
   .steer .arrow {
-    font-size: 32px;
+    font-size: 38px;
   }
   .roll-icon {
-    font-size: 18px;
+    font-size: 20px;
   }
   .roll-label {
     display: none;
-  }
-  .fire-center {
-    width: 64px;
-    min-height: 52px;
-  }
-  .fire-label {
-    font-size: 0.78rem;
   }
   .actions {
     gap: 4px;
   }
   .action {
-    padding: 6px 6px;
+    padding: 7px 7px;
   }
   .action .label {
-    font-size: 0.7rem;
+    font-size: 0.78rem;
   }
-  // Hide the sub-label on very small screens — actions get too cramped
   .action .sub {
     display: none;
   }
 }
 
 .touch-hud.is-portrait .actions {
-  gap: 4px;
+  gap: 6px;
 }
 </style>
