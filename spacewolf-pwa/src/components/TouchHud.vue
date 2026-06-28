@@ -1,5 +1,9 @@
 <template>
-  <div class="touch-hud" :class="{ 'is-portrait': isPortrait }">
+  <div
+    class="touch-hud"
+    :class="{ 'is-portrait': isPortrait }"
+    @contextmenu.prevent
+  >
     <!-- Left side: roll-left above, steer-left below -->
     <div class="side">
       <button
@@ -297,7 +301,12 @@ onBeforeUnmount(() => {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
+  -webkit-user-drag: none;
+  // `none` (not `manipulation`) — manipulation still lets iOS process
+  // long-press as a potential context-menu trigger. `none` tells the
+  // OS to do absolutely nothing default with this touch, so the
+  // pointerdown/up handlers own the interaction fully.
+  touch-action: none;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(20, 30, 60, 0.55);
   backdrop-filter: blur(6px);
@@ -317,6 +326,19 @@ onBeforeUnmount(() => {
     border-color 0.08s ease;
   cursor: pointer;
   outline: none;
+}
+
+// iOS sometimes treats the inner text spans as the long-press target
+// (not the button itself), which leaves the callout free to surface
+// because the suppression on the button doesn't auto-cascade in WebKit.
+// Force-suppress on every descendant AND make them pass-through for
+// pointer events so the button is always the event target.
+.hud-btn * {
+  pointer-events: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .hud-btn:active,
