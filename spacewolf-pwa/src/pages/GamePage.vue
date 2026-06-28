@@ -1,5 +1,8 @@
 <template>
-  <q-page class="game-page">
+  <q-page
+    class="game-page"
+    @contextmenu.prevent
+  >
     <BabylonCanvas ref="canvas" class="canvas" />
     <TouchHud />
 
@@ -102,6 +105,16 @@ function restart() {
   inset: 0;
   background: #05071a;
   overflow: hidden;
+  // Suppress iOS long-press callout (copy/lookup/share), text selection,
+  // and the tap-highlight overlay across the whole game page. Children
+  // inherit user-select and -webkit-touch-callout, so this covers the
+  // canvas, HUD buttons, and overlays in one place.
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  // Block the browser's native pinch/double-tap-zoom gestures during play.
+  touch-action: none;
 }
 
 .canvas {
