@@ -27,6 +27,26 @@
       <div class="score-value">{{ gameStateStore.score.toLocaleString() }}</div>
     </div>
 
+    <!-- Boot overlay: spinner while loading, Launch button when ready -->
+    <transition name="overlay-fade">
+      <div v-if="gameStateStore.status === 'idle'" class="boot-overlay">
+        <div class="boot-card">
+          <div class="boot-title">SpaceWolf</div>
+          <template v-if="!gameStateStore.sceneReady">
+            <div class="boot-spinner" aria-hidden="true"></div>
+            <div class="boot-text">Spinning up the engines&hellip;</div>
+          </template>
+          <template v-else>
+            <div class="boot-ready">Ready</div>
+            <button class="launch-btn" @click="launch" aria-label="Launch">
+              <q-icon name="rocket_launch" size="22px" />
+              <span>Launch</span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </transition>
+
     <!-- Game over overlay -->
     <transition name="overlay-fade">
       <div v-if="gameStateStore.status === 'over'" class="game-over">
@@ -57,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BabylonCanvas from 'src/components/BabylonCanvas.vue'
 import TouchHud from 'src/components/TouchHud.vue'
@@ -73,6 +93,18 @@ const canvas = ref(null)
 
 const bestScore = computed(() => progressStore.game.bestScore)
 const isNewBest = ref(false)
+
+// Reset to boot state every time this page mounts — covers the "menu ->
+// game -> menu -> game" cycle where the previous run might have left
+// status === 'over' and sceneReady === true.
+onMounted(() => {
+  gameStateStore.resetToBoot()
+})
+
+function launch() {
+  haptics.medium()
+  if (canvas.value) canvas.value.startRun()
+}
 
 // When a run ends, record it and check for a new best.
 watch(
@@ -282,5 +314,114 @@ function restart() {
 .overlay-fade-enter-from,
 .overlay-fade-leave-to {
   opacity: 0;
+}
+
+// === Boot overlay (loading / ready) ===
+.boot-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 30, 70, 0.75) 0%,
+    rgba(5, 7, 26, 0.92) 70%
+  );
+  backdrop-filter: blur(4px);
+}
+
+.boot-card {
+  max-width: 360px;
+  width: calc(100% - 48px);
+  padding: 32px 36px;
+  background: rgba(15, 20, 50, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 18px;
+  text-align: center;
+  color: white;
+  font-family: 'Quicksand', sans-serif;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.boot-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 22px;
+  text-shadow: 0 0 18px rgba(100, 160, 255, 0.45);
+}
+
+.boot-spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  border-top-color: #4a7cff;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.boot-text {
+  font-size: 0.95rem;
+  opacity: 0.85;
+  letter-spacing: 0.03em;
+}
+
+.boot-ready {
+  font-size: 0.85rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #6effb8;
+  margin-bottom: 18px;
+  animation: ready-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ready-pulse {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+.launch-btn {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 60px;
+  padding: 14px 24px;
+  background: linear-gradient(180deg, rgba(70, 130, 255, 0.95), rgba(40, 90, 220, 0.95));
+  border: 2px solid rgba(180, 210, 255, 0.85);
+  border-radius: 14px;
+  box-shadow:
+    0 0 18px rgba(100, 160, 255, 0.55),
+    inset 0 0 14px rgba(160, 200, 255, 0.25);
+  color: white;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+
+  &:active {
+    transform: scale(0.97);
+    box-shadow:
+      0 0 26px rgba(120, 180, 255, 0.85),
+      inset 0 0 14px rgba(180, 210, 255, 0.4);
+  }
 }
 </style>
