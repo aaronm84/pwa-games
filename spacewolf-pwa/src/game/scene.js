@@ -14,6 +14,7 @@ import {
   Animation,
   Tools,
 } from '@babylonjs/core'
+import * as audio from './audio'
 
 // === Flight tuning ===
 const BASE_FORWARD = 30
@@ -293,8 +294,18 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
     }
   }
 
-  const emitSpark = (pos) => emit(sparkPool, pos, 8, 14, 0.3)
-  const emitExplosion = (pos) => emit(explosionPool, pos, 28, 22, 0.6)
+  // Visual + audio wrappers — every spark/explosion/damage emission
+  // automatically plays its matching sound. The audio module throttles
+  // high-frequency calls so a burst of collisions in one frame doesn't
+  // muddy the mix.
+  const emitSpark = (pos) => {
+    emit(sparkPool, pos, 8, 14, 0.3)
+    audio.play('spark')
+  }
+  const emitExplosion = (pos) => {
+    emit(explosionPool, pos, 28, 22, 0.6)
+    audio.play('explosion')
+  }
   const emitDamageFlash = (pos) => emit(damagePool, pos, 18, 12, 0.45)
 
   function updateParticles(dt) {
@@ -546,6 +557,7 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
   function damagePlayer(now, sourcePos) {
     if (isPlayerInvuln(now)) return
     emitDamageFlash(sourcePos || shipRig.position)
+    audio.play('damage')
     gameStateStore.loseLife()
     state.invulnUntil = now + POST_HIT_INVULN_MS
   }
@@ -556,6 +568,7 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
     if (dir !== -1 && dir !== 1) return
     state.rollDir = dir
     state.lateralVel = dir * ROLL_DODGE_VEL
+    audio.play('roll')
     const start = shipTilt.rotation.z
     const anim = new Animation(
       'roll',
@@ -581,6 +594,7 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
 
   function triggerTurbo() {
     state.turboUntil = performance.now() + 1500
+    audio.play('turbo')
   }
 
   // === Firing ===
@@ -613,6 +627,7 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
       b.vz = BOLT_SPEED
       b.mesh.setEnabled(true)
     }
+    audio.play('laserPlayer')
   }
 
   function enemyFire(e, now) {
@@ -644,6 +659,7 @@ export function createGameScene(canvas, inputStore, gameStateStore) {
       (dz / d) * ENEMY_BOLT_SPEED,
     )
     b.mesh.setEnabled(true)
+    audio.play('laserEnemy')
   }
 
   // === Enemy spawn ===

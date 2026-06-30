@@ -84,6 +84,7 @@ import TouchHud from 'src/components/TouchHud.vue'
 import { useHaptics } from 'src/composables/useHaptics'
 import { useGameStateStore } from 'src/stores/gameState'
 import { useProgressStore } from 'src/stores/progress'
+import * as audio from 'src/game/audio'
 
 const router = useRouter()
 const haptics = useHaptics()
@@ -101,8 +102,13 @@ onMounted(() => {
   gameStateStore.resetToBoot()
 })
 
-function launch() {
+async function launch() {
   haptics.medium()
+  // First user gesture — unlock the audio context (iOS Safari requires
+  // a gesture before any sound will play). After this resolves, all
+  // subsequent audio.play() calls produce sound.
+  await audio.unlock()
+  audio.play('launch')
   if (canvas.value) canvas.value.startRun()
 }
 
@@ -114,6 +120,7 @@ watch(
       const beat = gameStateStore.score > progressStore.game.bestScore
       isNewBest.value = beat
       progressStore.recordRun(gameStateStore.score)
+      audio.play('gameOver')
       haptics.warning?.()
     }
   },
@@ -126,6 +133,7 @@ function goBack() {
 
 function restart() {
   haptics.medium()
+  audio.play('launch')
   isNewBest.value = false
   if (canvas.value) canvas.value.startRun()
 }

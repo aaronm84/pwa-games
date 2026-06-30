@@ -6,12 +6,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useSettingsStore } from 'src/stores/settings'
 import { useProgressStore } from 'src/stores/progress'
 import { useThemeStore } from 'src/stores/theme'
 import { useStatusBar } from 'src/composables/useStatusBar'
 import LoadingScreen from 'src/components/LoadingScreen.vue'
+import * as audio from 'src/game/audio'
 
 const settingsStore = useSettingsStore()
 const progressStore = useProgressStore()
@@ -38,6 +39,19 @@ onMounted(async () => {
     if (themeOverride && themeOverride !== 'auto') {
       themeStore.setThemeOverride(themeOverride)
     }
+
+    // Sync audio module with the loaded sound settings, then keep them
+    // in sync so the Settings page toggle/slider is live.
+    audio.setEnabled(settingsStore.settings.soundEffectsEnabled)
+    audio.setVolume(settingsStore.settings.soundEffectsVolume)
+    watch(
+      () => settingsStore.settings.soundEffectsEnabled,
+      (v) => audio.setEnabled(v),
+    )
+    watch(
+      () => settingsStore.settings.soundEffectsVolume,
+      (v) => audio.setVolume(v),
+    )
 
     // Configure status bar for overlay mode with light content
     await statusBar.setLightContent()
