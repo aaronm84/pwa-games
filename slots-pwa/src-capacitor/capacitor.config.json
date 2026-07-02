@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.slots",
+  "appName": "Slots",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#1f3a34",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#1f3a34"
+}
