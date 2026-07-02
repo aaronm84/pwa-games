@@ -22,11 +22,12 @@ more. It's all virtual — build your bankroll and chase the jackpot.
 
 ## Machines
 
-The casino is built to hold several machines that share one bankroll. First up:
+A **lobby** lets you switch between machines that all share one bankroll:
 
 - **Gem Fortune** — 5×3 reels, 20 lines, Wild + Scatter, Free Spins, progressive jackpot.
+- **Lucky 7s** — classic single-line 3-reel with a **Hold** feature and pixel-art symbols; 7-7-7 hits the shared jackpot.
 
-Planned: a classic 3-reel machine, a cascading/tumbling machine, and a Megaways-style machine.
+Planned: a cascading/tumbling machine (Sugar Tumble) and a Megaways-style machine (Wild Ways).
 
 ## Credits
 

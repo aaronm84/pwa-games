@@ -44,8 +44,8 @@ const showBackButton = computed(() => {
 })
 
 const isGamePage = computed(() => {
-  // Hide header for game pages that have their own custom header
-  return route.name === 'slots'
+  // Hide the layout header for pages that render their own custom header
+  return ['lobby', 'gem-fortune', 'lucky-sevens'].includes(route.name)
 })
 
 function goBack() {

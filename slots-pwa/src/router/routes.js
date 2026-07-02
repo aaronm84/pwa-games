@@ -13,9 +13,19 @@ const routes = [
         component: () => import('pages/MenuPage.vue'),
       },
       {
-        path: 'slots',
-        name: 'slots',
+        path: 'lobby',
+        name: 'lobby',
+        component: () => import('pages/LobbyPage.vue'),
+      },
+      {
+        path: 'gem-fortune',
+        name: 'gem-fortune',
         component: () => import('pages/SlotsPage.vue'),
+      },
+      {
+        path: 'lucky-sevens',
+        name: 'lucky-sevens',
+        component: () => import('pages/LuckySevensPage.vue'),
       },
       {
         path: 'how-to-play',

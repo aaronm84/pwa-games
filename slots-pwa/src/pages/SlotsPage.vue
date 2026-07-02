@@ -540,7 +540,7 @@ function todayNum() {
 
 function goBack() {
   haptics.light()
-  router.back()
+  router.push({ name: 'lobby' })
 }
 function howToPlay() {
   haptics.light()
@@ -552,7 +552,7 @@ onMounted(() => {
   jackpotDisplay.value = casino.value.jackpot
   initReels()
   loop()
-  if (casino.value.lastDaily !== todayNum()) showDaily.value = true
+  // daily bonus is offered at the lobby, not per-machine
 })
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)

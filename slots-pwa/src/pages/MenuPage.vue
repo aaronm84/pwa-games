@@ -100,7 +100,7 @@ const haptics = useHaptics()
 
 function playGame() {
   haptics.medium()
-  router.push({ name: 'slots' })
+  router.push({ name: 'lobby' })
 }
 
 function howToPlay() {
