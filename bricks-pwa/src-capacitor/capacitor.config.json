@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.bricks",
+  "appName": "Bricks",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#2a1a4a",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#2a1a4a"
+}
