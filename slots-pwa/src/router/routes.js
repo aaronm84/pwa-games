@@ -28,6 +28,11 @@ const routes = [
         component: () => import('pages/LuckySevensPage.vue'),
       },
       {
+        path: 'sugar-tumble',
+        name: 'sugar-tumble',
+        component: () => import('pages/SugarTumblePage.vue'),
+      },
+      {
         path: 'how-to-play',
         name: 'how-to-play',
         component: () => import('pages/HowToPlayPage.vue'),

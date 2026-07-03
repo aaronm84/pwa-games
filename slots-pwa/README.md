@@ -26,8 +26,9 @@ A **lobby** lets you switch between machines that all share one bankroll:
 
 - **Gem Fortune** — 5×3 reels, 20 lines, Wild + Scatter, Free Spins, progressive jackpot.
 - **Lucky 7s** — classic single-line 3-reel with a **Hold** feature and pixel-art symbols; 7-7-7 hits the shared jackpot.
+- **Sugar Tumble** — 6×5 pay-anywhere: land 8+ of a fruit anywhere, they pay and **tumble** away for chain-reaction wins with a **climbing multiplier**; scatters award free spins, long cascades hit the jackpot.
 
-Planned: a cascading/tumbling machine (Sugar Tumble) and a Megaways-style machine (Wild Ways).
+Planned: a Megaways-style machine (Wild Ways).
 
 ## Credits
 
