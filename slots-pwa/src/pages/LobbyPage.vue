@@ -80,7 +80,7 @@ const machines = [
   { id: 'gem', name: 'Gem Fortune', tag: '5×3 · 20 lines · Free Spins', emoji: '💎', accent: '#8e5fc8', route: 'gem-fortune' },
   { id: 'lucky', name: 'Lucky 7s', tag: 'Classic 3-reel · Hold', emoji: '7️⃣', accent: '#ff4d6d', route: 'lucky-sevens' },
   { id: 'sugar', name: 'Sugar Tumble', tag: '6×5 · Cascading combos', emoji: '🍬', accent: '#ff8ac6', route: 'sugar-tumble' },
-  { id: 'wild', name: 'Wild Ways', tag: 'Megaways · ~100k ways', emoji: '🌟', accent: '#f5c542', soon: true },
+  { id: 'wild', name: 'Wild Ways', tag: 'Ways-to-win · up to 46,656 ways', emoji: '🌟', accent: '#f5c542', route: 'wild-ways' },
 ]
 
 function pick(m) {

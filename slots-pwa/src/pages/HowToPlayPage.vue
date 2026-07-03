@@ -16,9 +16,11 @@
             </div>
             <h2>Objective</h2>
             <p>
-              Spin the 5 reels and line up matching symbols on a payline to win
-              credits. It's all for fun — <strong>no real money</strong>. Build your
-              bankroll, trigger free spins, and chase the growing jackpot.
+              Spin the reels and match symbols to win credits — all for fun,
+              <strong>no real money</strong>. The <strong>lobby</strong> has four
+              machines (classic reels, video slot, cascading fruit, and ways-to-win)
+              that all share <strong>one bankroll and jackpot</strong>. Build your
+              credits, trigger free spins, and chase the growing jackpot.
             </p>
           </div>
 
