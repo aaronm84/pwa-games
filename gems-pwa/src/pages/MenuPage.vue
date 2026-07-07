@@ -1,7 +1,6 @@
 <template>
   <q-page class="menu-page">
-    <!-- Dynamic Background Component -->
-    <DynamicBackground />
+    <GemBackground />
 
     <!-- Menu Content -->
     <div class="menu-content">
@@ -13,70 +12,28 @@
         <p class="game-subtitle">Swap, match three, chain combos</p>
       </div>
 
-      <!-- Menu Buttons -->
+      <!-- Mode select -->
       <div class="menu-buttons">
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="playGame"
+        <button
+          v-for="m in modes"
+          :key="m.id"
+          class="mode-btn"
+          :style="{ '--accent': m.accent }"
+          @click="play(m.id)"
         >
-          <div class="btn-content">
-            <q-icon name="play_arrow" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Play</div>
-              <div class="btn-sublabel">25 moves · chase a high score</div>
-            </div>
+          <q-icon :name="m.icon" size="28px" class="mode-icon" />
+          <div class="mode-text">
+            <div class="mode-label">{{ m.label }}</div>
+            <div class="mode-sub">{{ m.sub }}</div>
           </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="howToPlay"
-        >
-          <div class="btn-content">
-            <q-icon name="help_outline" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">How to Play</div>
-              <div class="btn-sublabel">Learn the basics</div>
-            </div>
-          </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="openSettings"
-        >
-          <div class="btn-content">
-            <q-icon name="settings" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Settings</div>
-              <div class="btn-sublabel">Haptics & theme</div>
-            </div>
-          </div>
-        </q-btn>
+          <div class="mode-best">{{ bestFor(m.id) }}</div>
+        </button>
       </div>
 
-      <!-- Progress Info -->
-      <div v-if="gems.gamesPlayed > 0" class="progress-info">
-        <div class="progress-stat">
-          <q-icon name="emoji_events" size="sm" color="yellow-6" />
-          <span>Best score: {{ gems.bestScore }}</span>
-        </div>
-        <div class="progress-stat">
-          <q-icon name="diamond" size="sm" color="purple-4" />
-          <span>{{ gems.gamesPlayed }} games played</span>
-        </div>
+      <!-- secondary actions -->
+      <div class="secondary">
+        <q-btn flat no-caps color="white" icon="help_outline" label="How to Play" @click="howToPlay" />
+        <q-btn flat no-caps color="white" icon="settings" label="Settings" @click="openSettings" />
       </div>
     </div>
   </q-page>
@@ -87,16 +44,28 @@ import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
-import DynamicBackground from 'src/components/DynamicBackground.vue'
+import GemBackground from 'src/components/GemBackground.vue'
 
 const router = useRouter()
 const progressStore = useProgressStore()
 const { gems } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
-function playGame() {
+const modes = [
+  { id: 'zen', label: 'Zen', sub: 'Endless — relax and match', icon: 'spa', accent: '#2ecc71' },
+  { id: 'challenge', label: 'Challenge', sub: 'Beat the target each level', icon: 'military_tech', accent: '#f1c40f' },
+  { id: 'blitz', label: 'Blitz', sub: '60-second score sprint', icon: 'bolt', accent: '#e74c3c' },
+]
+
+function bestFor(id) {
+  if (id === 'zen') return gems.value.zenBest ? `Best ${gems.value.zenBest}` : ''
+  if (id === 'blitz') return gems.value.blitzBest ? `Best ${gems.value.blitzBest}` : ''
+  return gems.value.challengeLevel ? `Lvl ${gems.value.challengeLevel}` : ''
+}
+
+function play(mode) {
   haptics.medium()
-  router.push({ name: 'gems' })
+  router.push({ name: 'gems', query: { mode } })
 }
 
 function howToPlay() {
@@ -160,67 +129,44 @@ function openSettings() {
 .menu-buttons {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
   max-width: 400px;
   animation: fadeInUp 0.8s ease-out 0.2s backwards;
 }
 
-.menu-btn {
-  height: auto;
-  padding: 20px 24px;
-  border-radius: 16px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-    background: rgba(255, 255, 255, 0.25) !important;
-  }
-}
-
-.btn-content {
+.mode-btn {
   display: flex;
   align-items: center;
   gap: 16px;
   width: 100%;
-}
-
-.btn-icon {
-  flex-shrink: 0;
-}
-
-.btn-text {
-  flex: 1;
+  padding: 18px 20px;
+  border-radius: 16px;
+  cursor: pointer;
+  color: #fff;
   text-align: left;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 5px solid var(--accent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.mode-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.18);
+}
+.mode-btn:active { transform: translateY(0); }
+.mode-icon { color: var(--accent); flex-shrink: 0; }
+.mode-text { flex: 1; min-width: 0; }
+.mode-label { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+.mode-sub { font-size: 0.85rem; opacity: 0.8; }
+.mode-best { font-size: 0.8rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+
+.secondary {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.btn-label {
-  font-size: 1.1rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.btn-sublabel {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  font-weight: 400;
-  line-height: 1.2;
+  gap: 8px;
+  animation: fadeInUp 0.8s ease-out 0.4s backwards;
 }
 
 .progress-info {

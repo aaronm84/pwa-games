@@ -5,15 +5,22 @@ import { useGameStorage } from 'src/composables/useGameStorage'
 export const useProgressStore = defineStore('progress', () => {
   const storage = useGameStorage()
 
-  // Gems progress
+  // Gems progress — per-mode bests
   const gems = ref({
-    bestScore: 0,
     gamesPlayed: 0,
+    bestScore: 0, // overall best score (legacy / max across score modes)
+    zenBest: 0,
+    blitzBest: 0,
+    challengeLevel: 0, // highest challenge level reached
   })
 
-  function recordGemsGame(score) {
+  // record a finished run; payload = { score, level }
+  function recordGems(mode, { score = 0, level = 0 } = {}) {
     gems.value.gamesPlayed++
-    if (score > gems.value.bestScore) gems.value.bestScore = score
+    if (mode === 'zen') gems.value.zenBest = Math.max(gems.value.zenBest, score)
+    else if (mode === 'blitz') gems.value.blitzBest = Math.max(gems.value.blitzBest, score)
+    else if (mode === 'challenge') gems.value.challengeLevel = Math.max(gems.value.challengeLevel, level)
+    gems.value.bestScore = Math.max(gems.value.bestScore, score)
     saveToStorage()
   }
 
@@ -41,13 +48,13 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   async function resetGemsProgress() {
-    gems.value = { bestScore: 0, gamesPlayed: 0 }
+    gems.value = { gamesPlayed: 0, bestScore: 0, zenBest: 0, blitzBest: 0, challengeLevel: 0 }
     await saveToStorage()
   }
 
   return {
     gems,
-    recordGemsGame,
+    recordGems,
     resetGemsProgress,
 
     // Common

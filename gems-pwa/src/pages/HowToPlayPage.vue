@@ -51,6 +51,19 @@
             </ul>
           </div>
 
+          <!-- Modes -->
+          <div class="instruction-card">
+            <div class="card-icon">
+              <q-icon name="dashboard" size="xl" color="amber" />
+            </div>
+            <h2>Game Modes</h2>
+            <ul>
+              <li><strong>Zen</strong> — endless, no limits. Relax and match as long as you like</li>
+              <li><strong>Challenge</strong> — hit each level's target score before you run out of moves; it gets harder every level</li>
+              <li><strong>Blitz</strong> — a 60-second sprint. Every clear adds a little time, and big combos add more</li>
+            </ul>
+          </div>
+
           <!-- Tips -->
           <div class="instruction-card">
             <div class="card-icon">
