@@ -111,12 +111,14 @@ const { gems: stats } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
 const mode = ['zen', 'challenge', 'blitz'].includes(route.query.mode) ? route.query.mode : 'zen'
+// Challenge resumes at the level passed from the menu (Continue vs Restart)
+const startLevel = Math.max(1, parseInt(route.query.level, 10) || 1)
 
 const boardEl = ref(null)
 const gems = ref([])
 const score = ref(0)
 const movesLeft = ref(ZEN_MOVES)
-const level = ref(1)
+const level = ref(startLevel)
 const target = ref(0)
 const timeLeft = ref(BLITZ_START)
 const overlay = ref(null) // null | 'levelClear' | 'over'
@@ -190,7 +192,8 @@ function startMode() {
     const cfg = challengeConfig(level.value)
     target.value = cfg.target
     movesLeft.value = cfg.moves
-    progressStore.recordGems('challenge', { level: level.value })
+    // remember this level so the player can resume it later
+    progressStore.saveChallengeLevel(level.value)
   } else if (mode === 'blitz') {
     timeLeft.value = BLITZ_START
     startBlitz()
@@ -335,7 +338,6 @@ async function trySwap(a, b) {
       overlay.value = 'levelClear'
       haptics.success()
     } else if (movesLeft.value <= 0) {
-      progressStore.recordGems('challenge', { level: level.value })
       overText.value = 'Out of moves'
       overSub.value = `Reached ${score.value} / ${target.value}`
       overlay.value = 'over'

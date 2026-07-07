@@ -19,12 +19,12 @@
           :key="m.id"
           class="mode-btn"
           :style="{ '--accent': m.accent }"
-          @click="play(m.id)"
+          @click="onMode(m)"
         >
           <q-icon :name="m.icon" size="28px" class="mode-icon" />
           <div class="mode-text">
             <div class="mode-label">{{ m.label }}</div>
-            <div class="mode-sub">{{ m.sub }}</div>
+            <div class="mode-sub">{{ m.id === 'challenge' && gems.challengeSaved > 1 ? `Continue from level ${gems.challengeSaved}` : m.sub }}</div>
           </div>
           <div class="mode-best">{{ bestFor(m.id) }}</div>
         </button>
@@ -36,10 +36,25 @@
         <q-btn flat no-caps color="white" icon="settings" label="Settings" @click="openSettings" />
       </div>
     </div>
+
+    <!-- Challenge: continue or restart -->
+    <q-dialog v-model="showChallenge">
+      <q-card class="dlg">
+        <q-card-section class="text-center">
+          <div class="dlg-title">🏆 Challenge</div>
+          <div class="dlg-sub">You're on level {{ gems.challengeSaved }}. Pick up where you left off, or start fresh.</div>
+        </q-card-section>
+        <q-card-actions vertical align="center" class="dlg-actions">
+          <q-btn unelevated color="primary" text-color="white" :label="`Continue — Level ${gems.challengeSaved}`" @click="continueChallenge" />
+          <q-btn flat color="white" label="Restart from Level 1" @click="restartChallenge" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProgressStore } from 'src/stores/progress'
@@ -51,6 +66,8 @@ const progressStore = useProgressStore()
 const { gems } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
+const showChallenge = ref(false)
+
 const modes = [
   { id: 'zen', label: 'Zen', sub: 'Endless — relax and match', icon: 'spa', accent: '#2ecc71' },
   { id: 'challenge', label: 'Challenge', sub: 'Beat the target each level', icon: 'military_tech', accent: '#f1c40f' },
@@ -60,12 +77,33 @@ const modes = [
 function bestFor(id) {
   if (id === 'zen') return gems.value.zenBest ? `Best ${gems.value.zenBest}` : ''
   if (id === 'blitz') return gems.value.blitzBest ? `Best ${gems.value.blitzBest}` : ''
-  return gems.value.challengeLevel ? `Lvl ${gems.value.challengeLevel}` : ''
+  return gems.value.challengeLevel ? `Best L${gems.value.challengeLevel}` : ''
 }
 
-function play(mode) {
+function onMode(m) {
   haptics.medium()
-  router.push({ name: 'gems', query: { mode } })
+  // Challenge with saved progress asks continue-or-restart; everything else just plays
+  if (m.id === 'challenge' && gems.value.challengeSaved > 1) {
+    showChallenge.value = true
+    return
+  }
+  play(m.id, m.id === 'challenge' ? 1 : undefined)
+}
+function play(mode, level) {
+  const query = { mode }
+  if (level) query.level = level
+  router.push({ name: 'gems', query })
+}
+function continueChallenge() {
+  haptics.medium()
+  showChallenge.value = false
+  play('challenge', gems.value.challengeSaved)
+}
+function restartChallenge() {
+  haptics.medium()
+  progressStore.resetChallenge()
+  showChallenge.value = false
+  play('challenge', 1)
 }
 
 function howToPlay() {
@@ -168,6 +206,19 @@ function openSettings() {
   gap: 8px;
   animation: fadeInUp 0.8s ease-out 0.4s backwards;
 }
+
+.dlg {
+  background: rgba(40, 20, 62, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  color: #fff;
+  min-width: 290px;
+  :deep(*) { color: #fff; }
+}
+.dlg-title { font-size: 1.4rem; font-weight: 800; }
+.dlg-sub { opacity: 0.82; margin-top: 6px; }
+.dlg-actions { padding-bottom: 16px; gap: 6px; }
+:deep(.q-btn.bg-primary) { background: linear-gradient(135deg, #9b59b6 0%, #e74c3c 100%) !important; }
 
 .progress-info {
   display: flex;

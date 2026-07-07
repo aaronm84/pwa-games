@@ -11,7 +11,8 @@ export const useProgressStore = defineStore('progress', () => {
     bestScore: 0, // overall best score (legacy / max across score modes)
     zenBest: 0,
     blitzBest: 0,
-    challengeLevel: 0, // highest challenge level reached
+    challengeLevel: 0, // highest challenge level ever reached
+    challengeSaved: 1, // the challenge level to resume from
   })
 
   // record a finished run; payload = { score, level }
@@ -21,6 +22,17 @@ export const useProgressStore = defineStore('progress', () => {
     else if (mode === 'blitz') gems.value.blitzBest = Math.max(gems.value.blitzBest, score)
     else if (mode === 'challenge') gems.value.challengeLevel = Math.max(gems.value.challengeLevel, level)
     gems.value.bestScore = Math.max(gems.value.bestScore, score)
+    saveToStorage()
+  }
+
+  // remember the challenge level to resume from (and track the best reached)
+  function saveChallengeLevel(level) {
+    gems.value.challengeSaved = level
+    gems.value.challengeLevel = Math.max(gems.value.challengeLevel, level)
+    saveToStorage()
+  }
+  function resetChallenge() {
+    gems.value.challengeSaved = 1
     saveToStorage()
   }
 
@@ -48,13 +60,15 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   async function resetGemsProgress() {
-    gems.value = { gamesPlayed: 0, bestScore: 0, zenBest: 0, blitzBest: 0, challengeLevel: 0 }
+    gems.value = { gamesPlayed: 0, bestScore: 0, zenBest: 0, blitzBest: 0, challengeLevel: 0, challengeSaved: 1 }
     await saveToStorage()
   }
 
   return {
     gems,
     recordGems,
+    saveChallengeLevel,
+    resetChallenge,
     resetGemsProgress,
 
     // Common
