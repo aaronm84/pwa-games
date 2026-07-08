@@ -23,9 +23,9 @@
       />
     </div>
 
-    <!-- Main Content -->
+    <!-- Main Content (keyed on full path so query changes, e.g. game mode, remount) -->
     <q-page-container>
-      <router-view />
+      <router-view :key="route.fullPath" />
     </q-page-container>
   </q-layout>
 </template>

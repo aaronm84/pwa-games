@@ -1,7 +1,6 @@
 <template>
   <q-page class="menu-page">
-    <!-- Dynamic Background Component -->
-    <DynamicBackground />
+    <DotBackground />
 
     <!-- Menu Content -->
     <div class="menu-content">
@@ -10,93 +9,100 @@
         <h1 class="game-title">
           <span class="title-emphasis">Dots</span>
         </h1>
-        <p class="game-subtitle">Connect the dots, clear the board</p>
+        <p class="game-subtitle">Connect the dots, close the loops</p>
       </div>
 
-      <!-- Menu Buttons -->
+      <!-- Mode select -->
       <div class="menu-buttons">
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="playGame"
+        <button
+          v-for="m in modes"
+          :key="m.id"
+          class="mode-btn"
+          :style="{ '--accent': m.accent }"
+          @click="onMode(m)"
         >
-          <div class="btn-content">
-            <q-icon name="play_arrow" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Play</div>
-              <div class="btn-sublabel">30 moves · go for a high score</div>
-            </div>
+          <q-icon :name="m.icon" size="28px" class="mode-icon" />
+          <div class="mode-text">
+            <div class="mode-label">{{ m.label }}</div>
+            <div class="mode-sub">{{ m.id === 'challenge' && dots.challengeSaved > 1 ? `Continue from level ${dots.challengeSaved}` : m.sub }}</div>
           </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="howToPlay"
-        >
-          <div class="btn-content">
-            <q-icon name="help_outline" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">How to Play</div>
-              <div class="btn-sublabel">Learn the basics</div>
-            </div>
-          </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="openSettings"
-        >
-          <div class="btn-content">
-            <q-icon name="settings" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Settings</div>
-              <div class="btn-sublabel">Haptics & theme</div>
-            </div>
-          </div>
-        </q-btn>
+          <div class="mode-best">{{ bestFor(m.id) }}</div>
+        </button>
       </div>
 
-      <!-- Progress Info -->
-      <div v-if="dots.gamesPlayed > 0" class="progress-info">
-        <div class="progress-stat">
-          <q-icon name="emoji_events" size="sm" color="yellow-6" />
-          <span>Best score: {{ dots.bestScore }}</span>
-        </div>
-        <div class="progress-stat">
-          <q-icon name="sports_esports" size="sm" color="green-6" />
-          <span>{{ dots.gamesPlayed }} games played</span>
-        </div>
+      <!-- secondary actions -->
+      <div class="secondary">
+        <q-btn flat no-caps color="white" icon="help_outline" label="How to Play" @click="howToPlay" />
+        <q-btn flat no-caps color="white" icon="settings" label="Settings" @click="openSettings" />
       </div>
     </div>
+
+    <!-- Challenge: continue or restart -->
+    <q-dialog v-model="showChallenge">
+      <q-card class="dlg">
+        <q-card-section class="text-center">
+          <div class="dlg-title">🏆 Challenge</div>
+          <div class="dlg-sub">You're on level {{ dots.challengeSaved }}. Pick up where you left off, or start fresh.</div>
+        </q-card-section>
+        <q-card-actions vertical align="center" class="dlg-actions">
+          <q-btn unelevated color="primary" text-color="white" :label="`Continue — Level ${dots.challengeSaved}`" @click="continueChallenge" />
+          <q-btn flat color="white" label="Restart from Level 1" @click="restartChallenge" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
-import DynamicBackground from 'src/components/DynamicBackground.vue'
+import DotBackground from 'src/components/DotBackground.vue'
 
 const router = useRouter()
 const progressStore = useProgressStore()
 const { dots } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
-function playGame() {
+const showChallenge = ref(false)
+
+const modes = [
+  { id: 'zen', label: 'Zen', sub: 'Endless — relax and connect', icon: 'spa', accent: '#66bb6a' },
+  { id: 'challenge', label: 'Challenge', sub: 'Beat the target each level', icon: 'military_tech', accent: '#ffca28' },
+  { id: 'blitz', label: 'Blitz', sub: '60-second score sprint', icon: 'bolt', accent: '#ef5350' },
+]
+
+function bestFor(id) {
+  if (id === 'zen') return dots.value.zenBest ? `Best ${dots.value.zenBest}` : ''
+  if (id === 'blitz') return dots.value.blitzBest ? `Best ${dots.value.blitzBest}` : ''
+  return dots.value.challengeLevel ? `Best L${dots.value.challengeLevel}` : ''
+}
+
+function onMode(m) {
   haptics.medium()
-  router.push({ name: 'dots' })
+  if (m.id === 'challenge' && dots.value.challengeSaved > 1) {
+    showChallenge.value = true
+    return
+  }
+  play(m.id, m.id === 'challenge' ? 1 : undefined)
+}
+function play(mode, level) {
+  const query = { mode }
+  if (level) query.level = level
+  router.push({ name: 'dots', query })
+}
+function continueChallenge() {
+  haptics.medium()
+  showChallenge.value = false
+  play('challenge', dots.value.challengeSaved)
+}
+function restartChallenge() {
+  haptics.medium()
+  progressStore.resetChallenge()
+  showChallenge.value = false
+  play('challenge', 1)
 }
 
 function howToPlay() {
@@ -166,88 +172,48 @@ function openSettings() {
   animation: fadeInUp 0.8s ease-out 0.2s backwards;
 }
 
-.menu-btn {
-  height: auto;
-  padding: 20px 24px;
-  border-radius: 16px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.2) !important;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-    background: rgba(255, 255, 255, 0.25) !important;
-  }
-}
-
-.btn-content {
+.mode-btn {
   display: flex;
   align-items: center;
   gap: 16px;
   width: 100%;
-}
-
-.btn-icon {
-  flex-shrink: 0;
-}
-
-.btn-text {
-  flex: 1;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.btn-label {
-  font-size: 1.1rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.btn-sublabel {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  font-weight: 400;
-  line-height: 1.2;
-}
-
-.progress-info {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  padding: 18px 20px;
   border-radius: 16px;
-  width: 100%;
-  max-width: 400px;
+  cursor: pointer;
+  color: #fff;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-left: 5px solid var(--accent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.mode-btn:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.18); }
+.mode-btn:active { transform: translateY(0); }
+.mode-icon { color: var(--accent); flex-shrink: 0; }
+.mode-text { flex: 1; min-width: 0; }
+.mode-label { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+.mode-sub { font-size: 0.85rem; opacity: 0.8; }
+.mode-best { font-size: 0.8rem; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+
+.secondary {
+  display: flex;
+  gap: 8px;
   animation: fadeInUp 0.8s ease-out 0.4s backwards;
 }
 
-.progress-stat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 0.95rem;
-  font-weight: 500;
-
-  span {
-    flex: 1;
-  }
+.dlg {
+  background: rgba(22, 20, 58, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 18px;
+  color: #fff;
+  min-width: 290px;
+  :deep(*) { color: #fff; }
 }
+.dlg-title { font-size: 1.4rem; font-weight: 800; }
+.dlg-sub { opacity: 0.82; margin-top: 6px; }
+.dlg-actions { padding-bottom: 16px; gap: 6px; }
 
 @keyframes fadeInDown {
   from {
