@@ -23,7 +23,11 @@ project in its own top-level `*-pwa/` folder.
 | 🎯 **Pegs** — Peggle-style ball-and-peg bouncer | [`pegs-pwa/`](pegs-pwa/) | https://aaronm84.github.io/pwa-games/pegs/ |
 | 🔴 **Marbles** — Zuma-style marble-chain shooter | [`marbles-pwa/`](marbles-pwa/) | https://aaronm84.github.io/pwa-games/marbles/ |
 | 🐦 **Fling** — Angry-Birds-style slingshot physics (matter.js) | [`fling-pwa/`](fling-pwa/) | https://aaronm84.github.io/pwa-games/fling/ |
+| 🎴 **Wildcard** — Balatro-style poker roguelike (chips × mult vs the blinds) | [`wildcard-pwa/`](wildcard-pwa/) | https://aaronm84.github.io/pwa-games/wildcard/ |
+| 🏰 **Towers** — lane tower defense, hold the gate wave after wave | [`towers-pwa/`](towers-pwa/) | https://aaronm84.github.io/pwa-games/towers/ |
 | 🚀 **SpaceWolf** — on-rails 3D space dogfighter (Babylon.js) | [`spacewolf-pwa/`](spacewolf-pwa/) | https://aaronm84.github.io/pwa-games/spacewolf/ |
+| 🧱 **Bricks** — Breakout-style brick breaker | [`bricks-pwa/`](bricks-pwa/) | https://aaronm84.github.io/pwa-games/bricks/ |
+| 🎰 **Slots** — spin the reels, chase the jackpot (for-fun casino) | [`slots-pwa/`](slots-pwa/) | https://aaronm84.github.io/pwa-games/slots/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
