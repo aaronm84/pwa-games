@@ -13,15 +13,25 @@ export const useProgressStore = defineStore('progress', () => {
     holesInOne: 0,
     coursesCompleted: 0,
     splashes: 0, // times Otto found the water (a badge of honour)
+    abductions: 0, // times aliens made off with the ball
+    records: {}, // per-course best: { [courseId]: { total, toPar } }
   })
 
   // Called once when a full course is finished.
-  function recordCourse(totalStrokes, totalPar) {
+  function recordCourse(courseId, totalStrokes, totalPar) {
     const g = minigolf.value
     const toPar = totalStrokes - totalPar
     if (g.bestTotal === null || totalStrokes < g.bestTotal) g.bestTotal = totalStrokes
     if (g.bestToPar === null || toPar < g.bestToPar) g.bestToPar = toPar
+    if (!g.records) g.records = {}
+    const prev = g.records[courseId]
+    if (!prev || totalStrokes < prev.total) g.records[courseId] = { total: totalStrokes, toPar }
     g.coursesCompleted++
+    saveToStorage()
+  }
+
+  function recordAbduction() {
+    minigolf.value.abductions++
     saveToStorage()
   }
 
@@ -65,6 +75,8 @@ export const useProgressStore = defineStore('progress', () => {
       holesInOne: 0,
       coursesCompleted: 0,
       splashes: 0,
+      abductions: 0,
+      records: {},
     }
     await saveToStorage()
   }
@@ -74,6 +86,7 @@ export const useProgressStore = defineStore('progress', () => {
     recordCourse,
     recordHoleInOne,
     recordSplash,
+    recordAbduction,
     resetMinigolfProgress,
 
     // Common

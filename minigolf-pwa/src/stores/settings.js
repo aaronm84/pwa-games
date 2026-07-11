@@ -17,6 +17,8 @@ export const useSettingsStore = defineStore('settings', () => {
     reducedMotion: false,
     showTutorials: true,
     confirmations: true,
+    selectedCourse: 'pinewood', // which course to play
+    selectedPutter: 'standard', // which putter is equipped
   })
 
   function updateSetting(key, value) {

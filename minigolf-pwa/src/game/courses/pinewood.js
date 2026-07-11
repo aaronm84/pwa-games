@@ -1,0 +1,102 @@
+// Course 1 — Pinewood Links. A gentle classic resort course to learn the ropes,
+// now with soft organic fairways. Low weirdness (just the odd bird).
+import { softRect, smooth, blob, bush } from '../courseKit.js'
+
+// a rounded "bar" obstacle
+const bar = (x1, y1, x2, y2) => softRect(x1, y1, x2, y2)
+
+export default {
+  id: 'pinewood',
+  name: 'Pinewood Links',
+  tagline: 'A gentle classic to warm up on. Mind the pines.',
+  theme: {
+    grass: '#46ac4e',
+    grassDark: '#3a9a42',
+    rough: '#1f5c37',
+    border: '#255d38',
+    lip: '#7bcb91',
+    prop: 'pine',
+    sky: 'linear-gradient(160deg,#2f7d46 0%,#17492c 100%)',
+  },
+  events: ['bird'],
+  holes: [
+    { name: 'The Opener', par: 2, tee: { x: 260, y: 650 }, cup: { x: 260, y: 150 }, fairway: softRect(150, 90, 370, 700) },
+    { name: 'Sidestep', par: 3, tee: { x: 260, y: 650 }, cup: { x: 260, y: 150 }, fairway: softRect(90, 90, 430, 700), walls: [bush(260, 370, 46, { seed: 4, squash: 0.7 })] },
+    {
+      name: 'Left Turn',
+      par: 3,
+      tee: { x: 330, y: 640 },
+      cup: { x: 155, y: 175 },
+      fairway: smooth(
+        [
+          { x: 90, y: 90 },
+          { x: 260, y: 90 },
+          { x: 430, y: 90 },
+          { x: 430, y: 400 },
+          { x: 430, y: 700 },
+          { x: 300, y: 700 },
+          { x: 300, y: 480 },
+          { x: 260, y: 300 },
+          { x: 200, y: 260 },
+          { x: 90, y: 260 },
+        ],
+        6,
+      ),
+    },
+    { name: 'The Slalom', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 140 }, fairway: softRect(100, 90, 420, 710), walls: [bar(100, 305, 300, 340), bar(220, 470, 420, 505)] },
+    { name: 'Diamond Isle', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 710), walls: [blob(260, 400, 58, { n: 4, wobble: 0.05, seed: 3 })] },
+    {
+      name: 'Right Turn',
+      par: 3,
+      tee: { x: 190, y: 640 },
+      cup: { x: 375, y: 175 },
+      fairway: smooth(
+        [
+          { x: 430, y: 90 },
+          { x: 260, y: 90 },
+          { x: 90, y: 90 },
+          { x: 90, y: 400 },
+          { x: 90, y: 700 },
+          { x: 220, y: 700 },
+          { x: 220, y: 480 },
+          { x: 260, y: 300 },
+          { x: 320, y: 260 },
+          { x: 430, y: 260 },
+        ],
+        6,
+      ),
+    },
+    { name: 'Snake Bend', par: 4, tee: { x: 260, y: 660 }, cup: { x: 260, y: 130 }, fairway: softRect(90, 90, 430, 710), walls: [bar(250, 250, 430, 288), bar(90, 442, 270, 480)] },
+    {
+      name: 'The Funnel',
+      par: 3,
+      tee: { x: 260, y: 660 },
+      cup: { x: 260, y: 165 },
+      fairway: smooth(
+        [
+          { x: 95, y: 705 },
+          { x: 95, y: 400 },
+          { x: 215, y: 380 },
+          { x: 215, y: 250 },
+          { x: 205, y: 120 },
+          { x: 315, y: 120 },
+          { x: 305, y: 250 },
+          { x: 305, y: 380 },
+          { x: 425, y: 400 },
+          { x: 425, y: 705 },
+        ],
+        6,
+      ),
+    },
+    { name: 'Islander', par: 4, tee: { x: 260, y: 670 }, cup: { x: 360, y: 150 }, fairway: softRect(90, 90, 430, 720), walls: [blob(260, 365, 74, { seed: 9, wobble: 0.16 }), bush(165, 218, 40, { seed: 2, stretch: 1.5, squash: 0.6 })] },
+    { name: 'Hillcrest', par: 3, tee: { x: 260, y: 660 }, cup: { x: 160, y: 160 }, fairway: softRect(90, 90, 430, 710), walls: [bush(320, 300, 52, { seed: 5 })] },
+    { name: 'The Pines', par: 4, tee: { x: 150, y: 660 }, cup: { x: 370, y: 160 }, fairway: softRect(90, 90, 430, 710), walls: [bush(250, 480, 40, { seed: 6 }), bush(300, 300, 46, { seed: 7 })] },
+    { name: 'Long Meadow', par: 4, tee: { x: 260, y: 690 }, cup: { x: 260, y: 120 }, fairway: softRect(110, 90, 410, 720), walls: [bar(110, 470, 300, 505), bar(220, 280, 410, 315)] },
+    { name: 'The Kidney', par: 3, tee: { x: 320, y: 650 }, cup: { x: 200, y: 170 }, fairway: blob(260, 400, 205, { n: 8, wobble: 0.16, seed: 12, squash: 1.55 }) },
+    { name: 'Twin Oaks', par: 4, tee: { x: 260, y: 670 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 710), walls: [blob(180, 340, 40, { seed: 8 }), blob(340, 340, 40, { seed: 14 })] },
+    { name: 'The Bend', par: 3, tee: { x: 340, y: 650 }, cup: { x: 175, y: 180 }, fairway: smooth([{ x: 100, y: 100 }, { x: 420, y: 100 }, { x: 430, y: 620 }, { x: 300, y: 700 }, { x: 250, y: 520 }, { x: 220, y: 320 }, { x: 110, y: 300 }], 8) },
+    { name: 'Narrows', par: 4, tee: { x: 260, y: 680 }, cup: { x: 260, y: 130 }, fairway: smooth([{ x: 150, y: 700 }, { x: 370, y: 700 }, { x: 330, y: 430 }, { x: 360, y: 250 }, { x: 300, y: 110 }, { x: 220, y: 110 }, { x: 160, y: 250 }, { x: 190, y: 430 }], 8) },
+    { name: 'The Horseshoe', par: 4, tee: { x: 175, y: 640 }, cup: { x: 345, y: 640 }, fairway: smooth([{ x: 90, y: 700 }, { x: 90, y: 200 }, { x: 200, y: 110 }, { x: 320, y: 110 }, { x: 430, y: 200 }, { x: 430, y: 700 }, { x: 320, y: 700 }, { x: 320, y: 260 }, { x: 260, y: 220 }, { x: 200, y: 260 }, { x: 200, y: 700 }], 6) },
+    { name: 'Home Hole', par: 4, tee: { x: 260, y: 690 }, cup: { x: 260, y: 130 }, fairway: softRect(90, 90, 430, 720), walls: [blob(260, 410, 60, { seed: 21, wobble: 0.2 }), bush(150, 240, 34, { seed: 22 }), bush(370, 240, 34, { seed: 23 })] },
+  ],
+}

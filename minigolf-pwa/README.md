@@ -15,46 +15,67 @@ then **release** to putt. The ball rolls with friction and bounces off the cours
 walls and obstacles. Sink it in the **cup** to finish the hole; each putt is one
 **stroke**.
 
-Every hole has a **par** (its target stroke count). Play all **18 holes** and try
-to finish the round **under par**. Ease off the power near the cup — a ball moving
-too fast will lip out and roll right over the hole.
+Every hole has a **par**. Play all **18 holes** of a course and try to finish
+**under par**. Ease off the power near the cup — a ball moving too fast will lip
+out and roll right over the hole.
 
 Meet the cast: **Otto**, the googly-eyed golf ball who gets nervous near water and
 dizzy after a hard bounce, and **Chip**, the dry-witted commentator who has an
 opinion about every shot you take.
 
-## Scoring
+## Three courses (54 holes)
 
-- **Hole in one** — sink it on your first putt.
-- **Eagle / Birdie** — two / one under par.
-- **Par** — right on target.
-- **Bogey** and beyond — over par.
-- **Trick shot** — sink it after banking off three or more walls.
+Pick a course — and a putter — from the clubhouse before you tee off.
 
-A running scorecard (front nine + back nine) tracks every hole; your best full
-round (total strokes and score-to-par), hole-in-one count, and Otto's water
-splashes are saved.
+| Course | Vibe | Weirdness |
+| --- | --- | --- |
+| 🌲 **Pinewood Links** (par 61) | A gentle classic resort to warm up on | The odd passing bird |
+| 🐊 **Cryptid Cove** (par 63) | Murky, water-heavy swamp | Alligators grab balls from the water; Bigfoot wanders the tree line |
+| 👽 **Area 51 Links** (par 63) | Dusty, classified desert | UFOs abduct your ball and drop it who-knows-where |
 
-## The course — 18 holes
+Fairways and hazards are drawn with **organic spline shapes** (blobby ponds,
+rounded greens, winding doglegs) and each course has its own palette and props
+(pines, reeds, cacti).
 
-**Front Nine (par 28)** is a classic resort course — straight shots, doglegs, a
-slalom, a diamond island, a funnel, and an island finisher.
-
-**Back Nine — "The Funhouse" (par 30)** turns weird, one signature gimmick per
-hole, building to an everything-at-once finale:
+## Hazards
 
 | Hazard | Behaviour |
 | --- | --- |
 | 💧 **Water** | one-stroke penalty; Otto swims back to where he was |
+| 🐊 **Gators** | on the Cove, they lurk in the ponds and *chomp* balls that hit the water |
 | 🏖️ **Sand** | heavy friction — kills the ball's roll |
 | 🔴 **Bumpers** | extra-bouncy pegs; bank off them on purpose |
 | ⬆️ **Boost pads** | a free burst of speed up the fairway |
 | 🌀 **Portals** | linked pairs — one end drops you near the cup |
 | 🌬️ **Windmills** | a rotating blade guards the lane; time your putt |
 | 🎯 **Moving cups** | the hole slides side to side |
+| 🐦👽 **Random events** | birds bomb the green, Bigfoot photobombs, aliens abduct |
 
-Courses and holes are pure data (`src/game/course.js`: polygon fairways, obstacle
-polygons, and hazard definitions), so adding or editing holes is easy.
+## Putters
+
+Five putters, each playing differently, unlocked as you finish rounds and sink aces:
+
+- 🏌️ **The Standard** — balanced all-rounder (starter).
+- 🎯 **The Sniper** — shows a predicted bounce path.
+- 💥 **The Cannon** — big power, easy to overcook.
+- 🧲 **The Magnet** — gently curves slow balls toward the cup.
+- 🪶 **The Feather** — feather-light control + one free mulligan per hole.
+
+## Scoring
+
+- **Hole in one**, **Eagle/Birdie** (under par), **Par**, **Bogey** and beyond.
+- **Trick shot** — sink it after banking off three or more walls.
+
+A front/back-nine scorecard tracks every hole; per-course best rounds, hole-in-one
+count, Otto's water splashes, and alien abductions are all saved.
+
+## Code layout
+
+Courses are pure data. Each lives in `src/game/courses/<id>.js` and is built from
+`src/game/courseKit.js` helpers (`softRect`, `blob`, `pond`, `bunker`, …) on top of
+`src/game/geometry.js` (Catmull-Rom `smooth`, organic `blob`, `ribbon`). Putters are
+in `src/game/putters.js`. The whole game runs on one custom canvas engine in
+`src/pages/MiniGolfPage.vue` — no game/physics library.
 
 ## Develop / build
 
