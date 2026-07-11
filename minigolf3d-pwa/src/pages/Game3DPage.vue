@@ -37,8 +37,19 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from '@babylonjs/core'
-import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures } from 'src/engine'
+import {
+  Stage,
+  initPhysics,
+  makeDynamic,
+  outdoorLight,
+  pbr,
+  Gestures,
+  MeshBuilder,
+  Vector3,
+  Color3,
+  StandardMaterial,
+  ArcRotateCamera,
+} from 'src/engine'
 import { holes, buildHole, CUP_R } from 'src/game/course3d'
 import { useHaptics } from 'src/composables/useHaptics'
 

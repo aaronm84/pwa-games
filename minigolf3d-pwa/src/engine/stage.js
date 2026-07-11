@@ -10,7 +10,7 @@
 //   await stage.init()
 //   ...build scene using stage.scene...
 //   stage.run(dt => { /* per-frame */ })
-import { Engine, WebGPUEngine, Scene, Color4 } from '@babylonjs/core'
+import { Engine, WebGPUEngine, Scene, Color4 } from './babylon.js'
 
 export class Stage {
   constructor(canvas, opts = {}) {

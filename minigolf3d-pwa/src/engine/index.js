@@ -15,3 +15,15 @@ export {
   PhysicsMotionType,
 } from './physics.js'
 export { outdoorLight, pbr, orbitCamera } from './presets.js'
+
+// Common Babylon primitives games need, re-exported from the tree-shaken module
+// so game code imports everything from 'src/engine' and never the heavy barrel.
+export {
+  MeshBuilder,
+  Vector3,
+  Color3,
+  Color4,
+  StandardMaterial,
+  PBRMaterial,
+  ArcRotateCamera,
+} from './babylon.js'

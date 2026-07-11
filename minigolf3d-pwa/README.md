@@ -50,17 +50,32 @@ steps correctly (ball rolls the length of the green and **sinks** in the cup);
 builds cleanly through Quasar/Vite with the Havok `.wasm` emitted as a bundled,
 precacheable asset. Drag-to-putt direction and power confirmed end-to-end.
 
+## Bundle size
+
+Babylon is imported **per-module** (via `src/engine/babylon.js`) instead of the
+`@babylonjs/core` barrel, so Vite tree-shakes away the ~80% of the engine this game
+never uses. `manualChunks` then isolates Babylon into a cacheable vendor chunk.
+
+| | Engine JS (gzip) |
+| --- | --- |
+| `@babylonjs/core` barrel | **~1.09 MB** |
+| Per-module + `manualChunks` | **~0.5 MB** (≈ 54% smaller) |
+
+`babylon.js` also carries the required **side-effect imports** (mesh builders, the
+shadow scene component, `joinedPhysicsEngineComponent` for `scene.enablePhysics`) —
+keep it in sync with the Babylon features the game uses, since a missing one fails
+at runtime, not build time. (The 2 MB Havok `.wasm` is separate and unavoidable for
+physics.) Verified: dev + prod render identically with PBR + shadows, and the ball
+still sinks — nothing was tree-shaken away by mistake.
+
 ## Productionization roadmap
 
-1. **Bundle size** — the biggest lever. The prototype imports the `@babylonjs/core`
-   *barrel* (~4.9 MB raw / ~1.2 MB gzip). Switching to **per-module imports**
-   (`@babylonjs/core/Engines/engine`, …) + `manualChunks` should cut this by 60–75%.
-2. **WebGPU** — enabled in `Stage` (`{ webgpu: true }`); default it on once tested
+1. **WebGPU** — enabled in `Stage` (`{ webgpu: true }`); default it on once tested
    on real devices (it's off in the prototype because headless CI lacks it).
-3. **Convert a real game** — port one existing title (e.g. Fling's physics, or a
+2. **Convert a real game** — port one existing title (e.g. Fling's physics, or a
    3D 2048) to prove the migration path and harden the kit's API.
-4. **Extract `engine/`** into a shared package once a second game adopts it.
-5. Instanced meshes / thin instances, GPU particles, and a Vue↔scene HUD bridge.
+3. **Extract `engine/`** into a shared package once a second game adopts it.
+4. Instanced meshes / thin instances, GPU particles, and a Vue↔scene HUD bridge.
 
 ## Develop / build
 

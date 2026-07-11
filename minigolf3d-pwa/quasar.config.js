@@ -57,7 +57,16 @@ export default defineConfig((ctx) => {
       // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      // Split Babylon into its own vendor chunk so it caches independently of
+      // app code — a game/UI update won't re-download the (large) engine.
+      extendViteConf(viteConf) {
+        viteConf.build = viteConf.build || {}
+        viteConf.build.rollupOptions = viteConf.build.rollupOptions || {}
+        viteConf.build.rollupOptions.output = viteConf.build.rollupOptions.output || {}
+        viteConf.build.rollupOptions.output.manualChunks = (id) => {
+          if (id.includes('@babylonjs')) return 'babylon'
+        }
+      },
       // viteVuePluginOptions: {},
 
       vitePlugins: [

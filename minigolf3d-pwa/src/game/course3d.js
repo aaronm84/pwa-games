@@ -3,8 +3,7 @@
 // Holes are simple data (a green rectangle, a tee, a cup, and optional inner
 // wall "bars"). buildHole turns a definition into meshes + static physics bodies
 // and returns the tee/cup world positions for the controller.
-import { MeshBuilder, Vector3, Color3, StandardMaterial } from '@babylonjs/core'
-import { makeStatic, pbr } from 'src/engine'
+import { makeStatic, pbr, MeshBuilder, Vector3, Color3, StandardMaterial } from 'src/engine'
 
 export const CUP_R = 0.55 // world radius at which a slow ball drops in
 const WALL_H = 0.7

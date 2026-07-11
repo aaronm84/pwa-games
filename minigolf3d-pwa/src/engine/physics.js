@@ -5,7 +5,7 @@
 // a CDN or on the bundler guessing the path.
 import HavokPhysics from '@babylonjs/havok'
 import havokWasmUrl from '@babylonjs/havok/lib/esm/HavokPhysics.wasm?url'
-import { HavokPlugin, Vector3, PhysicsAggregate, PhysicsShapeType, PhysicsMotionType } from '@babylonjs/core'
+import { HavokPlugin, Vector3, PhysicsAggregate, PhysicsShapeType, PhysicsMotionType } from './babylon.js'
 
 export { PhysicsAggregate, PhysicsShapeType, PhysicsMotionType }
 

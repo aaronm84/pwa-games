@@ -8,7 +8,7 @@ import {
   ShadowGenerator,
   PBRMaterial,
   ArcRotateCamera,
-} from '@babylonjs/core'
+} from './babylon.js'
 
 // A soft outdoor lighting rig: ambient fill + a warm key light that casts soft
 // shadows. Returns the shadow generator so meshes can be registered as casters.
