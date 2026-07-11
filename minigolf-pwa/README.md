@@ -15,9 +15,13 @@ then **release** to putt. The ball rolls with friction and bounces off the cours
 walls and obstacles. Sink it in the **cup** to finish the hole; each putt is one
 **stroke**.
 
-Every hole has a **par** (its target stroke count). Play all nine holes of the
-**Front Nine** and try to finish the round **under par**. Ease off the power near
-the cup — a ball moving too fast will lip out and roll right over the hole.
+Every hole has a **par** (its target stroke count). Play all **18 holes** and try
+to finish the round **under par**. Ease off the power near the cup — a ball moving
+too fast will lip out and roll right over the hole.
+
+Meet the cast: **Otto**, the googly-eyed golf ball who gets nervous near water and
+dizzy after a hard bounce, and **Chip**, the dry-witted commentator who has an
+opinion about every shot you take.
 
 ## Scoring
 
@@ -25,16 +29,32 @@ the cup — a ball moving too fast will lip out and roll right over the hole.
 - **Eagle / Birdie** — two / one under par.
 - **Par** — right on target.
 - **Bogey** and beyond — over par.
+- **Trick shot** — sink it after banking off three or more walls.
 
-A running scorecard tracks every hole; your best full round (total strokes and
-score-to-par) and hole-in-one count are saved.
+A running scorecard (front nine + back nine) tracks every hole; your best full
+round (total strokes and score-to-par), hole-in-one count, and Otto's water
+splashes are saved.
 
-## Course
+## The course — 18 holes
 
-The bundled **Front Nine** (par 28) is a hand-designed course of nine holes —
-straight shots, doglegs, a slalom, a diamond island, a funnel, and a final hole
-guarded by a central island. Courses are pure data (`src/game/frontNine.js`:
-polygon fairways + obstacle polygons), so new courses are easy to add.
+**Front Nine (par 28)** is a classic resort course — straight shots, doglegs, a
+slalom, a diamond island, a funnel, and an island finisher.
+
+**Back Nine — "The Funhouse" (par 30)** turns weird, one signature gimmick per
+hole, building to an everything-at-once finale:
+
+| Hazard | Behaviour |
+| --- | --- |
+| 💧 **Water** | one-stroke penalty; Otto swims back to where he was |
+| 🏖️ **Sand** | heavy friction — kills the ball's roll |
+| 🔴 **Bumpers** | extra-bouncy pegs; bank off them on purpose |
+| ⬆️ **Boost pads** | a free burst of speed up the fairway |
+| 🌀 **Portals** | linked pairs — one end drops you near the cup |
+| 🌬️ **Windmills** | a rotating blade guards the lane; time your putt |
+| 🎯 **Moving cups** | the hole slides side to side |
+
+Courses and holes are pure data (`src/game/course.js`: polygon fairways, obstacle
+polygons, and hazard definitions), so adding or editing holes is easy.
 
 ## Develop / build
 

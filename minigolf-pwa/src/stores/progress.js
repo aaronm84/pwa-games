@@ -12,6 +12,7 @@ export const useProgressStore = defineStore('progress', () => {
     bestToPar: null, // best score relative to par (can be negative)
     holesInOne: 0,
     coursesCompleted: 0,
+    splashes: 0, // times Otto found the water (a badge of honour)
   })
 
   // Called once when a full course is finished.
@@ -26,6 +27,11 @@ export const useProgressStore = defineStore('progress', () => {
 
   function recordHoleInOne() {
     minigolf.value.holesInOne++
+    saveToStorage()
+  }
+
+  function recordSplash() {
+    minigolf.value.splashes++
     saveToStorage()
   }
 
@@ -58,6 +64,7 @@ export const useProgressStore = defineStore('progress', () => {
       bestToPar: null,
       holesInOne: 0,
       coursesCompleted: 0,
+      splashes: 0,
     }
     await saveToStorage()
   }
@@ -66,6 +73,7 @@ export const useProgressStore = defineStore('progress', () => {
     minigolf,
     recordCourse,
     recordHoleInOne,
+    recordSplash,
     resetMinigolfProgress,
 
     // Common

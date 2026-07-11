@@ -10,7 +10,7 @@
         <h1 class="game-title">
           <span class="title-emphasis">Mini Golf</span>
         </h1>
-        <p class="game-subtitle">Aim, putt, sink it in par</p>
+        <p class="game-subtitle">18 holes · sink it under par</p>
       </div>
 
       <!-- Menu Buttons -->
@@ -27,7 +27,7 @@
             <q-icon name="play_arrow" size="md" class="btn-icon" />
             <div class="btn-text">
               <div class="btn-label">Play</div>
-              <div class="btn-sublabel">Front Nine · 9 holes</div>
+              <div class="btn-sublabel">18 holes · Front Nine + The Funhouse</div>
             </div>
           </div>
         </q-btn>
@@ -76,6 +76,10 @@
         <div v-if="minigolf.holesInOne > 0" class="progress-stat">
           <q-icon name="golf_course" size="sm" color="green-4" />
           <span>Holes-in-one: {{ minigolf.holesInOne }}</span>
+        </div>
+        <div v-if="minigolf.splashes > 0" class="progress-stat">
+          <q-icon name="pool" size="sm" color="light-blue-4" />
+          <span>Otto's swims: {{ minigolf.splashes }}</span>
         </div>
       </div>
     </div>
