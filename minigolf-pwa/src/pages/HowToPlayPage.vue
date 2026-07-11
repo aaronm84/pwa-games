@@ -18,10 +18,9 @@
             <p>
               Putt <strong>Otto</strong> (yes, the ball has a face) into the
               <strong>cup</strong> on each hole in as <strong>few strokes</strong>
-              as you can. Play all <strong>18 holes</strong> — the classic Front
-              Nine and the gimmick-filled back nine, <strong>The Funhouse</strong>
-              — and try to finish <strong>under par</strong>. Chip the commentator
-              will be watching.
+              as you can. Pick one of <strong>three 18-hole courses</strong> and a
+              <strong>putter</strong> from the clubhouse, then try to finish
+              <strong>under par</strong>. Chip the commentator will be watching.
             </p>
           </div>
 
@@ -58,15 +57,14 @@
             <div class="card-icon">
               <q-icon name="waves" size="xl" color="light-blue-4" />
             </div>
-            <h2>The Funhouse</h2>
+            <h2>Hazards &amp; Critters</h2>
             <ul>
               <li>💧 <strong>Water</strong> — a one-stroke penalty; Otto swims back to where he was</li>
+              <li>🐊 <strong>Gators</strong> — in Cryptid Cove they'll <em>chomp</em> a ball that hits the water</li>
               <li>🏖️ <strong>Sand</strong> — kills your roll, so carry it or go around</li>
-              <li>🔴 <strong>Bumpers</strong> — extra-bouncy; bank off them on purpose</li>
-              <li>⬆️ <strong>Boost pads</strong> — a free burst of speed up the fairway</li>
-              <li>🌀 <strong>Portals</strong> — linked pairs; one end drops you near the cup</li>
-              <li>🌬️ <strong>Windmills</strong> — time your putt through the spinning blade</li>
+              <li>🔴 <strong>Bumpers</strong> · ⬆️ <strong>Boost pads</strong> · 🌀 <strong>Portals</strong> · 🌬️ <strong>Windmills</strong></li>
               <li>🎯 <strong>Moving cups</strong> — putt to where the hole is going</li>
+              <li>👽 <strong>Weirdness</strong> — birds bomb the green, Bigfoot wanders past, and aliens abduct your ball. Roll with it.</li>
             </ul>
           </div>
 

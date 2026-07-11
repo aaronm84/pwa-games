@@ -13,6 +13,16 @@ const routes = [
         component: () => import('pages/MenuPage.vue'),
       },
       {
+        path: 'courses',
+        name: 'course-select',
+        component: () => import('pages/CourseSelectPage.vue'),
+      },
+      {
+        path: 'putters',
+        name: 'putter-select',
+        component: () => import('pages/PutterSelectPage.vue'),
+      },
+      {
         path: 'minigolf',
         name: 'minigolf',
         component: () => import('pages/MiniGolfPage.vue'),

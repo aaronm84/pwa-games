@@ -27,7 +27,7 @@
             <q-icon name="play_arrow" size="md" class="btn-icon" />
             <div class="btn-text">
               <div class="btn-label">Play</div>
-              <div class="btn-sublabel">18 holes · Front Nine + The Funhouse</div>
+              <div class="btn-sublabel">3 courses · 54 holes · pick your putter</div>
             </div>
           </div>
         </q-btn>
@@ -106,7 +106,7 @@ function formatToPar(toPar) {
 
 function playGame() {
   haptics.medium()
-  router.push({ name: 'minigolf' })
+  router.push({ name: 'course-select' })
 }
 
 function howToPlay() {
