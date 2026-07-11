@@ -16,9 +16,12 @@
             </div>
             <h2>Objective</h2>
             <p>
-              Putt the ball into the <strong>cup</strong> on each hole using as
-              <strong>few strokes</strong> as you can. Play all nine holes and try
-              to finish the round <strong>under par</strong>.
+              Putt <strong>Otto</strong> (yes, the ball has a face) into the
+              <strong>cup</strong> on each hole in as <strong>few strokes</strong>
+              as you can. Play all <strong>18 holes</strong> — the classic Front
+              Nine and the gimmick-filled back nine, <strong>The Funhouse</strong>
+              — and try to finish <strong>under par</strong>. Chip the commentator
+              will be watching.
             </p>
           </div>
 
@@ -50,6 +53,23 @@
             </ul>
           </div>
 
+          <!-- Hazards -->
+          <div class="instruction-card">
+            <div class="card-icon">
+              <q-icon name="waves" size="xl" color="light-blue-4" />
+            </div>
+            <h2>The Funhouse</h2>
+            <ul>
+              <li>💧 <strong>Water</strong> — a one-stroke penalty; Otto swims back to where he was</li>
+              <li>🏖️ <strong>Sand</strong> — kills your roll, so carry it or go around</li>
+              <li>🔴 <strong>Bumpers</strong> — extra-bouncy; bank off them on purpose</li>
+              <li>⬆️ <strong>Boost pads</strong> — a free burst of speed up the fairway</li>
+              <li>🌀 <strong>Portals</strong> — linked pairs; one end drops you near the cup</li>
+              <li>🌬️ <strong>Windmills</strong> — time your putt through the spinning blade</li>
+              <li>🎯 <strong>Moving cups</strong> — putt to where the hole is going</li>
+            </ul>
+          </div>
+
           <!-- Tips -->
           <div class="instruction-card">
             <div class="card-icon">
@@ -60,7 +80,7 @@
               <li><strong>Ease off the power</strong> near the cup — a fast ball lips out</li>
               <li>Use <strong>bank shots</strong> off the walls to curve around obstacles</li>
               <li>A gentle tap beats a big swing when you're close</li>
-              <li>Line up the <strong>aim line</strong> before you commit</li>
+              <li>Sink it off <strong>3+ banks</strong> for a trick-shot shout-out</li>
             </ul>
           </div>
         </div>
