@@ -45,18 +45,18 @@ export const frontNine = [
     walls: [rect(205, 330, 315, 410)],
   },
 
-  // 3 — Dogleg left: up the right leg, then left along the top.
+  // 3 — Dogleg left: tee off in the right leg, bank left along the top to the cup.
   {
     par: 3,
-    tee: { x: 360, y: 640 },
-    cup: { x: 160, y: 175 },
+    tee: { x: 330, y: 640 },
+    cup: { x: 155, y: 175 },
     fairway: [
       { x: 90, y: 90 },
       { x: 430, y: 90 },
-      { x: 430, y: 260 },
-      { x: 300, y: 260 },
-      { x: 300, y: 700 },
-      { x: 90, y: 700 },
+      { x: 430, y: 700 },
+      { x: 220, y: 700 },
+      { x: 220, y: 260 },
+      { x: 90, y: 260 },
     ],
     walls: [],
   },
@@ -86,18 +86,18 @@ export const frontNine = [
     ],
   },
 
-  // 6 — Dogleg right (mirror of 3).
+  // 6 — Dogleg right (mirror of 3): tee off in the left leg, bank right to the cup.
   {
     par: 3,
-    tee: { x: 160, y: 640 },
-    cup: { x: 360, y: 175 },
+    tee: { x: 190, y: 640 },
+    cup: { x: 375, y: 175 },
     fairway: [
-      { x: 430, y: 90 },
       { x: 90, y: 90 },
-      { x: 90, y: 260 },
-      { x: 220, y: 260 },
-      { x: 220, y: 700 },
-      { x: 430, y: 700 },
+      { x: 430, y: 90 },
+      { x: 430, y: 260 },
+      { x: 300, y: 260 },
+      { x: 300, y: 700 },
+      { x: 90, y: 700 },
     ],
     walls: [],
   },
