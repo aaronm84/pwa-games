@@ -28,6 +28,7 @@ project in its own top-level `*-pwa/` folder.
 | 🚀 **SpaceWolf** — on-rails 3D space dogfighter (Babylon.js) | [`spacewolf-pwa/`](spacewolf-pwa/) | https://aaronm84.github.io/pwa-games/spacewolf/ |
 | 🧱 **Bricks** — Breakout-style brick breaker | [`bricks-pwa/`](bricks-pwa/) | https://aaronm84.github.io/pwa-games/bricks/ |
 | 🎰 **Slots** — spin the reels, chase the jackpot (for-fun casino) | [`slots-pwa/`](slots-pwa/) | https://aaronm84.github.io/pwa-games/slots/ |
+| ⛳ **Mini Golf** — top-down putting, sink it under par (9 holes) | [`minigolf-pwa/`](minigolf-pwa/) | https://aaronm84.github.io/pwa-games/minigolf/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 
