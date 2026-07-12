@@ -78,6 +78,7 @@
       <div v-if="state === 'courseComplete'" class="overlay">
         <div class="o-title">Round Complete</div>
         <div class="o-sub big">{{ totalStrokes }} · {{ toParText(totalStrokes - coursePar) }}</div>
+        <div v-if="unlockMsg" class="o-unlock">{{ unlockMsg }}</div>
         <div class="scorecard">
           <div class="sc-row sc-head"><span>Hole</span><span v-for="n in 9" :key="'h' + n">{{ n }}</span><span>·</span><span v-for="n in 9" :key="'h2' + n">{{ n + 9 }}</span></div>
           <div class="sc-row"><span>You</span><span v-for="i in 9" :key="'s' + i" :class="cls(scores[i - 1], holes[i - 1].par)">{{ scores[i - 1] ?? '–' }}</span><span>·</span><span v-for="i in 9" :key="'s2' + i" :class="cls(scores[i + 8], holes[i + 8].par)">{{ scores[i + 8] ?? '–' }}</span></div>
@@ -96,7 +97,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
+import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Quaternion, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
 import { courseById, coursePar as parOf } from 'src/game/courses'
 import { buildHole3D, xz, BALL_R, CUP_R, S } from 'src/game/hole3d'
 import { makeGator, makeUfo, makeBird, makeSplat, makeBigfoot, makeOttoFace } from 'src/game/critters3d'
@@ -137,6 +138,7 @@ const quip = ref(null)
 const activePutterId = ref(devParam('putter') || settings.settings.selectedPutter)
 const activePutter = computed(() => putterById(activePutterId.value))
 const showBag = ref(false)
+const unlockMsg = ref(null)
 // the whole set, each flagged locked/unlocked so the bag shows the full collection
 const bag = computed(() => putters.map((p) => ({ ...p, locked: !isUnlocked(p, mgStats.value) })))
 
@@ -178,6 +180,7 @@ let nextAlien = 0
 let abducted = false
 let ottoFace = null
 let grabbing = 0 // frames left in a gator grab (ball is held, then reset)
+let lipCd = 0 // cooldown so a lip-out deflects once per crossing, not per frame
 let bird = null
 let nextBird = 0
 let splats = []
@@ -214,6 +217,7 @@ const LINES = {
   portal: ['Wheee!', 'Otto took the shortcut.'],
   alien: ['Otto has been abducted. He’s fine. Probably.', 'The truth is out there. So is your ball.'],
   bird: ['A bird just… editorialized on the green.', 'Splat. Nature’s hazard.', 'Incoming! …too late.'],
+  lip: ['Lipped out! Cruel game.', 'Rimmed it. Chip felt that one.', 'The cup said no.'],
   bigfoot: ['Was that… Bigfoot?', 'Somebody big just crossed the tree line.', 'Chip swears he saw something hairy.'],
   ace: ['ACE! Chip is speechless. (He isn’t.)', 'Hole in one! Filthy.'],
   under: ['Under par. Chip approves.', 'Birdie business.'],
@@ -225,6 +229,7 @@ const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
 onMounted(async () => {
   try {
+    await progress.loadFromStorage() // bag lock states + unlock thresholds
     await boot()
   } catch (e) {
     console.error('[Game3D] boot failed:', e)
@@ -269,6 +274,12 @@ async function boot() {
 
   if (events.includes('alien')) ufo = makeUfo(scene)
 
+  // Round-spanning sighting clocks (rare, but guaranteed to come around during a
+  // full round: bird ~10–25s, bigfoot ~25–60s, alien ~20–50s at 60fps).
+  nextBird = tickN + 600 + Math.floor(Math.random() * 900)
+  nextBigfoot = tickN + 1500 + Math.floor(Math.random() * 2100)
+  nextAlien = tickN + 1200 + Math.floor(Math.random() * 1800)
+
   const h = parseInt(devParam('hole'), 10)
   if (h >= 1 && h <= total) holeIdx.value = h - 1
   loadHole()
@@ -286,6 +297,9 @@ async function boot() {
       putter: activePutterId.value,
       grabbing,
       camRadius: cam.radius,
+      windmillYaw: hole.windmills[0]?.blade.rotationQuaternion?.toEulerAngles().y ?? null,
+      timers: { nextBird, nextBigfoot, nextAlien },
+      aces: mgStats.value.holesInOne,
       selectPutter,
       // dev spawners (cameos are deliberately rare in play)
       spawnBigfoot: () => { bigfoot?.dispose(); bigfoot = makeBigfoot(scene, true, 0); for (let i = 0; i < 250; i++) bigfoot.step(i) },
@@ -340,19 +354,18 @@ function loadHole() {
     }
   }
   grabbing = 0
+  lipCd = 0
   abducted = false
   ufoState = null
   ufo?.setEnabled(false)
-  // Rare, so a sighting feels magical rather than clockwork (~25–65s windows).
-  nextAlien = tickN + 1500 + Math.floor(Math.random() * 2400)
 
-  // bird / bigfoot cameos + splats
+  // clear any active cameo actors, but leave the sighting timers running — they
+  // span the whole round (resetting them each hole meant windows longer than a
+  // hole never fired, and Bigfoot/UFO were effectively never seen)
   bird?.dispose(); bird = null
   bigfoot?.dispose(); bigfoot = null
   for (const s of splats) s.dispose()
   splats = []
-  nextBird = tickN + 720 + Math.floor(Math.random() * 1080) // ~12–30s
-  nextBigfoot = tickN + 1800 + Math.floor(Math.random() * 2700) // ~30–75s
 
   frameCamera(def)
   resetBall(hole.teePos)
@@ -436,10 +449,12 @@ function tick() {
   if (quip.value && tickN > quipUntil) quip.value = null
   if (portalCd > 0) portalCd--
 
-  // spin windmills (visual)
+  // spin windmills. The blade's Havok body switched the mesh to quaternion
+  // rotation, so Euler .rotation is ignored — drive the quaternion directly.
   for (const wm of hole.windmills) {
     wm.angle += wm.speed
-    wm.blade.rotation.y = wm.angle
+    if (!wm.blade.rotationQuaternion) wm.blade.rotationQuaternion = Quaternion.Identity()
+    Quaternion.RotationYawPitchRollToRef(wm.angle, 0, 0, wm.blade.rotationQuaternion)
   }
   // move cup (oscillate in the 2D axis, mapped to world XZ)
   const m = hole.cup.move
@@ -520,7 +535,21 @@ function tick() {
   const speed = Math.hypot(v.x, v.z)
   const dcup = Math.hypot(bx - hole.cup.pos.x, bz - hole.cup.pos.z)
   const captureR = CUP_R * (0.82 + 0.14 * (HOMING - 1)) // a bit tighter than the visible cup
-  if (dcup < captureR && speed < SINK_SPEED && ball.position.y < 0.5) return sink()
+  if (lipCd > 0) lipCd-- // a just-lipped ball is briefly immune while it exits
+  if (dcup < captureR && speed < SINK_SPEED && ball.position.y < 0.5 && lipCd === 0) return sink()
+  // Too fast over the hole: the ball can never glide across untouched — it rattles
+  // off the far rim. Reflect the radial velocity component back out (shaved), which
+  // reads as a real lip-out, and hold the sink-immunity while it escapes.
+  if (dcup < CUP_R && speed >= SINK_SPEED && ball.position.y < 0.4 && lipCd === 0) {
+    lipCd = 26
+    let nx = bx - hole.cup.pos.x, nz = bz - hole.cup.pos.z
+    const nl = Math.hypot(nx, nz) || 1
+    nx /= nl; nz /= nl
+    const dot = v.x * nx + v.z * nz
+    ballAgg.body.setLinearVelocity(new Vector3((v.x - 2 * dot * nx) * 0.68, Math.min(v.y, 0.5), (v.z - 2 * dot * nz) * 0.68))
+    if (Math.random() < 0.6) setQuip(pick(LINES.lip))
+    haptics.light()
+  }
   // a slow ball near the rim gets a gentle curl toward the cup (much weaker than
   // before, so a mere graze no longer vacuums in — you have to earn it)
   if (dcup < CUP_R * 2 && speed < 2.2) {
@@ -543,6 +572,7 @@ function tick() {
 
 function splash() {
   strokes.value++ // penalty
+  progress.recordSplash()
   resetBall(restPos)
   state.value = 'aiming'
   if (gators.length) {
@@ -620,11 +650,11 @@ function updateCameos() {
   // probability gate on top of the long timer keeps it from ever feeling scheduled.
   if (events.includes('bigfoot')) {
     if (!bigfoot && tickN > nextBigfoot) {
-      if (Math.random() < 0.45) {
+      if (Math.random() < 0.6) {
         bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26)
         setQuip('👀 Was that…?')
       }
-      nextBigfoot = tickN + 1800 + Math.floor(Math.random() * 2700) // re-arm either way
+      nextBigfoot = tickN + 1500 + Math.floor(Math.random() * 2100) // re-arm either way
     }
     if (bigfoot) {
       const gone = bigfoot.step(tickN)
@@ -641,12 +671,12 @@ function updateAlien() {
   if (!ufoState) {
     const v = ballAgg.body.getLinearVelocity()
     if (!abducted && tickN > nextAlien && Math.hypot(v.x, v.z) < 0.5 && !sunk && state.value === 'aiming') {
-      if (Math.random() < 0.5) {
+      if (Math.random() < 0.6) {
         ufoState = { phase: 'descend', t: 0 }
         ufo.setEnabled(true)
         ufo.setPos(ball.position.x, 12, ball.position.z)
       } else {
-        nextAlien = tickN + 1500 + Math.floor(Math.random() * 2400) // skip; try later
+        nextAlien = tickN + 1200 + Math.floor(Math.random() * 1800) // skip; try later
       }
     }
     return
@@ -665,6 +695,7 @@ function updateAlien() {
     if (ufoState.t > 44) {
       ufo.showBeam(false)
       relocateBall()
+      progress.recordAbduction()
       abducted = true
       ufoState.phase = 'leave'
       ufoState.t = 0
@@ -697,6 +728,7 @@ function sink() {
   ball.position.set(hole.cup.pos.x, -0.1, hole.cup.pos.z)
   ballAgg.body.disablePreStep = false
   scores.value[holeIdx.value] = strokes.value
+  if (strokes.value === 1) progress.recordHoleInOne()
   resultLabel.value = scoreName(strokes.value, par.value)
   const d = strokes.value - par.value
   quip.value = strokes.value === 1 ? pick(LINES.ace) : d < 0 ? pick(LINES.under) : d === 0 ? pick(LINES.par) : d === 1 ? pick(LINES.bogey) : pick(LINES.bad)
@@ -708,12 +740,20 @@ function sink() {
 function advance() {
   haptics.light()
   if (holeIdx.value + 1 < total) { holeIdx.value++; loadHole() }
-  else state.value = 'courseComplete'
+  else {
+    // record the round — this is what unlocks putters — and surface anything new
+    const wasUnlocked = new Set(putters.filter((p) => isUnlocked(p, mgStats.value)).map((p) => p.id))
+    progress.recordCourse(course.id, scores.value.reduce((a, b) => a + (b || 0), 0), coursePar)
+    const fresh = putters.filter((p) => !wasUnlocked.has(p.id) && isUnlocked(p, mgStats.value))
+    unlockMsg.value = fresh.length ? `🔓 New putter unlocked: ${fresh.map((p) => `${p.emoji} ${p.name}`).join(', ')}` : null
+    state.value = 'courseComplete'
+  }
 }
 function newRound() {
   haptics.light()
   holeIdx.value = 0
   scores.value = []
+  unlockMsg.value = null
   loadHole()
 }
 
@@ -751,6 +791,7 @@ function goBack() { router.push({ name: 'menu' }) }
 .o-title { font-size: 2rem; font-weight: 800; }
 .o-sub { opacity: 0.9; margin-top: -6px; }
 .o-sub.big { font-size: 1.2rem; font-weight: 700; }
+.o-unlock { background: rgba(76,175,80,0.22); border: 1px solid rgba(110,224,122,0.5); border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; }
 .scorecard { display: flex; flex-direction: column; gap: 3px; font-size: 0.7rem; }
 .sc-row { display: grid; grid-template-columns: 2rem repeat(9, 1fr) 0.6rem repeat(9, 1fr); gap: 2px; text-align: center; align-items: center; }
 .sc-row > span:first-child { text-align: left; opacity: 0.7; }

@@ -24,7 +24,7 @@ import '@babylonjs/core/Physics/joinedPhysicsEngineComponent' // adds Scene.enab
 export { Engine } from '@babylonjs/core/Engines/engine'
 export { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine'
 export { Scene } from '@babylonjs/core/scene'
-export { Vector3 } from '@babylonjs/core/Maths/math.vector'
+export { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector'
 export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
 export { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera'
 export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'

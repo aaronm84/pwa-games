@@ -119,6 +119,18 @@ Feedback-driven refinements:
 - **In-game putter bag** — swap putters mid-round from a bag sheet (the whole
   collection, locked ones shown with their unlock hint); mods apply live.
 
+Playtest fixes on top:
+
+- **Lip-outs** — a ball can never glide over the hole untouched: too fast over the
+  cup and the rim kicks it sideways and shaves its speed (slow, placed putts drop).
+- **Windmills actually spin** — the blade's Havok body had switched the mesh to
+  quaternion rotation, silently ignoring the Euler spin since Stage 2; the spin now
+  drives the quaternion (collision was always live).
+- **Bigfoot/UFO actually appear** — sighting clocks were reset every hole, so
+  windows longer than a hole never fired; they now span the round.
+- **Putters actually unlock** — the 3D game now records progress (rounds, aces,
+  splashes, abductions); finishing a round shows any newly unlocked putter.
+
 Course/hole/putter `?course=&hole=&putter=` dev overrides exist for testing (DEV-only).
 
 ## Bundle size
