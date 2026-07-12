@@ -5,8 +5,9 @@ other games can migrate onto. It **converts the real Mini Golf** — all three
 courses and 54 holes — onto **Babylon.js + Havok physics**, reusing the flat game's
 polygon course data unchanged. Packaged as an installable PWA.
 
-> Status: engine prototype + Stage 1 of the Mini Golf conversion. Not on the public
-> landing page yet.
+> Status: the full Mini Golf conversion (Stages 1–4) — all 54 holes, hills/ramps,
+> critters, cameos and special putters — running on the engine-kit and linked from
+> the landing page as **Mini Golf 3D**.
 
 ## Why
 
