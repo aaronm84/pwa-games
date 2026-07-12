@@ -1,10 +1,12 @@
 # Mini Golf 3D — engine-kit prototype
 
-An **experimental** 3D prototype that validates a shared, PWA-optimized game engine
-the other games can eventually migrate onto. It's a real playable 3D mini-golf
-hole running on **Babylon.js + Havok physics**, packaged as an installable PWA.
+An **experimental** 3D build that validates a shared, PWA-optimized game engine the
+other games can migrate onto. It **converts the real Mini Golf** — all three
+courses and 54 holes — onto **Babylon.js + Havok physics**, reusing the flat game's
+polygon course data unchanged. Packaged as an installable PWA.
 
-> Status: prototype / proof-of-concept. Not on the public landing page yet.
+> Status: engine prototype + Stage 1 of the Mini Golf conversion. Not on the public
+> landing page yet.
 
 ## Why
 
@@ -35,20 +37,40 @@ await initPhysics(stage.scene)   // Havok
 stage.run(dt => { /* per-frame */ })
 ```
 
-## The game (`src/game/course3d.js` + `pages/Game3DPage.vue`)
+## The game — a 3D port of the real Mini Golf (Stage 1)
 
-- Data-driven holes (green + curbs + inner "bars") built into meshes + static
-  Havok colliders.
-- A dynamic Havok ball with rolling friction; **drag-back-to-putt** applies an
-  impulse mapped from the drag onto the ground plane via the camera basis.
-- Sink detection, strokes/par HUD, hole-complete, next hole. Three demo holes.
+The 2D game's courses are **pure polygon data**, so they port straight across. The
+actual `courses.js` / `geometry.js` / `courseKit.js` files are reused verbatim, and
+`src/game/hole3d.js` turns each 2D hole into a 3D scene:
 
-## Verified
+- The 520×760 play space maps onto the ground plane (`+y2d` → `+z`, toward the
+  camera). The fairway polygon is **extruded** into a green slab; its outline
+  becomes **curb walls** (decimated to keep the collider count sane); obstacle
+  polygons become raised hedges — all with Havok colliders.
+- Hazards from the same data: **water** (splash + penalty, hit-tested in world XZ),
+  **sand** (extra damping), **boost pads** (impulse), **bumpers** (bouncy cylinders),
+  **portals** (teleport), and **moving cups** (animated).
+- A dynamic Havok ball; **drag-back-to-putt** maps the drag onto the ground via the
+  camera basis. The ball is **axis-locked to the ground** (a flat green shouldn't
+  launch it over a curb) with a cup **gravity-assist** so slow near-misses drop.
+- Per-hole intro, HUD (hole/par/shot/total), hole-complete, and a front/back
+  scorecard. All **three courses (54 holes)** are selectable from the menu.
 
-Renders in headless WebGL2 (SwiftShader) with PBR + soft shadows; Havok physics
-steps correctly (ball rolls the length of the green and **sinks** in the cup);
-builds cleanly through Quasar/Vite with the Havok `.wasm` emitted as a bundled,
-precacheable asset. Drag-to-putt direction and power confirmed end-to-end.
+### Verified
+
+All three courses render in headless WebGL2 with PBR + soft shadows and their real
+organic shapes (blobby greens, ponds, doglegs). Ten representative holes across the
+courses — doglegs, obstacle fields, bumpers, portals, moving cups, and the combo
+finales — boot without error; the ball **sinks**, the **water penalty** fires, and
+the **prod build renders + plays** (Havok wasm bundled). Lint + build clean.
+
+### Not yet ported (Stage 2)
+
+Windmill blade *collision* (renders + spins, but the blade is a pass-through for now;
+the hub collides), the **critters** (gator/Bigfoot/alien/bird), **special putters**,
+Otto's face + **Chip's commentary**, environment props, and ramps/hills that would
+use the vertical axis this stage deliberately locks. Course/hole `?course=&hole=`
+dev overrides exist for testing (DEV-only).
 
 ## Bundle size
 

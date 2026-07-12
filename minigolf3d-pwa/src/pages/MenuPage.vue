@@ -16,18 +16,20 @@
       <!-- Menu Buttons -->
       <div class="menu-buttons">
         <q-btn
+          v-for="c in courses"
+          :key="c.id"
           unelevated
           size="xl"
           color="primary"
           text-color="white"
           class="menu-btn"
-          @click="playGame"
+          @click="playCourse(c.id)"
         >
           <div class="btn-content">
-            <q-icon name="play_arrow" size="md" class="btn-icon" />
+            <q-icon name="golf_course" size="md" class="btn-icon" />
             <div class="btn-text">
-              <div class="btn-label">Play</div>
-              <div class="btn-sublabel">3 holes · real 3D physics</div>
+              <div class="btn-label">{{ c.name }}</div>
+              <div class="btn-sublabel">{{ c.holes.length }} holes · 3D physics</div>
             </div>
           </div>
         </q-btn>
@@ -90,11 +92,14 @@
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useProgressStore } from 'src/stores/progress'
+import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
+import { courses } from 'src/game/courses'
 import DynamicBackground from 'src/components/DynamicBackground.vue'
 
 const router = useRouter()
 const progressStore = useProgressStore()
+const settings = useSettingsStore()
 const { minigolf } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
@@ -104,8 +109,9 @@ function formatToPar(toPar) {
   return toPar > 0 ? `+${toPar}` : `${toPar}`
 }
 
-function playGame() {
+function playCourse(id) {
   haptics.medium()
+  settings.updateSetting('selectedCourse', id)
   router.push({ name: 'game3d' })
 }
 
