@@ -60,6 +60,7 @@ import { useRouter } from 'vue-router'
 import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
 import { courseById, coursePar as parOf } from 'src/game/courses'
 import { buildHole3D, xz, BALL_R, CUP_R, S } from 'src/game/hole3d'
+import { makeGator, makeUfo } from 'src/game/critters3d'
 import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
 
@@ -114,10 +115,32 @@ let titleUntil = 0
 let quipUntil = 0
 let portalCd = 0
 let tickN = 0
+let curDef = null
+
+// critters
+const events = course.events || []
+let gators = []
+let ufo = null
+let ufoState = null
+let nextAlien = 0
+let abducted = false
 
 const MAX_IMPULSE = 8
 const SINK_SPEED = 2.8
 const BASE_DAMP = 0.55
+
+const LINES = {
+  water: ['Splash! +1 penalty.', 'And it’s in the drink. +1.', 'Otto forgot his floaties. +1.'],
+  gator: ['CHOMP! A gator got it. +1.', 'Never smile at a crocodile. +1.', 'That one belongs to the swamp now. +1.'],
+  portal: ['Wheee!', 'Otto took the shortcut.'],
+  alien: ['Otto has been abducted. He’s fine. Probably.', 'The truth is out there. So is your ball.'],
+  ace: ['ACE! Chip is speechless. (He isn’t.)', 'Hole in one! Filthy.'],
+  under: ['Under par. Chip approves.', 'Birdie business.'],
+  par: ['Par. Respectable.', 'Right on the number.'],
+  bogey: ['One over. We move on.', 'Bogey. It happens.'],
+  bad: ['…we don’t talk about that one.', 'A learning hole.'],
+}
+const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
 onMounted(async () => {
   try {
@@ -128,6 +151,8 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  for (const g of gators) g.dispose()
+  ufo?.dispose()
   gestures?.dispose()
   stage?.dispose()
 })
@@ -156,6 +181,8 @@ async function boot() {
 
   gestures = new Gestures(canvasEl.value, { onDrag: (g) => onAim(g), onDragEnd: (g) => onRelease(g) })
 
+  if (events.includes('alien')) ufo = makeUfo(scene)
+
   const h = parseInt(devParam('hole'), 10)
   if (h >= 1 && h <= total) holeIdx.value = h - 1
   loadHole()
@@ -176,6 +203,7 @@ async function boot() {
 
 function loadHole() {
   const def = holes[holeIdx.value]
+  curDef = def
   hole?.dispose()
   hole = buildHole3D(scene, shadowGen, def, theme)
   holeName.value = def.name
@@ -185,6 +213,22 @@ function loadHole() {
   restFrames = 0
   portalCd = 0
   state.value = 'aiming'
+
+  // critters
+  for (const g of gators) g.dispose()
+  gators = []
+  if (events.includes('gator')) {
+    for (const wp of hole.waterPolys) {
+      let cx = 0, cz = 0
+      for (const p of wp) { cx += p.x; cz += p.z }
+      gators.push(makeGator(scene, cx / wp.length, cz / wp.length))
+    }
+  }
+  abducted = false
+  ufoState = null
+  ufo?.setEnabled(false)
+  nextAlien = tickN + 360 + Math.floor(Math.random() * 420)
+
   frameCamera(def)
   resetBall(hole.teePos)
   restPos = hole.teePos.clone()
@@ -283,6 +327,10 @@ function tick() {
     hole.cup.setXZ(world.x, world.z)
   }
 
+  // critters
+  for (const g of gators) g.update(tickN)
+  if (ufo) updateAlien()
+
   if (state.value !== 'rolling' || sunk) return
 
   const bx = ball.position.x, bz = ball.position.z
@@ -337,7 +385,12 @@ function splash() {
   strokes.value++ // penalty
   resetBall(restPos)
   state.value = 'aiming'
-  setQuip('Splash! +1 penalty.')
+  if (gators.length) {
+    for (const g of gators) g.setChomp()
+    setQuip(pick(LINES.gator))
+  } else {
+    setQuip(pick(LINES.water))
+  }
   haptics.medium()
 }
 function teleport(dest) {
@@ -346,7 +399,58 @@ function teleport(dest) {
   resetBall(new Vector3(dest.x + (v.x / sp) * (BALL_R + 0.8), BALL_R + 0.05, dest.z + (v.z / sp) * (BALL_R + 0.8)))
   ballAgg.body.setLinearVelocity(new Vector3(v.x * 0.7, 0, v.z * 0.7))
   portalCd = 20
-  setQuip('Wheee!')
+  setQuip(pick(LINES.portal))
+}
+
+// ---- alien abduction (Area 51) ----
+function updateAlien() {
+  if (!ufoState) {
+    const v = ballAgg.body.getLinearVelocity()
+    if (!abducted && tickN > nextAlien && Math.hypot(v.x, v.z) < 0.5 && !sunk && state.value === 'aiming') {
+      ufoState = { phase: 'descend', t: 0 }
+      ufo.setEnabled(true)
+      ufo.setPos(ball.position.x, 12, ball.position.z)
+    }
+    return
+  }
+  ufoState.t++
+  const u = ufo.pos()
+  if (ufoState.phase === 'descend') {
+    ufo.setPos(u.x + (ball.position.x - u.x) * 0.1, u.y + (5.5 - u.y) * 0.1, u.z + (ball.position.z - u.z) * 0.1)
+    if (ufoState.t > 40) { ufoState.phase = 'beam'; ufoState.t = 0; ufo.showBeam(true) }
+  } else if (ufoState.phase === 'beam') {
+    ballAgg.body.setLinearVelocity(Vector3.Zero())
+    ball.position.x += (u.x - ball.position.x) * 0.15
+    ball.position.z += (u.z - ball.position.z) * 0.15
+    ball.position.y += (u.y - 1.5 - ball.position.y) * 0.15
+    ballAgg.body.disablePreStep = false
+    if (ufoState.t > 44) {
+      ufo.showBeam(false)
+      relocateBall()
+      abducted = true
+      ufoState.phase = 'leave'
+      ufoState.t = 0
+      setQuip(pick(LINES.alien))
+    }
+  } else if (ufoState.phase === 'leave') {
+    ufo.setPos(u.x + 0.3, u.y + 0.25, u.z)
+    if (u.y > 14) { ufo.setEnabled(false); ufoState = null }
+  }
+}
+function relocateBall() {
+  const fw = curDef.fairway.map((p) => xz(p))
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
+  for (const p of fw) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z) }
+  for (let i = 0; i < 60; i++) {
+    const x = minX + Math.random() * (maxX - minX)
+    const z = minZ + Math.random() * (maxZ - minZ)
+    if (pin(x, z, fw)) {
+      let inWater = false
+      for (const wp of hole.waterPolys) if (pin(x, z, wp)) inWater = true
+      if (!inWater) { resetBall(new Vector3(x, BALL_R + 0.05, z)); restPos = new Vector3(x, BALL_R + 0.05, z); return }
+    }
+  }
+  resetBall(restPos)
 }
 function sink() {
   sunk = true
@@ -356,6 +460,9 @@ function sink() {
   ballAgg.body.disablePreStep = false
   scores.value[holeIdx.value] = strokes.value
   resultLabel.value = scoreName(strokes.value, par.value)
+  const d = strokes.value - par.value
+  quip.value = strokes.value === 1 ? pick(LINES.ace) : d < 0 ? pick(LINES.under) : d === 0 ? pick(LINES.par) : d === 1 ? pick(LINES.bogey) : pick(LINES.bad)
+  quipUntil = tickN + 400
   state.value = 'holeComplete'
   haptics.success()
 }

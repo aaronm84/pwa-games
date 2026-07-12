@@ -64,13 +64,21 @@ courses — doglegs, obstacle fields, bumpers, portals, moving cups, and the com
 finales — boot without error; the ball **sinks**, the **water penalty** fires, and
 the **prod build renders + plays** (Havok wasm bundled). Lint + build clean.
 
-### Not yet ported (Stage 2)
+### Stage 2 (done)
 
-Windmill blade *collision* (renders + spins, but the blade is a pass-through for now;
-the hub collides), the **critters** (gator/Bigfoot/alien/bird), **special putters**,
-Otto's face + **Chip's commentary**, environment props, and ramps/hills that would
-use the vertical axis this stage deliberately locks. Course/hole `?course=&hole=`
-dev overrides exist for testing (DEV-only).
+- **Windmill blade collision** — the blade is now a kinematic (ANIMATED) Havok body
+  that spins and swats the ball; the hub still collides too.
+- **Critters** — **gators** lurk in the Cove ponds (glowing eyes) and *chomp* a ball
+  that hits the water; **alien UFOs** on Area 51 descend, beam Otto up, and drop him
+  elsewhere on the green (no stroke). Themed **Chip commentary** on sinks, splashes,
+  chomps, portals, and abductions.
+
+### Not yet ported (Stage 3)
+
+**Ramps / hills** (the marquee 3D feature — needs relaxing the ground axis-lock this
+build uses to keep flat-green putts from flying, plus taller/softer curbs), plus
+Bigfoot & bird cameos, **special putters**, Otto's face, and environment props.
+Course/hole `?course=&hole=` dev overrides exist for testing (DEV-only).
 
 ## Bundle size
 

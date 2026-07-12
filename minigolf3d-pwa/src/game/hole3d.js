@@ -12,6 +12,8 @@ import {
   makeStatic,
   pbr,
   PhysicsShapeType,
+  PhysicsMotionType,
+  PhysicsAggregate,
 } from 'src/engine'
 
 // Babylon's default earcut injection can come through undefined depending on the
@@ -139,11 +141,17 @@ export function buildHole3D(scene, shadow, def, theme) {
     shadow.addShadowCaster(hub)
     aggs.push(makeStatic(hub, { shape: PhysicsShapeType.CYLINDER, friction: 0.5, restitution: 0.5 }))
     track(hub)
-    const blade = MeshBuilder.CreateBox('blade', { width: len * 2, height: 0.3, depth: 0.4 }, scene)
-    blade.position.set(c.x, 0.9, c.z)
+    const blade = MeshBuilder.CreateBox('blade', { width: len * 2, height: 0.4, depth: 0.5 }, scene)
+    blade.position.set(c.x, 0.55, c.z)
     blade.material = pbr(scene, { color: '#f5f5f5', rough: 0.5, name: 'blade' })
     shadow.addShadowCaster(blade)
     track(blade)
+    // kinematic (ANIMATED) body: we spin the mesh each frame and Havok imparts the
+    // blade's swept velocity to the ball on contact — so it actually swats it
+    const bladeAgg = new PhysicsAggregate(blade, PhysicsShapeType.BOX, { mass: 0, restitution: 0.4 }, scene)
+    bladeAgg.body.setMotionType(PhysicsMotionType.ANIMATED)
+    bladeAgg.body.disablePreStep = false
+    aggs.push(bladeAgg)
     windmills.push({ blade, speed: wm.speed, angle: 0 })
   }
 
