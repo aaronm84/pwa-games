@@ -73,10 +73,19 @@ the **prod build renders + plays** (Havok wasm bundled). Lint + build clean.
   elsewhere on the green (no stroke). Themed **Chip commentary** on sinks, splashes,
   chomps, portals, and abductions.
 
-### Not yet ported (Stage 3)
+### Stage 3 (done) — terrain
 
-**Ramps / hills** (the marquee 3D feature — needs relaxing the ground axis-lock this
-build uses to keep flat-green putts from flying, plus taller/softer curbs), plus
+**Hills & ramps** — the marquee 3D feature the flat game can't have. 3D-only
+flourishes are layered onto chosen holes via `src/game/enhance3d.js` (the 2D course
+data stays untouched): rounded **hills/dunes** (MESH-collider domes the ball crests)
+and **ramps** (inclined slabs). This required swapping the Stage-1 hard ground
+axis-lock for a **soft upward-speed cap** (a ball can ride a slope but a curb can't
+launch it) plus a total-speed cap and **taller, softer curbs**. Verified: a ball
+climbs a dune to ~1.3 world-units and still sinks, while flat/obstacle holes keep
+the ball grounded (peak height ~0.5) — no flying.
+
+### Not yet ported (Stage 4)
+
 Bigfoot & bird cameos, **special putters**, Otto's face, and environment props.
 Course/hole `?course=&hole=` dev overrides exist for testing (DEV-only).
 

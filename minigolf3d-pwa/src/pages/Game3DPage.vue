@@ -61,6 +61,7 @@ import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuild
 import { courseById, coursePar as parOf } from 'src/game/courses'
 import { buildHole3D, xz, BALL_R, CUP_R, S } from 'src/game/hole3d'
 import { makeGator, makeUfo } from 'src/game/critters3d'
+import { enhanceFor } from 'src/game/enhance3d'
 import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
 
@@ -128,6 +129,8 @@ let abducted = false
 const MAX_IMPULSE = 8
 const SINK_SPEED = 2.8
 const BASE_DAMP = 0.55
+const MAXV = 20 // total speed cap (safety against fast wall slams)
+const VY_CAP = 3.6 // soft cap on upward speed: ramps can climb, wall-launches can't
 
 const LINES = {
   water: ['Splash! +1 penalty.', 'And it’s in the drink. +1.', 'Otto forgot his floaties. +1.'],
@@ -205,7 +208,7 @@ function loadHole() {
   const def = holes[holeIdx.value]
   curDef = def
   hole?.dispose()
-  hole = buildHole3D(scene, shadowGen, def, theme)
+  hole = buildHole3D(scene, shadowGen, def, theme, enhanceFor(course.id, holeIdx.value))
   holeName.value = def.name
   par.value = def.par
   strokes.value = 0
@@ -353,12 +356,14 @@ function tick() {
     if (pin(bx, bz, bz2.poly)) ballAgg.body.applyImpulse(new Vector3(bz2.dir.x, 0, bz2.dir.z).scale(0.5), ball.getAbsolutePosition())
   }
 
-  // keep the putt grounded — a flat green shouldn't launch the ball over a curb
+  // Let the ball ride ramps/hills but never launch off a curb: soft-cap upward
+  // speed and cap the total speed. (Taller, softer curbs do the rest.)
   const v = ballAgg.body.getLinearVelocity()
-  if (v.y > 0.05 || ball.position.y > BALL_R + 0.12) {
-    v.y = Math.min(v.y, 0)
-    ballAgg.body.setLinearVelocity(v)
-  }
+  let vChanged = false
+  const sp3 = Math.hypot(v.x, v.y, v.z)
+  if (sp3 > MAXV) { const k = MAXV / sp3; v.x *= k; v.y *= k; v.z *= k; vChanged = true }
+  if (v.y > VY_CAP) { v.y = VY_CAP; vChanged = true }
+  if (vChanged) ballAgg.body.setLinearVelocity(v)
   // sink + gravity assist (a slow ball near the cup gets curled in)
   const speed = Math.hypot(v.x, v.z)
   const dcup = Math.hypot(bx - hole.cup.pos.x, bz - hole.cup.pos.z)

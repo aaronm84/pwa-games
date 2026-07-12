@@ -25,7 +25,7 @@ function polygon(name, shape, depth, scene) {
 export const S = 1 / 26 // world units per 2D pixel
 export const BALL_R = 7 * S
 export const CUP_R = 15 * S
-const CURB_H = 0.55
+const CURB_H = 0.9
 const CURB_T = 0.34
 const OBST_H = 0.75
 
@@ -40,7 +40,7 @@ function worldPoly(poly) {
   return poly.map((p) => xz(p))
 }
 
-export function buildHole3D(scene, shadow, def, theme) {
+export function buildHole3D(scene, shadow, def, theme, extra = {}) {
   const meshes = []
   const aggs = []
   const track = (m) => {
@@ -77,6 +77,33 @@ export function buildHole3D(scene, shadow, def, theme) {
     shadow.addShadowCaster(ob)
     aggs.push(makeStatic(ob, { shape: PhysicsShapeType.MESH, friction: 0.5, restitution: 0.5 }))
     track(ob)
+  }
+
+  // --- 3D terrain: hills (rounded mounds) + ramps (inclined slabs) ---
+  for (const hl of extra.hills || []) {
+    const c = xz(hl)
+    const r = hl.r * S
+    const dome = MeshBuilder.CreateSphere('hill', { diameterX: r * 2, diameterY: (hl.h || 1.2) * 2, diameterZ: r * 2, segments: 20 }, scene)
+    dome.position.set(c.x, 0, c.z)
+    dome.material = grass
+    dome.receiveShadows = true
+    shadow.addShadowCaster(dome)
+    aggs.push(makeStatic(dome, { shape: PhysicsShapeType.MESH, friction: 0.85, restitution: 0.2 }))
+    track(dome)
+  }
+  for (const rp of extra.ramps || []) {
+    const c = xz(rp)
+    const w = rp.w * S
+    const l = rp.l * S
+    const slab = MeshBuilder.CreateBox('ramp', { width: w, height: 0.25, depth: l }, scene)
+    const angle = Math.atan2(rp.h, l) * (rp.dir === 'down' ? 1 : -1)
+    slab.rotation.x = angle
+    slab.position.set(c.x, rp.h / 2, c.z)
+    slab.material = grass
+    slab.receiveShadows = true
+    shadow.addShadowCaster(slab)
+    aggs.push(makeStatic(slab, { shape: PhysicsShapeType.BOX, friction: 0.85, restitution: 0.15 }))
+    track(slab)
   }
 
   // --- hazard patches (flat, non-colliding; the controller does the gameplay) ---
@@ -223,7 +250,7 @@ function curbSegment(scene, a, b, mat, aggs, track) {
   box.position.set((a.x + b.x) / 2, CURB_H / 2 - 0.05, (a.z + b.z) / 2)
   box.rotation.y = Math.atan2(dx, dz) - Math.PI / 2
   box.material = mat
-  aggs.push(makeStatic(box, { shape: PhysicsShapeType.BOX, friction: 0.4, restitution: 0.55 }))
+  aggs.push(makeStatic(box, { shape: PhysicsShapeType.BOX, friction: 0.4, restitution: 0.35 }))
   track(box)
 }
 
