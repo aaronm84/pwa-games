@@ -27,6 +27,45 @@
       Drag back from the ball to aim &amp; putt
     </div>
 
+    <!-- putter bag: swap putters mid-round -->
+    <button
+      v-if="state === 'aiming' || state === 'rolling'"
+      class="bag-btn"
+      @click="showBag = true"
+      aria-label="Open putter bag"
+    >
+      <span class="bag-emoji">{{ activePutter.emoji }}</span>
+      <span class="bag-label">{{ activePutter.name }}</span>
+    </button>
+
+    <transition name="fade">
+      <div v-if="showBag" class="bag-overlay" @click.self="showBag = false">
+        <div class="bag-sheet">
+          <div class="bag-head">
+            <span>Your bag</span>
+            <q-btn flat round dense icon="close" color="white" @click="showBag = false" />
+          </div>
+          <div class="bag-list">
+            <button
+              v-for="p in bag"
+              :key="p.id"
+              class="putter-card"
+              :class="{ active: p.id === activePutterId, locked: p.locked }"
+              :disabled="p.locked"
+              @click="!p.locked && selectPutter(p.id)"
+            >
+              <span class="p-emoji">{{ p.locked ? '🔒' : p.emoji }}</span>
+              <span class="p-text">
+                <span class="p-name">{{ p.name }}</span>
+                <span class="p-blurb">{{ p.locked ? p.unlock.label : p.blurb }}</span>
+              </span>
+              <span v-if="p.id === activePutterId" class="p-check">✓</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <transition name="fade">
       <div v-if="state === 'holeComplete'" class="overlay">
         <div class="o-title">{{ resultLabel }}</div>
@@ -62,7 +101,9 @@ import { courseById, coursePar as parOf } from 'src/game/courses'
 import { buildHole3D, xz, BALL_R, CUP_R, S } from 'src/game/hole3d'
 import { makeGator, makeUfo, makeBird, makeSplat, makeBigfoot, makeOttoFace } from 'src/game/critters3d'
 import { enhanceFor } from 'src/game/enhance3d'
-import { putterById } from 'src/game/putters'
+import { putters, putterById, isUnlocked } from 'src/game/putters'
+import { useProgressStore } from 'src/stores/progress'
+import { storeToRefs } from 'pinia'
 import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
 
@@ -75,7 +116,8 @@ function devParam(k) {
   if (!import.meta.env.DEV) return null
   return new URLSearchParams(location.hash.split('?')[1] || '').get(k)
 }
-const putter = putterById(devParam('putter') || settings.settings.selectedPutter)
+const progress = useProgressStore()
+const { minigolf: mgStats } = storeToRefs(progress)
 const course = courseById(devParam('course') || settings.settings.selectedCourse)
 const holes = course.holes
 const total = holes.length
@@ -90,6 +132,13 @@ const strokes = ref(0)
 const scores = ref([])
 const showTitle = ref(false)
 const quip = ref(null)
+
+// equipped putter (swappable mid-round from the bag) + the bag overlay
+const activePutterId = ref(devParam('putter') || settings.settings.selectedPutter)
+const activePutter = computed(() => putterById(activePutterId.value))
+const showBag = ref(false)
+// the whole set, each flagged locked/unlocked so the bag shows the full collection
+const bag = computed(() => putters.map((p) => ({ ...p, locked: !isUnlocked(p, mgStats.value) })))
 
 const holeNum = computed(() => holeIdx.value + 1)
 const holeName = ref('')
@@ -128,6 +177,7 @@ let ufoState = null
 let nextAlien = 0
 let abducted = false
 let ottoFace = null
+let grabbing = 0 // frames left in a gator grab (ball is held, then reset)
 let bird = null
 let nextBird = 0
 let splats = []
@@ -136,13 +186,27 @@ let nextBigfoot = 0
 
 const MAXV = 20 // total speed cap (safety against fast wall slams)
 const VY_CAP = 3.6 // soft cap on upward speed: ramps can climb, wall-launches can't
-const SINK_SPEED = 2.8
+const SINK_SPEED = 2.5 // max speed at which the ball can drop (lower = harder)
 
-// Base tuning, then the equipped putter's modifiers folded in (see game/putters.js).
-const pmods = putter.mods
-const MAX_IMPULSE = 8 * (pmods.power || 1)
-const BASE_DAMP = 0.55 / (pmods.friction || 1) // higher friction mod = rolls further
-const HOMING = 1 + (pmods.homing || 0) // multiplies the cup gravity-assist
+// Base tuning + the equipped putter's modifiers folded in (see game/putters.js).
+// Recomputed whenever the player swaps putters from the bag.
+let MAX_IMPULSE = 8
+let BASE_DAMP = 0.55
+let HOMING = 1
+function applyPutterMods() {
+  const m = activePutter.value.mods
+  MAX_IMPULSE = 8 * (m.power || 1)
+  BASE_DAMP = 0.55 / (m.friction || 1) // higher friction mod = rolls further
+  HOMING = 1 + (m.homing || 0) // multiplies the cup gravity-assist
+}
+applyPutterMods()
+function selectPutter(id) {
+  activePutterId.value = id
+  settings.updateSetting('selectedPutter', id)
+  applyPutterMods()
+  showBag.value = false
+  haptics.light()
+}
 
 const LINES = {
   water: ['Splash! +1 penalty.', 'And it’s in the drink. +1.', 'Otto forgot his floaties. +1.'],
@@ -219,6 +283,28 @@ async function boot() {
       hole: holeIdx.value,
       ball: { x: ball.position.x, y: ball.position.y, z: ball.position.z },
       cup: { x: hole.cup.pos.x, z: hole.cup.pos.z },
+      putter: activePutterId.value,
+      grabbing,
+      camRadius: cam.radius,
+      selectPutter,
+      // dev spawners (cameos are deliberately rare in play)
+      spawnBigfoot: () => { bigfoot?.dispose(); bigfoot = makeBigfoot(scene, true, 0); for (let i = 0; i < 250; i++) bigfoot.step(i) },
+      spawnGatorGrab: () => { if (gators[0]) grabbing = gators[0].lunge(gators[0].x + 1, gators[0].z + 1) },
+      // fire a straight putt from `dist` short of the cup at exactly `speed` — a
+      // clean, aim-free probe of the sink window
+      devPutt: (dist, speed) => {
+        const cx = hole.cup.pos.x, cz = hole.cup.pos.z
+        ballAgg.body.setLinearVelocity(Vector3.Zero())
+        ballAgg.body.setAngularVelocity(Vector3.Zero())
+        ball.position.set(cx, BALL_R + 0.05, cz + dist)
+        ballAgg.body.disablePreStep = false
+        sunk = false; restFrames = 0; strokes.value++
+        state.value = 'rolling'
+        scene.onAfterRenderObservable.addOnce(() => {
+          ballAgg.body.setLinearVelocity(new Vector3(0, 0, -speed))
+          ballAgg.body.disablePreStep = true
+        })
+      },
     })
   }
 }
@@ -243,21 +329,30 @@ function loadHole() {
     for (const wp of hole.waterPolys) {
       let cx = 0, cz = 0
       for (const p of wp) { cx += p.x; cz += p.z }
-      gators.push(makeGator(scene, cx / wp.length, cz / wp.length))
+      cx /= wp.length; cz /= wp.length
+      const g = makeGator(scene, cx, cz)
+      // reach = pond radius + a lunge margin, so a ball skirting the bank is fair game
+      let maxR = 0
+      for (const p of wp) maxR = Math.max(maxR, Math.hypot(p.x - cx, p.z - cz))
+      g.grabR = maxR + BALL_R + 0.7
+      g.armed = false
+      gators.push(g)
     }
   }
+  grabbing = 0
   abducted = false
   ufoState = null
   ufo?.setEnabled(false)
-  nextAlien = tickN + 360 + Math.floor(Math.random() * 420)
+  // Rare, so a sighting feels magical rather than clockwork (~25–65s windows).
+  nextAlien = tickN + 1500 + Math.floor(Math.random() * 2400)
 
   // bird / bigfoot cameos + splats
   bird?.dispose(); bird = null
   bigfoot?.dispose(); bigfoot = null
   for (const s of splats) s.dispose()
   splats = []
-  nextBird = tickN + 240 + Math.floor(Math.random() * 360)
-  nextBigfoot = tickN + 360 + Math.floor(Math.random() * 500)
+  nextBird = tickN + 720 + Math.floor(Math.random() * 1080) // ~12–30s
+  nextBigfoot = tickN + 1800 + Math.floor(Math.random() * 2700) // ~30–75s
 
   frameCamera(def)
   resetBall(hole.teePos)
@@ -274,10 +369,12 @@ function frameCamera(def) {
     minZ = Math.min(minZ, w.z); maxZ = Math.max(maxZ, w.z)
   }
   const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2
-  cam.setTarget(new Vector3(cx, 0, cz - 1.5))
+  cam.setTarget(new Vector3(cx, 0, cz - 1))
   cam.alpha = Math.PI / 2
-  cam.beta = 0.6
-  cam.radius = Math.max(maxX - minX, maxZ - minZ) * 0.95 + 6
+  // a touch more overhead + more pull-back so the whole hole (and the ball) always
+  // stays in frame, never hidden behind a curb or hill
+  cam.beta = 0.52
+  cam.radius = Math.max(maxX - minX, maxZ - minZ) * 1.25 + 11
 }
 
 function resetBall(pos) {
@@ -370,6 +467,21 @@ function tick() {
     ottoFace.setWorried(overWater)
   }
 
+  // gator lunge — a chance to be grabbed when the ball skirts a pond (see checkGators)
+  if (grabbing === 0 && !sunk) checkGators()
+  if (grabbing > 0) {
+    grabbing--
+    ballAgg.body.setLinearVelocity(Vector3.Zero())
+    if (grabbing === 0) {
+      strokes.value++ // penalty
+      resetBall(restPos)
+      state.value = 'aiming'
+      setQuip(pick(LINES.gator))
+      haptics.medium()
+    }
+    return
+  }
+
   if (state.value !== 'rolling' || sunk) return
 
   const bx = ball.position.x, bz = ball.position.z
@@ -402,12 +514,17 @@ function tick() {
   if (sp3 > MAXV) { const k = MAXV / sp3; v.x *= k; v.y *= k; v.z *= k; vChanged = true }
   if (v.y > VY_CAP) { v.y = VY_CAP; vChanged = true }
   if (vChanged) ballAgg.body.setLinearVelocity(v)
-  // sink + gravity assist (a slow ball near the cup gets curled in)
+  // sink + gravity assist. The ball has to be genuinely over the cup and not
+  // moving too fast — a glancing pass lips out. (A slow, well-placed ball still
+  // drops, and the magnet putter's homing widens the window.)
   const speed = Math.hypot(v.x, v.z)
   const dcup = Math.hypot(bx - hole.cup.pos.x, bz - hole.cup.pos.z)
-  if (dcup < CUP_R && speed < SINK_SPEED && ball.position.y < 0.5) return sink()
-  if (dcup < CUP_R * 2.6 && speed < 3) {
-    const k = 0.05 * HOMING * (1 - dcup / (CUP_R * 2.6))
+  const captureR = CUP_R * (0.82 + 0.14 * (HOMING - 1)) // a bit tighter than the visible cup
+  if (dcup < captureR && speed < SINK_SPEED && ball.position.y < 0.5) return sink()
+  // a slow ball near the rim gets a gentle curl toward the cup (much weaker than
+  // before, so a mere graze no longer vacuums in — you have to earn it)
+  if (dcup < CUP_R * 2 && speed < 2.2) {
+    const k = 0.035 * HOMING * (1 - dcup / (CUP_R * 2))
     ballAgg.body.applyImpulse(
       new Vector3(hole.cup.pos.x - bx, 0, hole.cup.pos.z - bz).normalize().scale(k),
       ball.getAbsolutePosition(),
@@ -445,6 +562,26 @@ function teleport(dest) {
   setQuip(pick(LINES.portal))
 }
 
+// A gator gets one chance to snatch the ball each time it enters a pond's reach —
+// not every pass, and armed only after the ball has been clear of the water, so it
+// never grabs off the tee. Rolls once per approach.
+const GRAB_CHANCE = 0.4
+function checkGators() {
+  const bx = ball.position.x, bz = ball.position.z
+  for (const g of gators) {
+    if (g.grabR == null) continue
+    const d = Math.hypot(bx - g.x, bz - g.z)
+    if (d > g.grabR) { g.armed = true; continue }
+    if (g.armed && grabbing === 0) {
+      g.armed = false
+      if (Math.random() < GRAB_CHANCE) {
+        grabbing = g.lunge(bx, bz)
+        return
+      }
+    }
+  }
+}
+
 // ---- ambient cameos: bird flyovers (+ splats) and Bigfoot sightings ----
 function fairwayWorld() {
   return curDef.fairway.map((p) => xz(p))
@@ -457,7 +594,7 @@ function updateCameos() {
       bird = makeBird(scene, fromLeft, 4 + Math.random() * 4, -12 + Math.random() * 24)
       bird.dropX = -6 + Math.random() * 12
       bird.dropped = false
-      nextBird = tickN + 520 + Math.floor(Math.random() * 520)
+      nextBird = tickN + 900 + Math.floor(Math.random() * 1200)
     }
     if (bird) {
       const gone = bird.step(tickN)
@@ -479,12 +616,15 @@ function updateCameos() {
     s.fade(Math.max(0, s.life) / 420)
     if (s.life <= 0) { s.dispose(); splats.splice(i, 1) }
   }
-  // bigfoot — a big hairy silhouette shuffles across, purely cosmetic
+  // bigfoot — a shaggy silhouette strides across; rare and purely cosmetic. A
+  // probability gate on top of the long timer keeps it from ever feeling scheduled.
   if (events.includes('bigfoot')) {
     if (!bigfoot && tickN > nextBigfoot) {
-      bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26)
-      nextBigfoot = tickN + 900 + Math.floor(Math.random() * 700)
-      setQuip('👀 Was that…?')
+      if (Math.random() < 0.45) {
+        bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26)
+        setQuip('👀 Was that…?')
+      }
+      nextBigfoot = tickN + 1800 + Math.floor(Math.random() * 2700) // re-arm either way
     }
     if (bigfoot) {
       const gone = bigfoot.step(tickN)
@@ -501,9 +641,13 @@ function updateAlien() {
   if (!ufoState) {
     const v = ballAgg.body.getLinearVelocity()
     if (!abducted && tickN > nextAlien && Math.hypot(v.x, v.z) < 0.5 && !sunk && state.value === 'aiming') {
-      ufoState = { phase: 'descend', t: 0 }
-      ufo.setEnabled(true)
-      ufo.setPos(ball.position.x, 12, ball.position.z)
+      if (Math.random() < 0.5) {
+        ufoState = { phase: 'descend', t: 0 }
+        ufo.setEnabled(true)
+        ufo.setPos(ball.position.x, 12, ball.position.z)
+      } else {
+        nextAlien = tickN + 1500 + Math.floor(Math.random() * 2400) // skip; try later
+      }
     }
     return
   }
@@ -617,4 +761,23 @@ function goBack() { router.push({ name: 'menu' }) }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .boot { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; z-index: 5; }
+/* putter bag button */
+.bag-btn { position: absolute; right: 10px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; gap: 7px; padding: 8px 13px 8px 10px; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; background: rgba(0,0,0,0.4); color: #fff; backdrop-filter: blur(6px); cursor: pointer; }
+.bag-btn:active { transform: scale(0.96); }
+.bag-emoji { font-size: 1.25rem; line-height: 1; }
+.bag-label { font-size: 0.78rem; font-weight: 600; }
+/* bag overlay sheet */
+.bag-overlay { position: absolute; inset: 0; z-index: 6; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); display: flex; align-items: flex-end; }
+.bag-sheet { width: 100%; background: #1c2530; border-radius: 18px 18px 0 0; padding: 12px 14px max(18px, env(safe-area-inset-bottom)); color: #fff; box-shadow: 0 -8px 30px rgba(0,0,0,0.4); }
+.bag-head { display: flex; align-items: center; justify-content: space-between; font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; padding-left: 4px; }
+.bag-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; }
+.putter-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 12px; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; }
+.putter-card.active { border-color: #4caf50; background: rgba(76,175,80,0.16); }
+.putter-card.locked { opacity: 0.5; cursor: default; }
+.putter-card:not(.locked):active { transform: scale(0.99); }
+.p-emoji { font-size: 1.7rem; line-height: 1; flex-shrink: 0; }
+.p-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.p-name { font-weight: 700; font-size: 0.95rem; }
+.p-blurb { font-size: 0.75rem; opacity: 0.72; line-height: 1.25; }
+.p-check { color: #6ee07a; font-weight: 800; font-size: 1.1rem; }
 </style>

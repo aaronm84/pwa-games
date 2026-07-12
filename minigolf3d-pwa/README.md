@@ -100,6 +100,25 @@ the ball grounded (peak height ~0.5) — no flying.
   Pinewood, reeds on the Cove, cacti/rocks on Area 51), colliderless so they never
   affect a putt.
 
+### Stage 5 (done) — feel & polish
+
+Feedback-driven refinements:
+
+- **Camera** pulls back and tilts a touch more overhead so the whole hole (and the
+  ball) always stays framed — no more edges cut off or ball hidden behind a curb.
+- **Bigfoot** rebuilt with a real **walk cycle** (shaggy upright figure, tan
+  face/hands/feet; arms counter-swing the legs, body bobs, seamless loop).
+- **Harder cup** — tighter capture radius, a lower sink-speed, and a much weaker,
+  shorter gravity-assist so a ball merely grazing the cup's range no longer vacuums
+  in. Slow, well-placed putts still drop.
+- **Contour lines** — topographic rings band the hills to show the vertical variation.
+- **Rarer cameos** — Bigfoot / alien / bird windows are much longer and probability-
+  gated, so a sighting feels magical rather than scheduled.
+- **Gators lunge** — a gator now has a *chance* (not every time) to rise and snatch
+  the ball when it skirts a pond, with a jaws-open lunge, penalty and reset.
+- **In-game putter bag** — swap putters mid-round from a bag sheet (the whole
+  collection, locked ones shown with their unlock hint); mods apply live.
+
 Course/hole/putter `?course=&hole=&putter=` dev overrides exist for testing (DEV-only).
 
 ## Bundle size

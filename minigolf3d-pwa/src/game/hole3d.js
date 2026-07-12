@@ -80,16 +80,31 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
   }
 
   // --- 3D terrain: hills (rounded mounds) + ramps (inclined slabs) ---
+  const contourMat = new StandardMaterial('contour', scene)
+  contourMat.diffuseColor = Color3.FromHexString(theme.grassDark || '#3a7d34')
+  contourMat.specularColor = new Color3(0, 0, 0)
+  contourMat.alpha = 0.5
   for (const hl of extra.hills || []) {
     const c = xz(hl)
     const r = hl.r * S
-    const dome = MeshBuilder.CreateSphere('hill', { diameterX: r * 2, diameterY: (hl.h || 1.2) * 2, diameterZ: r * 2, segments: 20 }, scene)
+    const h = hl.h || 1.2
+    const dome = MeshBuilder.CreateSphere('hill', { diameterX: r * 2, diameterY: h * 2, diameterZ: r * 2, segments: 20 }, scene)
     dome.position.set(c.x, 0, c.z)
     dome.material = grass
     dome.receiveShadows = true
     shadow.addShadowCaster(dome)
     aggs.push(makeStatic(dome, { shape: PhysicsShapeType.MESH, friction: 0.85, restitution: 0.2 }))
     track(dome)
+    // topographic contour rings: a circle of constant elevation at each band
+    for (const frac of [0.28, 0.52, 0.76]) {
+      const y = h * frac
+      const rr = r * Math.sqrt(Math.max(0, 1 - frac * frac))
+      const ring = MeshBuilder.CreateTorus('contour', { diameter: rr * 2, thickness: 0.045, tessellation: 40 }, scene)
+      ring.material = contourMat
+      ring.position.set(c.x, y + 0.01, c.z)
+      ring.isPickable = false
+      track(ring)
+    }
   }
   for (const rp of extra.ramps || []) {
     const c = xz(rp)
@@ -240,6 +255,7 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
       grass.dispose()
       rough.dispose()
       curbMat.dispose()
+      contourMat.dispose()
       for (const m of propMats) m.dispose()
     },
   }
