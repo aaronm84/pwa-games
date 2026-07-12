@@ -60,8 +60,9 @@ import { useRouter } from 'vue-router'
 import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
 import { courseById, coursePar as parOf } from 'src/game/courses'
 import { buildHole3D, xz, BALL_R, CUP_R, S } from 'src/game/hole3d'
-import { makeGator, makeUfo } from 'src/game/critters3d'
+import { makeGator, makeUfo, makeBird, makeSplat, makeBigfoot, makeOttoFace } from 'src/game/critters3d'
 import { enhanceFor } from 'src/game/enhance3d'
+import { putterById } from 'src/game/putters'
 import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
 
@@ -74,6 +75,7 @@ function devParam(k) {
   if (!import.meta.env.DEV) return null
   return new URLSearchParams(location.hash.split('?')[1] || '').get(k)
 }
+const putter = putterById(devParam('putter') || settings.settings.selectedPutter)
 const course = courseById(devParam('course') || settings.settings.selectedCourse)
 const holes = course.holes
 const total = holes.length
@@ -125,18 +127,30 @@ let ufo = null
 let ufoState = null
 let nextAlien = 0
 let abducted = false
+let ottoFace = null
+let bird = null
+let nextBird = 0
+let splats = []
+let bigfoot = null
+let nextBigfoot = 0
 
-const MAX_IMPULSE = 8
-const SINK_SPEED = 2.8
-const BASE_DAMP = 0.55
 const MAXV = 20 // total speed cap (safety against fast wall slams)
 const VY_CAP = 3.6 // soft cap on upward speed: ramps can climb, wall-launches can't
+const SINK_SPEED = 2.8
+
+// Base tuning, then the equipped putter's modifiers folded in (see game/putters.js).
+const pmods = putter.mods
+const MAX_IMPULSE = 8 * (pmods.power || 1)
+const BASE_DAMP = 0.55 / (pmods.friction || 1) // higher friction mod = rolls further
+const HOMING = 1 + (pmods.homing || 0) // multiplies the cup gravity-assist
 
 const LINES = {
   water: ['Splash! +1 penalty.', 'And it’s in the drink. +1.', 'Otto forgot his floaties. +1.'],
   gator: ['CHOMP! A gator got it. +1.', 'Never smile at a crocodile. +1.', 'That one belongs to the swamp now. +1.'],
   portal: ['Wheee!', 'Otto took the shortcut.'],
   alien: ['Otto has been abducted. He’s fine. Probably.', 'The truth is out there. So is your ball.'],
+  bird: ['A bird just… editorialized on the green.', 'Splat. Nature’s hazard.', 'Incoming! …too late.'],
+  bigfoot: ['Was that… Bigfoot?', 'Somebody big just crossed the tree line.', 'Chip swears he saw something hairy.'],
   ace: ['ACE! Chip is speechless. (He isn’t.)', 'Hole in one! Filthy.'],
   under: ['Under par. Chip approves.', 'Birdie business.'],
   par: ['Par. Respectable.', 'Right on the number.'],
@@ -155,6 +169,10 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   for (const g of gators) g.dispose()
+  for (const s of splats) s.dispose()
+  bird?.dispose()
+  bigfoot?.dispose()
+  ottoFace?.dispose()
   ufo?.dispose()
   gestures?.dispose()
   stage?.dispose()
@@ -171,6 +189,7 @@ async function boot() {
   ball = MeshBuilder.CreateSphere('ball', { diameter: BALL_R * 2, segments: 20 }, scene)
   ball.material = pbr(scene, { color: '#ffffff', rough: 0.28, name: 'ball' })
   shadowGen.addShadowCaster(ball)
+  ottoFace = makeOttoFace(scene)
 
   aimArrow = MeshBuilder.CreateBox('aim', { width: 0.18, height: 0.05, depth: 1 }, scene)
   const am = new StandardMaterial('aimMat', scene)
@@ -231,6 +250,14 @@ function loadHole() {
   ufoState = null
   ufo?.setEnabled(false)
   nextAlien = tickN + 360 + Math.floor(Math.random() * 420)
+
+  // bird / bigfoot cameos + splats
+  bird?.dispose(); bird = null
+  bigfoot?.dispose(); bigfoot = null
+  for (const s of splats) s.dispose()
+  splats = []
+  nextBird = tickN + 240 + Math.floor(Math.random() * 360)
+  nextBigfoot = tickN + 360 + Math.floor(Math.random() * 500)
 
   frameCamera(def)
   resetBall(hole.teePos)
@@ -333,6 +360,15 @@ function tick() {
   // critters
   for (const g of gators) g.update(tickN)
   if (ufo) updateAlien()
+  updateCameos()
+
+  // Otto's eyes follow the ball and squint over water
+  if (ottoFace) {
+    ottoFace.update(ball.position)
+    let overWater = false
+    for (const wp of hole.waterPolys) if (pin(ball.position.x, ball.position.z, wp)) overWater = true
+    ottoFace.setWorried(overWater)
+  }
 
   if (state.value !== 'rolling' || sunk) return
 
@@ -351,7 +387,9 @@ function tick() {
   // sand → extra damping; boost → impulse
   let inSand = false
   for (const sp of hole.sandPolys) if (pin(bx, bz, sp)) inSand = true
-  ballAgg.body.setLinearDamping(inSand ? 3.2 : BASE_DAMP)
+  let onSplat = false
+  for (const s of splats) if (Math.hypot(bx - s.x, bz - s.z) < s.r) onSplat = true
+  ballAgg.body.setLinearDamping(inSand ? 3.2 : onSplat ? 1.8 : BASE_DAMP)
   for (const bz2 of hole.boostZones) {
     if (pin(bx, bz, bz2.poly)) ballAgg.body.applyImpulse(new Vector3(bz2.dir.x, 0, bz2.dir.z).scale(0.5), ball.getAbsolutePosition())
   }
@@ -369,7 +407,7 @@ function tick() {
   const dcup = Math.hypot(bx - hole.cup.pos.x, bz - hole.cup.pos.z)
   if (dcup < CUP_R && speed < SINK_SPEED && ball.position.y < 0.5) return sink()
   if (dcup < CUP_R * 2.6 && speed < 3) {
-    const k = 0.05 * (1 - dcup / (CUP_R * 2.6))
+    const k = 0.05 * HOMING * (1 - dcup / (CUP_R * 2.6))
     ballAgg.body.applyImpulse(
       new Vector3(hole.cup.pos.x - bx, 0, hole.cup.pos.z - bz).normalize().scale(k),
       ball.getAbsolutePosition(),
@@ -405,6 +443,57 @@ function teleport(dest) {
   ballAgg.body.setLinearVelocity(new Vector3(v.x * 0.7, 0, v.z * 0.7))
   portalCd = 20
   setQuip(pick(LINES.portal))
+}
+
+// ---- ambient cameos: bird flyovers (+ splats) and Bigfoot sightings ----
+function fairwayWorld() {
+  return curDef.fairway.map((p) => xz(p))
+}
+function updateCameos() {
+  // bird — flaps across, maybe leaves a splat on the green
+  if (events.includes('bird')) {
+    if (!bird && tickN > nextBird) {
+      const fromLeft = Math.random() < 0.5
+      bird = makeBird(scene, fromLeft, 4 + Math.random() * 4, -12 + Math.random() * 24)
+      bird.dropX = -6 + Math.random() * 12
+      bird.dropped = false
+      nextBird = tickN + 520 + Math.floor(Math.random() * 520)
+    }
+    if (bird) {
+      const gone = bird.step(tickN)
+      const bp = bird.pos()
+      if (!bird.dropped && Math.abs(bp.x - bird.dropX) < 0.3) {
+        bird.dropped = true
+        if (pin(bp.x, bp.z, fairwayWorld()) && splats.length < 5) {
+          splats.push(makeSplat(scene, bp.x, bp.z))
+          setQuip(pick(LINES.bird))
+        }
+      }
+      if (gone) { bird.dispose(); bird = null }
+    }
+  }
+  // splats slowly fade and expire
+  for (let i = splats.length - 1; i >= 0; i--) {
+    const s = splats[i]
+    s.life = (s.life ?? 420) - 1
+    s.fade(Math.max(0, s.life) / 420)
+    if (s.life <= 0) { s.dispose(); splats.splice(i, 1) }
+  }
+  // bigfoot — a big hairy silhouette shuffles across, purely cosmetic
+  if (events.includes('bigfoot')) {
+    if (!bigfoot && tickN > nextBigfoot) {
+      bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26)
+      nextBigfoot = tickN + 900 + Math.floor(Math.random() * 700)
+      setQuip('👀 Was that…?')
+    }
+    if (bigfoot) {
+      const gone = bigfoot.step(tickN)
+      if (gone) {
+        bigfoot.dispose(); bigfoot = null
+        if (Math.random() < 0.6) setQuip(pick(LINES.bigfoot))
+      }
+    }
+  }
 }
 
 // ---- alien abduction (Area 51) ----

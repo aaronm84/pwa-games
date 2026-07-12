@@ -84,10 +84,22 @@ launch it) plus a total-speed cap and **taller, softer curbs**. Verified: a ball
 climbs a dune to ~1.3 world-units and still sinks, while flat/obstacle holes keep
 the ball grounded (peak height ~0.5) — no flying.
 
-### Not yet ported (Stage 4)
+### Stage 4 (done) — character & content
 
-Bigfoot & bird cameos, **special putters**, Otto's face, and environment props.
-Course/hole `?course=&hole=` dev overrides exist for testing (DEV-only).
+- **Special putters** — the flat game's five putters port over; the equipped one's
+  modifiers fold into the 3D physics (`power` scales the shot impulse, `friction`
+  scales roll-out, `homing` boosts the cup gravity-assist). Verified: cannon carries
+  further than standard, further than feather; the magnet still sinks.
+- **Ambient cameos** — **bird flyovers** flap across and may drop a **splat** on the
+  green (a fading patch that adds drag), and **Bigfoot** shuffles across the Cove tree
+  line. Both are driven off the same `course.events` the flat game uses.
+- **Otto's face** — two googly eyes billboard-track the camera on the ball and squint
+  when it's over water.
+- **Environment props** — themed rough decoration scattered off the fairway (pines on
+  Pinewood, reeds on the Cove, cacti/rocks on Area 51), colliderless so they never
+  affect a putt.
+
+Course/hole/putter `?course=&hole=&putter=` dev overrides exist for testing (DEV-only).
 
 ## Bundle size
 

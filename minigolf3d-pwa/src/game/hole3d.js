@@ -106,6 +106,9 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
     track(slab)
   }
 
+  // --- decorative props scattered in the rough (never on the fairway) ---
+  const propMats = buildProps(scene, def, theme, shadow, track)
+
   // --- hazard patches (flat, non-colliding; the controller does the gameplay) ---
   const waterPolys = []
   const sandPolys = []
@@ -237,8 +240,81 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
       grass.dispose()
       rough.dispose()
       curbMat.dispose()
+      for (const m of propMats) m.dispose()
     },
   }
+}
+
+// deterministic tiny RNG so props don't reshuffle every frame
+function rng(seed) {
+  let s = seed >>> 0
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 4294967296
+  }
+}
+function pointInPoly2d(px, py, poly) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
+// Scatter cheap themed props (pines / reeds / cacti / rocks) in the rough. Purely
+// cosmetic — no colliders — so they never interfere with a putt.
+function buildProps(scene, def, theme, shadow, track) {
+  const kind = theme.prop || 'rock'
+  const rand = rng(def.name.length * 131 + (def.tee.x | 0) * 7 + (def.cup.y | 0) + 7)
+  const mats = {}
+  const mat = (hex, rough = 0.9) => (mats[hex] ||= pbr(scene, { color: hex, rough, name: 'prop' + hex }))
+  let made = 0
+  for (let tries = 0; tries < 200 && made < 16; tries++) {
+    const px = 20 + rand() * 480
+    const py = 30 + rand() * 700
+    if (pointInPoly2d(px, py, def.fairway)) continue
+    const c = xz({ x: px, y: py })
+    const s = 0.7 + rand() * 0.7
+    if (kind === 'pine') {
+      const trunk = MeshBuilder.CreateCylinder('trunk', { diameter: 0.18 * s, height: 0.6 * s, tessellation: 6 }, scene)
+      trunk.material = mat('#6b4a2b')
+      trunk.position.set(c.x, 0.3 * s, c.z)
+      const cone = MeshBuilder.CreateCylinder('pine', { diameterTop: 0, diameterBottom: 0.95 * s, height: 1.7 * s, tessellation: 8 }, scene)
+      cone.material = mat(theme.rough || '#1f5c37')
+      cone.position.set(c.x, 1.2 * s, c.z)
+      shadow.addShadowCaster(cone)
+      track(trunk); track(cone)
+    } else if (kind === 'reed') {
+      for (let r = 0; r < 3; r++) {
+        const reed = MeshBuilder.CreateCylinder('reed', { diameterTop: 0.02, diameterBottom: 0.06 * s, height: (1 + rand()) * s, tessellation: 5 }, scene)
+        reed.material = mat('#5b6b2e')
+        reed.position.set(c.x + (rand() - 0.5) * 0.4, 0.5 * s, c.z + (rand() - 0.5) * 0.4)
+        reed.rotation.z = (rand() - 0.5) * 0.3
+        track(reed)
+      }
+    } else if (kind === 'cactus') {
+      const trunk = MeshBuilder.CreateCylinder('cactus', { diameter: 0.3 * s, height: 1.4 * s, tessellation: 8 }, scene)
+      trunk.material = mat('#4e7a3a')
+      trunk.position.set(c.x, 0.7 * s, c.z)
+      shadow.addShadowCaster(trunk)
+      if (rand() < 0.7) {
+        const arm = MeshBuilder.CreateCylinder('arm', { diameter: 0.18 * s, height: 0.6 * s, tessellation: 6 }, scene)
+        arm.material = mat('#4e7a3a')
+        arm.position.set(c.x + 0.3 * s, 0.9 * s, c.z)
+        track(arm)
+      }
+      track(trunk)
+    } else {
+      const rock = MeshBuilder.CreateSphere('rock', { diameterX: 0.6 * s, diameterY: 0.4 * s, diameterZ: 0.7 * s, segments: 6 }, scene)
+      rock.material = mat('#7d7568')
+      rock.position.set(c.x, 0.18 * s, c.z)
+      shadow.addShadowCaster(rock)
+      track(rock)
+    }
+    made++
+  }
+  return Object.values(mats)
 }
 
 function curbSegment(scene, a, b, mat, aggs, track) {

@@ -16,6 +16,7 @@ import '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import '@babylonjs/core/Meshes/Builders/planeBuilder'
 import '@babylonjs/core/Meshes/Builders/polygonBuilder' // CreatePolygon (uses earcut)
 import '@babylonjs/core/Meshes/Builders/torusBuilder'
+import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc (bird splats)
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // shadows hook into scene render
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent' // adds Scene.enablePhysics
 
