@@ -169,6 +169,7 @@ let titleUntil = 0
 let quipUntil = 0
 let portalCd = 0
 let tickN = 0
+let holeStartTick = 0
 let curDef = null
 
 // critters
@@ -218,6 +219,7 @@ const LINES = {
   alien: ['Otto has been abducted. He’s fine. Probably.', 'The truth is out there. So is your ball.'],
   bird: ['A bird just… editorialized on the green.', 'Splat. Nature’s hazard.', 'Incoming! …too late.'],
   lip: ['Lipped out! Cruel game.', 'Rimmed it. Chip felt that one.', 'The cup said no.'],
+  geyser: ['Thar she blows!', 'The green just sneezed.', 'Otto caught air. Otto did not enjoy it.'],
   bigfoot: ['Was that… Bigfoot?', 'Somebody big just crossed the tree line.', 'Chip swears he saw something hairy.'],
   ace: ['ACE! Chip is speechless. (He isn’t.)', 'Hole in one! Filthy.'],
   under: ['Under par. Chip approves.', 'Birdie business.'],
@@ -283,7 +285,7 @@ async function boot() {
   const h = parseInt(devParam('hole'), 10)
   if (h >= 1 && h <= total) holeIdx.value = h - 1
   loadHole()
-  stage.run(() => tick())
+  stage.run((dt) => tick(dt))
   booting.value = false
 
   if (import.meta.env.DEV) {
@@ -300,10 +302,25 @@ async function boot() {
       windmillYaw: hole.windmills[0]?.blade.rotationQuaternion?.toEulerAngles().y ?? null,
       timers: { nextBird, nextBigfoot, nextAlien },
       aces: mgStats.value.holesInOne,
+      breaks: hole.breaks.map((b) => ({ x: b.x, z: b.z, sigma: b.sigma, amp: b.amp })),
+      geysers: hole.geysers.map((g) => ({ x: g.x, z: g.z, r: g.r })),
+      anomalies: hole.anomalies.map((a) => ({ x: a.x, z: a.z, r: a.r })),
       selectPutter,
       // dev spawners (cameos are deliberately rare in play)
       spawnBigfoot: () => { bigfoot?.dispose(); bigfoot = makeBigfoot(scene, true, 0); for (let i = 0; i < 250; i++) bigfoot.step(i) },
       spawnGatorGrab: () => { if (gators[0]) grabbing = gators[0].lunge(gators[0].x + 1, gators[0].z + 1) },
+      // place the ball at (x,z) moving at (vx,vz) — probes break/anomaly forces
+      devSetBall: (x, z, vx, vz) => {
+        ballAgg.body.setLinearVelocity(Vector3.Zero())
+        ball.position.set(x, BALL_R + 0.05, z)
+        ballAgg.body.disablePreStep = false
+        sunk = false; restFrames = 0
+        state.value = 'rolling'
+        scene.onAfterRenderObservable.addOnce(() => {
+          ballAgg.body.setLinearVelocity(new Vector3(vx, 0, vz))
+          ballAgg.body.disablePreStep = true
+        })
+      },
       // fire a straight putt from `dist` short of the cup at exactly `speed` — a
       // clean, aim-free probe of the sink window
       devPutt: (dist, speed) => {
@@ -355,6 +372,7 @@ function loadHole() {
   }
   grabbing = 0
   lipCd = 0
+  holeStartTick = tickN
   abducted = false
   ufoState = null
   ufo?.setEnabled(false)
@@ -443,8 +461,9 @@ function pin(px, pz, poly) {
   }
   return inside
 }
-function tick() {
+function tick(dt = 1 / 60) {
   tickN++
+  dt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.05) // clamp tab-resume spikes, keep slow-frame time real
   if (showTitle.value && tickN > titleUntil) showTitle.value = false
   if (quip.value && tickN > quipUntil) quip.value = null
   if (portalCd > 0) portalCd--
@@ -473,6 +492,8 @@ function tick() {
   for (const g of gators) g.update(tickN)
   if (ufo) updateAlien()
   updateCameos()
+  updateGeysers()
+  for (const an of hole.anomalies) an.ring.scaling.setAll(1 + Math.sin(tickN * 0.06) * 0.06)
 
   // Otto's eyes follow the ball and squint over water
   if (ottoFace) {
@@ -521,6 +542,30 @@ function tick() {
     if (pin(bx, bz, bz2.poly)) ballAgg.body.applyImpulse(new Vector3(bz2.dir.x, 0, bz2.dir.z).scale(0.5), ball.getAbsolutePosition())
   }
 
+  // green breaks — the gentle mounds/dips printed on the green pull the rolling
+  // ball downhill (away from a mound, into a dip), exactly as the contour rings
+  // read. Gaussian slope: peak pull at one sigma from the centre.
+  if (ball.position.y < 0.4) {
+    for (const bk of hole.breaks) {
+      const dx = bx - bk.x, dz = bz - bk.z
+      const d = Math.hypot(dx, dz)
+      if (d > 0.02 && d < bk.sigma * 3) {
+        const a = 2.6 * bk.amp * (d / bk.sigma) * Math.exp(-(d * d) / (2 * bk.sigma * bk.sigma))
+        const imp = 0.45 * a * dt // mass * accel * dt
+        ballAgg.body.applyImpulse(new Vector3((dx / d) * imp, 0, (dz / d) * imp), ball.getAbsolutePosition())
+      }
+    }
+    // anomalies swirl the ball sideways while it crosses the ring
+    for (const an of hole.anomalies) {
+      const dx = bx - an.x, dz = bz - an.z
+      const d = Math.hypot(dx, dz)
+      if (d > 0.02 && d < an.r) {
+        const imp = 0.45 * 3.2 * dt
+        ballAgg.body.applyImpulse(new Vector3((-dz / d) * an.dir * imp, 0, (dx / d) * an.dir * imp), ball.getAbsolutePosition())
+      }
+    }
+  }
+
   // Let the ball ride ramps/hills but never launch off a curb: soft-cap upward
   // speed and cap the total speed. (Taller, softer curbs do the rest.)
   const v = ballAgg.body.getLinearVelocity()
@@ -564,7 +609,14 @@ function tick() {
   if (speed < 0.16) restFrames++
   else restFrames = 0
   if (restFrames > 20) {
-    restPos = ball.position.clone()
+    // insurance: if the ball somehow came to rest inside a hedge (or anywhere
+    // unplayable), rescue it instead of soft-locking the hole
+    if (hole.wallPolys.some((w) => pin(bx, bz, w))) {
+      const restBad = hole.wallPolys.some((w) => pin(restPos.x, restPos.z, w))
+      resetBall(restBad ? hole.teePos : restPos)
+    } else {
+      restPos = ball.position.clone()
+    }
     state.value = 'aiming'
     restFrames = 0
   }
@@ -590,6 +642,33 @@ function teleport(dest) {
   ballAgg.body.setLinearVelocity(new Vector3(v.x * 0.7, 0, v.z * 0.7))
   portalCd = 20
   setQuip(pick(LINES.portal))
+}
+
+// Geysers erupt on a fixed cycle (~7s, staggered by phase). A ball caught over a
+// venting geyser gets tossed up and sideways — even a parked one.
+function updateGeysers() {
+  for (const gy of hole.geysers) {
+    const ph = (tickN + gy.offset) % 420
+    const bursting = ph < 42
+    gy.col.setEnabled(bursting)
+    if (bursting) {
+      gy.col.scaling.y = 0.35 + (ph / 42) * 0.85
+      gy.col.scaling.x = gy.col.scaling.z = 0.8 + Math.sin(ph * 0.5) * 0.15
+    }
+    if (gy.cd > 0) gy.cd--
+    if (
+      bursting && gy.cd === 0 && grabbing === 0 && !sunk &&
+      state.value !== 'holeComplete' && state.value !== 'courseComplete' &&
+      ball.position.y < 0.5 && Math.hypot(ball.position.x - gy.x, ball.position.z - gy.z) < gy.r + BALL_R
+    ) {
+      gy.cd = 120
+      const v = ballAgg.body.getLinearVelocity()
+      ballAgg.body.setLinearVelocity(new Vector3(v.x + (Math.random() - 0.5) * 2.6, 3.4, v.z + (Math.random() - 0.5) * 2.6))
+      if (state.value === 'aiming') { state.value = 'rolling'; restFrames = 0 }
+      setQuip(pick(LINES.geyser))
+      haptics.medium()
+    }
+  }
 }
 
 // A gator gets one chance to snatch the ball each time it enters a pond's reach —
@@ -670,7 +749,10 @@ function updateCameos() {
 function updateAlien() {
   if (!ufoState) {
     const v = ballAgg.body.getLinearVelocity()
-    if (!abducted && tickN > nextAlien && Math.hypot(v.x, v.z) < 0.5 && !sunk && state.value === 'aiming') {
+    // never at the top of a hole: the player must be mid-hole (has putted, and the
+    // hole has been running a few seconds) so an abduction interrupts a round in
+    // progress instead of ambushing every fresh tee
+    if (!abducted && tickN > nextAlien && strokes.value > 0 && tickN > holeStartTick + 300 && Math.hypot(v.x, v.z) < 0.5 && !sunk && state.value === 'aiming') {
       if (Math.random() < 0.6) {
         ufoState = { phase: 'descend', t: 0 }
         ufo.setEnabled(true)
@@ -696,6 +778,9 @@ function updateAlien() {
       ufo.showBeam(false)
       relocateBall()
       progress.recordAbduction()
+      // re-arm the clock — without this, an expired timer stayed expired and the
+      // UFO came back at the start of every following hole
+      nextAlien = tickN + 1200 + Math.floor(Math.random() * 1800)
       abducted = true
       ufoState.phase = 'leave'
       ufoState.t = 0
@@ -706,17 +791,35 @@ function updateAlien() {
     if (u.y > 14) { ufo.setEnabled(false); ufoState = null }
   }
 }
+// Is (x,z) a safe spot to place the ball? On the fairway, and clear of water,
+// hedges (with a margin — a ball dropped inside a hedge collider is unplayable),
+// bumpers, windmill hubs, and the cup itself.
+function safeSpot(x, z, fw) {
+  if (!pin(x, z, fw)) return false
+  for (const wp of hole.waterPolys) if (pin(x, z, wp)) return false
+  for (const w of hole.wallPolys) {
+    if (pin(x, z, w)) return false
+    for (let a = 0; a < 6.3; a += 1.55) if (pin(x + Math.cos(a) * 0.45, z + Math.sin(a) * 0.45, w)) return false
+  }
+  for (const b of hole.bumpers) if (Math.hypot(x - b.x, z - b.z) < b.r + 0.4) return false
+  for (const wm of curDef.windmills || []) {
+    const c = xz(wm)
+    if (Math.hypot(x - c.x, z - c.z) < wm.hub * S + 0.5) return false
+  }
+  if (Math.hypot(x - hole.cup.pos.x, z - hole.cup.pos.z) < CUP_R * 1.6) return false
+  return true
+}
 function relocateBall() {
   const fw = curDef.fairway.map((p) => xz(p))
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity
   for (const p of fw) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z) }
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 90; i++) {
     const x = minX + Math.random() * (maxX - minX)
     const z = minZ + Math.random() * (maxZ - minZ)
-    if (pin(x, z, fw)) {
-      let inWater = false
-      for (const wp of hole.waterPolys) if (pin(x, z, wp)) inWater = true
-      if (!inWater) { resetBall(new Vector3(x, BALL_R + 0.05, z)); restPos = new Vector3(x, BALL_R + 0.05, z); return }
+    if (safeSpot(x, z, fw)) {
+      resetBall(new Vector3(x, BALL_R + 0.05, z))
+      restPos = new Vector3(x, BALL_R + 0.05, z)
+      return
     }
   }
   resetBall(restPos)

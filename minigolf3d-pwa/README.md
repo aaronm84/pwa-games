@@ -131,6 +131,25 @@ Playtest fixes on top:
 - **Putters actually unlock** — the 3D game now records progress (rounds, aces,
   splashes, abductions); finishing a round shows any newly unlocked putter.
 
+### Stage 6 (done) — living greens & new hazards
+
+- **Green breaks** — every green now has 2–3 gentle procedural mounds/dips *on the
+  putting surface itself*. The slab stays visually flat (heights that small
+  wouldn't read); instead the slope force is applied to the rolling ball and
+  **contour rings printed on the green** let you read the break like a real green —
+  light rings roll the ball away, dark rings feed it in. Seeded per hole, kept
+  clear of tees/cups/hazards.
+- **Geysers** — vents that erupt on a stagger cycle and toss a ball caught over
+  them (sprinkler malfunction on Pinewood, swamp gas on the Cove).
+- **Anomalies** — Area 51 shimmer rings that curve a rolling putt clockwise or
+  counter-clockwise while it crosses.
+- **UFO abduction pacing** — abductions now only strike mid-hole (after your first
+  putt, never in the opening seconds), and the clock re-arms after each abduction
+  (it previously stayed expired, causing back-to-back hole-start abductions).
+- **Safe drop zones** — the UFO can no longer drop the ball inside a hedge, on a
+  bumper, in a windmill hub, in water, or into the cup; and a ball that somehow
+  comes to rest inside a hedge is rescued instead of soft-locking the hole.
+
 Course/hole/putter `?course=&hole=&putter=` dev overrides exist for testing (DEV-only).
 
 ## Bundle size

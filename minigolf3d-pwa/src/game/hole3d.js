@@ -69,6 +69,7 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
   }
 
   // --- obstacles (hedges) ---
+  const wallPolys = []
   for (const w of def.walls || []) {
     const ob = polygon('obst', w.map((p) => v3(p)), OBST_H, scene)
     ob.position.y = OBST_H
@@ -77,6 +78,7 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
     shadow.addShadowCaster(ob)
     aggs.push(makeStatic(ob, { shape: PhysicsShapeType.MESH, friction: 0.5, restitution: 0.5 }))
     track(ob)
+    wallPolys.push(worldPoly(w))
   }
 
   // --- 3D terrain: hills (rounded mounds) + ramps (inclined slabs) ---
@@ -119,6 +121,96 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
     shadow.addShadowCaster(slab)
     aggs.push(makeStatic(slab, { shape: PhysicsShapeType.BOX, friction: 0.85, restitution: 0.15 }))
     track(slab)
+  }
+
+  // --- green breaks: gentle mounds & dips on the putting surface itself ---
+  // The slab stays visually flat (heights this small wouldn't read anyway); the
+  // controller applies the slope force to a rolling ball, and contour rings
+  // printed on the green let the player read the break like a real green —
+  // light rings = mound (ball falls away), dark rings = dip (ball feeds in).
+  const breaks = []
+  {
+    const brand = rng(def.name.length * 271 + (def.cup.x | 0) * 13 + (def.tee.y | 0))
+    const inHazard = (px, py) =>
+      (def.zones || []).some((z) => pointInPoly2d(px, py, z.poly)) ||
+      (def.walls || []).some((w) => pointInPoly2d(px, py, w))
+    const want = 2 + Math.floor(brand() * 2)
+    for (let tries = 0; tries < 140 && breaks.length < want; tries++) {
+      const px = 120 + brand() * 280
+      const py = 150 + brand() * 470
+      const sigma2d = 45 + brand() * 30
+      if (Math.hypot(px - def.tee.x, py - def.tee.y) < 115) continue
+      if (Math.hypot(px - def.cup.x, py - def.cup.y) < 105) continue
+      if (inHazard(px, py)) continue
+      if (breaks.some((b) => Math.hypot(px - b.px, py - b.py) < 135)) continue
+      let inside = true
+      for (let a = 0; a < 6.3; a += 1.05) {
+        if (!pointInPoly2d(px + Math.cos(a) * sigma2d, py + Math.sin(a) * sigma2d, def.fairway)) { inside = false; break }
+      }
+      if (!inside) continue
+      const c = xz({ x: px, y: py })
+      breaks.push({ px, py, x: c.x, z: c.z, sigma: sigma2d * S, amp: (brand() < 0.6 ? 1 : -1) * (0.7 + brand() * 0.6) })
+    }
+  }
+  const moundMat = new StandardMaterial('cMound', scene)
+  moundMat.diffuseColor = Color3.FromHexString(theme.lip || '#cfe8c4')
+  moundMat.specularColor = new Color3(0, 0, 0)
+  moundMat.alpha = 0.5
+  const dipMat = new StandardMaterial('cDip', scene)
+  dipMat.diffuseColor = Color3.FromHexString(theme.grassDark || '#3a7d34').scale(0.65)
+  dipMat.specularColor = new Color3(0, 0, 0)
+  dipMat.alpha = 0.55
+  for (const b of breaks) {
+    for (const k of [0.7, 1.3, 1.9]) {
+      const t = MeshBuilder.CreateTorus('break', { diameter: b.sigma * k * 2, thickness: 0.03, tessellation: 36 }, scene)
+      t.material = b.amp > 0 ? moundMat : dipMat
+      t.position.set(b.x, 0.012 + k * 0.002, b.z)
+      t.isPickable = false
+      track(t)
+    }
+  }
+
+  // --- geysers (3D-only): a vent that periodically erupts and tosses the ball ---
+  const geysers = []
+  for (const gy of extra.geysers || []) {
+    const c = xz(gy)
+    const r = (gy.r || 26) * S
+    const pad = MeshBuilder.CreateDisc('gyPad', { radius: r, tessellation: 22 }, scene)
+    pad.rotation.x = Math.PI / 2
+    pad.position.set(c.x, 0.025, c.z)
+    const padMat = new StandardMaterial('gyPadMat', scene)
+    padMat.diffuseColor = Color3.FromHexString(gy.color || '#79c9d6')
+    padMat.specularColor = new Color3(0, 0, 0)
+    padMat.alpha = 0.45
+    pad.material = padMat
+    track(pad)
+    const col = MeshBuilder.CreateCylinder('gyCol', { diameterTop: r * 2.1, diameterBottom: r * 0.9, height: 2.4, tessellation: 14 }, scene)
+    col.position.set(c.x, 1.2, c.z)
+    const colMat = new StandardMaterial('gyColMat', scene)
+    colMat.diffuseColor = Color3.FromHexString(gy.color || '#bdeef7')
+    colMat.emissiveColor = Color3.FromHexString(gy.color || '#bdeef7').scale(0.4)
+    colMat.alpha = 0.4
+    col.material = colMat
+    col.setEnabled(false)
+    track(col)
+    geysers.push({ x: c.x, z: c.z, r, col, offset: Math.floor((gy.phase || 0) * 420), cd: 0, mats: [padMat, colMat] })
+  }
+
+  // --- anomalies (3D-only, Area 51): a shimmer ring that curves a rolling ball ---
+  const anomalies = []
+  for (const an of extra.anomalies || []) {
+    const c = xz(an)
+    const r = (an.r || 40) * S
+    const t = MeshBuilder.CreateTorus('anomaly', { diameter: r * 2, thickness: 0.09, tessellation: 40 }, scene)
+    t.position.set(c.x, 0.1, c.z)
+    const m = new StandardMaterial('anomalyMat', scene)
+    m.emissiveColor = Color3.FromHexString('#6cf08c')
+    m.disableLighting = true
+    m.alpha = 0.7
+    t.material = m
+    t.isPickable = false
+    track(t)
+    anomalies.push({ x: c.x, z: c.z, r, dir: an.dir || 1, ring: t, mat: m })
   }
 
   // --- decorative props scattered in the rough (never on the fairway) ---
@@ -249,6 +341,10 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
     bumpers,
     portals,
     windmills,
+    wallPolys,
+    breaks,
+    geysers,
+    anomalies,
     dispose() {
       for (const a of aggs) a.dispose?.()
       for (const m of meshes) m.dispose()
@@ -256,6 +352,10 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
       rough.dispose()
       curbMat.dispose()
       contourMat.dispose()
+      moundMat.dispose()
+      dipMat.dispose()
+      for (const g of geysers) for (const m of g.mats) m.dispose()
+      for (const an of anomalies) an.mat.dispose()
       for (const m of propMats) m.dispose()
     },
   }
