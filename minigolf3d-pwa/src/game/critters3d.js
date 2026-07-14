@@ -157,9 +157,10 @@ export function makeSplat(scene, x, z) {
 // Bigfoot: a shaggy upright cryptid that strides across the tree line with a real
 // walk cycle (arms swing opposite the legs, the body bobs on each pass), based on
 // the classic 6-beat reference. Built from primitives so it stays cheap; cosmetic.
-export function makeBigfoot(scene, fromLeft, z) {
-  const fur = flat(scene, '#4a3423')
-  const furDark = flat(scene, '#3a2818')
+export function makeBigfoot(scene, fromLeft, z, furHex = '#4a3423') {
+  const fur = flat(scene, furHex)
+  const furDark = flat(scene, furHex)
+  furDark.diffuseColor = furDark.diffuseColor.scale(0.8)
   const skin = flat(scene, '#c8975a')
   const dir = fromLeft ? 1 : -1
 

@@ -1,0 +1,100 @@
+// Course 5 — Magma Springs. Mini golf on an active volcano: the "water" is lava,
+// the bunkers are ash, the fairways are improbably lush, and the course insurance
+// premiums are astronomical. Do not retrieve balls by hand.
+import { softRect, smooth, blob, pond, bunker } from '../courseKit.js'
+
+const bar = (x1, y1, x2, y2) => softRect(x1, y1, x2, y2)
+// lava flows push the ball up-course — surf them
+const flow = (cx, cy, r, seed) => ({ type: 'boost', poly: blob(cx, cy, r, { seed }), dir: { x: 0, y: -1 } })
+
+export default {
+  id: 'volcano',
+  name: 'Magma Springs',
+  tagline: 'Lush greens on an active volcano. The lava is not a water feature.',
+  theme: {
+    grass: '#63a34f',
+    grassDark: '#559144',
+    rough: '#2c2320',
+    border: '#1d1714',
+    lip: '#c98a5a',
+    water: 'rgba(255,94,32,0.9)',
+    water3d: '#ff5e20',
+    sand: '#8d8177',
+    prop: 'rock',
+    sky: 'linear-gradient(160deg,#4a2430 0%,#160f12 100%)',
+  },
+  events: ['bird'],
+  splash: ['Straight into the lava. Toasty. +1.', 'Well done. Medium-rare, actually. +1.', 'That ball is part of the island now. +1.'],
+  holes: [
+    { name: 'Warm-Up', par: 2, tee: { x: 260, y: 650 }, cup: { x: 260, y: 150 }, fairway: softRect(150, 90, 370, 700), zones: [bunker(260, 420, 40, { seed: 91 })] },
+    { name: 'The Hot Foot', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 150 }, fairway: softRect(90, 90, 430, 710), zones: [pond(260, 380, 60, { seed: 92 })] },
+    { name: 'Cinder Field', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 150 }, fairway: softRect(90, 90, 430, 710), zones: [bunker(200, 500, 42, { seed: 93 }), bunker(330, 360, 44, { seed: 94 }), bunker(185, 265, 36, { seed: 95 })] },
+    { name: 'Lava Lake', par: 4, tee: { x: 350, y: 670 }, cup: { x: 330, y: 150 }, fairway: softRect(90, 90, 430, 720), zones: [pond(200, 400, 92, { seed: 96 })] },
+    {
+      name: 'Pele’s Curve',
+      par: 4,
+      tee: { x: 340, y: 650 },
+      cup: { x: 175, y: 180 },
+      fairway: smooth([{ x: 100, y: 100 }, { x: 420, y: 100 }, { x: 430, y: 620 }, { x: 300, y: 700 }, { x: 250, y: 520 }, { x: 220, y: 320 }, { x: 110, y: 300 }], 8),
+      zones: [bunker(380, 470, 40, { seed: 97 })],
+    },
+    { name: 'Basalt Bumpers', par: 3, tee: { x: 260, y: 670 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 710), bumpers: [{ x: 190, y: 330, r: 22 }, { x: 330, y: 330, r: 22 }, { x: 260, y: 470, r: 26 }] },
+    { name: 'The Fumarole', par: 3, tee: { x: 260, y: 670 }, cup: { x: 260, y: 150 }, fairway: softRect(90, 90, 430, 710), windmills: [{ x: 260, y: 350, len: 98, speed: 0.026, hub: 16 }], zones: [bunker(160, 250, 36, { seed: 98 })] },
+    { name: 'Obsidian Isle', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 710), walls: [blob(260, 400, 58, { n: 4, wobble: 0.05, seed: 99 })], zones: [pond(360, 550, 40, { seed: 100 })] },
+    { name: 'Pyroclastic Flow', par: 3, tee: { x: 260, y: 690 }, cup: { x: 260, y: 130 }, fairway: softRect(90, 90, 430, 720), zones: [flow(260, 520, 50, 101), flow(260, 300, 50, 102)] },
+    { name: 'Ring of Fire', par: 4, tee: { x: 260, y: 680 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 720), walls: [blob(260, 380, 86, { n: 10, wobble: 0.1, seed: 103 })], zones: [pond(390, 560, 40, { seed: 104 })] },
+    {
+      name: 'The Rift',
+      par: 3,
+      tee: { x: 250, y: 660 },
+      cup: { x: 320, y: 150 },
+      fairway: softRect(90, 90, 430, 710),
+      walls: [smooth([{ x: 90, y: 400 }, { x: 355, y: 405 }, { x: 355, y: 435 }, { x: 90, y: 430 }], 4)],
+      portals: [{ a: { x: 160, y: 560 }, b: { x: 360, y: 250 }, r: 22 }],
+    },
+    { name: 'Ash Slalom', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 140 }, fairway: softRect(100, 90, 420, 710), zones: [bunker(180, 320, 58, { seed: 105, stretch: 1.6 }), bunker(340, 500, 58, { seed: 106, stretch: 1.6 })] },
+    { name: 'Twin Vents', par: 3, tee: { x: 260, y: 670 }, cup: { x: 260, y: 150 }, fairway: softRect(90, 90, 430, 710), zones: [pond(175, 420, 50, { seed: 107 }), pond(350, 300, 50, { seed: 108 })] },
+    {
+      name: 'Lahar Lane',
+      par: 3,
+      tee: { x: 330, y: 640 },
+      cup: { x: 155, y: 175 },
+      fairway: smooth(
+        [
+          { x: 90, y: 90 },
+          { x: 260, y: 90 },
+          { x: 430, y: 90 },
+          { x: 430, y: 400 },
+          { x: 430, y: 700 },
+          { x: 300, y: 700 },
+          { x: 300, y: 480 },
+          { x: 260, y: 300 },
+          { x: 200, y: 260 },
+          { x: 90, y: 260 },
+        ],
+        6,
+      ),
+      zones: [bunker(370, 430, 44, { seed: 109 })],
+    },
+    {
+      name: 'The Caldera',
+      par: 4,
+      tee: { x: 260, y: 690 },
+      cup: { x: 260, y: 130 },
+      fairway: smooth([{ x: 170, y: 720 }, { x: 350, y: 720 }, { x: 330, y: 430 }, { x: 350, y: 250 }, { x: 300, y: 110 }, { x: 220, y: 110 }, { x: 170, y: 250 }, { x: 190, y: 430 }], 8),
+      zones: [pond(260, 560, 42, { seed: 110 })],
+    },
+    { name: 'Steam Slalom', par: 3, tee: { x: 260, y: 660 }, cup: { x: 260, y: 140 }, fairway: softRect(100, 90, 420, 710), walls: [bar(100, 305, 300, 340), bar(220, 470, 420, 505)] },
+    { name: 'Hot Springs', par: 4, tee: { x: 260, y: 690 }, cup: { x: 260, y: 140 }, fairway: softRect(90, 90, 430, 720), zones: [pond(160, 300, 42, { seed: 111 }), pond(360, 440, 46, { seed: 112 }), bunker(260, 560, 40, { seed: 113 })] },
+    {
+      name: 'Eruption',
+      par: 5,
+      tee: { x: 260, y: 700 },
+      cup: { x: 260, y: 140, move: { axis: 'x', min: 150, max: 370, speed: 1.3 } },
+      fairway: softRect(90, 90, 430, 730),
+      zones: [pond(200, 560, 58, { seed: 114 }), flow(360, 470, 44, 115)],
+      bumpers: [{ x: 190, y: 360, r: 22 }],
+      windmills: [{ x: 300, y: 250, len: 70, speed: 0.032, hub: 13 }],
+    },
+  ],
+}

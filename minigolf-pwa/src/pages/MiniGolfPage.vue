@@ -569,7 +569,7 @@ function splash() {
     setQuip(LINES.gator)
     setToast('🐊 CHOMP!')
   } else {
-    setQuip(LINES.water)
+    setQuip(course.splash || LINES.water) // lava/ice courses have their own lines
   }
   haptics.medium()
   state.value = 'aim'
@@ -1222,7 +1222,7 @@ function drawBigfoot() {
   if (!bigfoot) return
   const x = bigfoot.x
   const y = bigfoot.y
-  ctx.fillStyle = '#3b2a1c'
+  ctx.fillStyle = theme.cryptid || '#3b2a1c' // brown Bigfoot, white Yeti…
   ctx.beginPath()
   ctx.ellipse(x, y, 9, 15, 0, 0, 6.283)
   ctx.fill()

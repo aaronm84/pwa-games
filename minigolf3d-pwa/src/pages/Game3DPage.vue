@@ -307,7 +307,7 @@ async function boot() {
       anomalies: hole.anomalies.map((a) => ({ x: a.x, z: a.z, r: a.r })),
       selectPutter,
       // dev spawners (cameos are deliberately rare in play)
-      spawnBigfoot: () => { bigfoot?.dispose(); bigfoot = makeBigfoot(scene, true, 0); for (let i = 0; i < 250; i++) bigfoot.step(i) },
+      spawnBigfoot: () => { bigfoot?.dispose(); bigfoot = makeBigfoot(scene, true, 0, theme.cryptid); for (let i = 0; i < 250; i++) bigfoot.step(i) },
       spawnGatorGrab: () => { if (gators[0]) grabbing = gators[0].lunge(gators[0].x + 1, gators[0].z + 1) },
       // place the ball at (x,z) moving at (vx,vz) — probes break/anomaly forces
       devSetBall: (x, z, vx, vz) => {
@@ -631,7 +631,7 @@ function splash() {
     for (const g of gators) g.setChomp()
     setQuip(pick(LINES.gator))
   } else {
-    setQuip(pick(LINES.water))
+    setQuip(pick(course.splash || LINES.water)) // lava/ice courses bring their own lines
   }
   haptics.medium()
 }
@@ -730,7 +730,7 @@ function updateCameos() {
   if (events.includes('bigfoot')) {
     if (!bigfoot && tickN > nextBigfoot) {
       if (Math.random() < 0.6) {
-        bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26)
+        bigfoot = makeBigfoot(scene, Math.random() < 0.5, -13 + Math.random() * 26, theme.cryptid)
         setQuip('👀 Was that…?')
       }
       nextBigfoot = tickN + 1500 + Math.floor(Math.random() * 2100) // re-arm either way

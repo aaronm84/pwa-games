@@ -226,7 +226,7 @@ export function buildHole3D(scene, shadow, def, theme, extra = {}) {
     const m = new StandardMaterial('zoneMat', scene)
     m.specularColor = new Color3(0, 0, 0)
     if (z.type === 'water') {
-      m.diffuseColor = Color3.FromHexString('#2f7fb0')
+      m.diffuseColor = Color3.FromHexString(theme.water3d || '#2f7fb0') // lava on Magma Springs
       m.alpha = 0.82
       waterPolys.push(worldPoly(z.poly))
     } else if (z.type === 'sand') {

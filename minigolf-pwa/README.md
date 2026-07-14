@@ -23,7 +23,7 @@ Meet the cast: **Otto**, the googly-eyed golf ball who gets nervous near water a
 dizzy after a hard bounce, and **Chip**, the dry-witted commentator who has an
 opinion about every shot you take.
 
-## Three courses (54 holes)
+## Five courses (90 holes)
 
 Pick a course — and a putter — from the clubhouse before you tee off.
 
@@ -32,6 +32,8 @@ Pick a course — and a putter — from the clubhouse before you tee off.
 | 🌲 **Pinewood Links** (par 61) | A gentle classic resort to warm up on | The odd passing bird |
 | 🐊 **Cryptid Cove** (par 63) | Murky, water-heavy swamp | Alligators grab balls from the water; Bigfoot wanders the tree line |
 | 👽 **Area 51 Links** (par 63) | Dusty, classified desert | UFOs abduct your ball and drop it who-knows-where |
+| ❄️ **Frostbite Falls** (par 60) | Glacier-carved alpine slopes | Ice-slick luge runs, melt pools — and a **Yeti** in the pines |
+| 🌋 **Magma Springs** (par 60) | Lush greens on an active volcano | The "water" is **lava**; ash bunkers; lava-tube portals |
 
 Fairways and hazards are drawn with **organic spline shapes** (blobby ponds,
 rounded greens, winding doglegs) and each course has its own palette and props

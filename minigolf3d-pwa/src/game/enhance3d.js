@@ -21,6 +21,15 @@ export const enhancements = {
   'area51:1': { anomalies: [{ x: 260, y: 250, r: 42, dir: 1 }] },
   'area51:6': { hills: [{ x: 260, y: 400, r: 85, h: 2.0 }] },
   'area51:8': { anomalies: [{ x: 275, y: 245, r: 40, dir: -1 }] },
+  // Frostbite Falls — moguls on the opener, steam vents off the hot spring.
+  'frostbite:0': { hills: [{ x: 230, y: 430, r: 44, h: 0.9 }, { x: 300, y: 260, r: 40, h: 0.8 }] },
+  'frostbite:12': { geysers: [{ x: 350, y: 520, r: 24, color: '#dceef5' }] },
+  'frostbite:15': { hills: [{ x: 350, y: 320, r: 52, h: 1.2 }] },
+  // Magma Springs — lava spouts and a cinder cone.
+  'volcano:1': { geysers: [{ x: 180, y: 250, r: 24, color: '#ff9a5a' }] },
+  'volcano:6': { hills: [{ x: 350, y: 530, r: 50, h: 1.2 }] },
+  'volcano:9': { geysers: [{ x: 150, y: 550, r: 24, color: '#ff9a5a' }] },
+  'volcano:17': { geysers: [{ x: 200, y: 300, r: 26, color: '#ff9a5a' }, { x: 330, y: 560, r: 22, color: '#ff9a5a', phase: 0.5 }] },
 }
 
 export function enhanceFor(courseId, holeIndex) {

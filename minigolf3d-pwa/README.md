@@ -2,10 +2,10 @@
 
 An **experimental** 3D build that validates a shared, PWA-optimized game engine the
 other games can migrate onto. It **converts the real Mini Golf** — all three
-courses and 54 holes — onto **Babylon.js + Havok physics**, reusing the flat game's
+courses and holes (now five courses, 90 holes) — onto **Babylon.js + Havok physics**, reusing the flat game's
 polygon course data unchanged. Packaged as an installable PWA.
 
-> Status: the full Mini Golf conversion (Stages 1–4) — all 54 holes, hills/ramps,
+> Status: the full Mini Golf conversion (Stages 1–4) — all 90 holes across five courses, terrain,
 > critters, cameos and special putters — running on the engine-kit and linked from
 > the landing page as **Mini Golf 3D**.
 
@@ -55,7 +55,7 @@ actual `courses.js` / `geometry.js` / `courseKit.js` files are reused verbatim, 
   camera basis. The ball is **axis-locked to the ground** (a flat green shouldn't
   launch it over a curb) with a cup **gravity-assist** so slow near-misses drop.
 - Per-hole intro, HUD (hole/par/shot/total), hole-complete, and a front/back
-  scorecard. All **three courses (54 holes)** are selectable from the menu.
+  scorecard. All **five courses (90 holes)** are selectable from the menu.
 
 ### Verified
 
@@ -149,6 +149,22 @@ Playtest fixes on top:
 - **Safe drop zones** — the UFO can no longer drop the ball inside a hedge, on a
   bumper, in a windmill hub, in water, or into the cup; and a ball that somehow
   comes to rest inside a hedge is rescued instead of soft-locking the hole.
+
+### Stage 7 (done) — two new courses (90 holes total)
+
+- ❄️ **Frostbite Falls** (par 60) — a glacier-carved alpine course: snow-drift
+  bunkers, icy melt pools, luge-run ice slicks, snow-blower windmills, moguls, a
+  steam vent — and a white **Yeti** in the pines (the cryptid cameo is now
+  theme-colored per course).
+- 🌋 **Magma Springs** (par 60) — mini golf on an active volcano: the "water" is
+  **lava** (water hazards are theme-colored in 3D now too), ash bunkers, lava-tube
+  portals, lava-spout geysers and a cinder cone. Themed splash commentary
+  ("Well done. Medium-rare, actually.").
+- Both courses are **pure course data** shared verbatim with the flat game — one
+  file drives both the 2D and 3D versions — and a new
+  `src/game/validate-courses.mjs` checks every hole of every course (tees/cups on
+  the green with clearance, hazards not swallowing them, portals/bumpers/windmills
+  on the fairway, moving cups staying in bounds) so an unplayable hole can't ship.
 
 Course/hole/putter `?course=&hole=&putter=` dev overrides exist for testing (DEV-only).
 
