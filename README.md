@@ -28,9 +28,17 @@ project in its own top-level `*-pwa/` folder.
 | 🚀 **SpaceWolf** — on-rails 3D space dogfighter (Babylon.js) | [`spacewolf-pwa/`](spacewolf-pwa/) | https://aaronm84.github.io/pwa-games/spacewolf/ |
 | 🧱 **Bricks** — Breakout-style brick breaker | [`bricks-pwa/`](bricks-pwa/) | https://aaronm84.github.io/pwa-games/bricks/ |
 | 🎰 **Slots** — spin the reels, chase the jackpot (for-fun casino) | [`slots-pwa/`](slots-pwa/) | https://aaronm84.github.io/pwa-games/slots/ |
-| ⛳ **Mini Golf** — 3 courses, 54 holes, gators, UFOs & special putters | [`minigolf-pwa/`](minigolf-pwa/) | https://aaronm84.github.io/pwa-games/minigolf/ |
+| ⛳ **Mini Golf** — 5 courses, 90 holes, gators, UFOs, yetis, lava & special putters | [`minigolf-pwa/`](minigolf-pwa/) | https://aaronm84.github.io/pwa-games/minigolf/ |
+| ⛳ **Mini Golf 3D** — all 90 holes in real 3D on the shared engine-kit (Babylon.js + Havok) | [`minigolf3d-pwa/`](minigolf3d-pwa/) | https://aaronm84.github.io/pwa-games/minigolf3d/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
+
+## The engine-kit (3D games)
+
+`minigolf3d-pwa/src/engine/` is a small, reusable **Babylon.js + Havok** foundation
+(bootstrap, physics, touch gestures, lighting presets) that Mini Golf 3D validated
+end-to-end. **[docs/ENGINE.md](docs/ENGINE.md)** documents where it stands, what
+the conversion taught us, and the candidate games to build on it next.
 
 ## How hosting works
 
