@@ -9,8 +9,11 @@ Havok, carried over from Mini Golf 3D). See `docs/ENGINE.md` at the repo root.
 
 ## The game
 
-- **Flick to bowl** — drag back for power, drag sideways while winding up to add
-  **hook**; the spin bends the ball harder as it travels the oiled lane.
+- **A real swing** (Switch-bowling style) — slide sideways to walk the approach
+  and line up, drag down to wind the ball back behind you, then **snap forward
+  and release while moving** to bowl. Power = backswing depth × release snap;
+  drifting the forward stroke sideways puts **hook** on the ball, and a limp
+  release dribbles it down the lane. Timing is the skill.
 - **Real pin physics** — pins are individual dynamic bodies; strikes are earned
   from momentum and pocket angles, not dice rolls. Deadwood is cleared between
   throws and standing pins stay exactly where they wobbled to.

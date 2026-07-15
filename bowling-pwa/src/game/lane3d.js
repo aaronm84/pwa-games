@@ -14,10 +14,11 @@ import {
 
 export const LANE_W = 2.2 // playable lane width
 export const LANE_LEN = 18
-export const BALL_R = 0.24
+export const BALL_R = 0.22
 export const PIN_Z = -7.2 // head pin
-export const PIT_Z = -9.4 // past this the ball/pins are gone
-export const START_Z = 8.0 // where the bowler stands
+export const DECK_END = -9.2 // the floor ends here — then the pit
+export const PIT_Z = -9.0 // past this (or below the floor) the ball is done
+export const START_Z = 6.2 // where the bowler stands (in frame, below the camera)
 const GUTTER_W = 0.62
 
 export const PIN_H = 0.78
@@ -44,9 +45,12 @@ export function buildAlley(scene, shadow, colors) {
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
 
-  // lane bed (top at y=0), slick like an oiled lane
-  const lane = MeshBuilder.CreateBox('lane', { width: LANE_W, height: 0.3, depth: LANE_LEN + 4 }, scene)
-  lane.position.set(0, -0.15, (START_Z + PIT_Z) / 2 + 1)
+  // lane bed (top at y=0), slick like an oiled lane. The floor STOPS at the pit
+  // edge — balls and deadwood drop away behind the pin deck like a real house.
+  const floorLen = START_Z + 2 - DECK_END
+  const floorZ = (START_Z + 2 + DECK_END) / 2
+  const lane = MeshBuilder.CreateBox('lane', { width: LANE_W, height: 0.3, depth: floorLen }, scene)
+  lane.position.set(0, -0.15, floorZ)
   lane.material = laneMat
   lane.receiveShadows = true
   aggs.push(makeStatic(lane, { shape: PhysicsShapeType.BOX, friction: 0.18, restitution: 0.1 }))
@@ -55,17 +59,24 @@ export function buildAlley(scene, shadow, colors) {
   // gutters: a lower floor channel each side, with an outer kerb wall
   for (const side of [-1, 1]) {
     const gx = side * (LANE_W / 2 + GUTTER_W / 2)
-    const g = MeshBuilder.CreateBox('gutterFloor', { width: GUTTER_W, height: 0.3, depth: LANE_LEN + 4 }, scene)
-    g.position.set(gx, -0.27, lane.position.z)
+    const g = MeshBuilder.CreateBox('gutterFloor', { width: GUTTER_W, height: 0.3, depth: floorLen }, scene)
+    g.position.set(gx, -0.27, floorZ)
     g.material = gutterMat
     aggs.push(makeStatic(g, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.05 }))
     track(g)
-    const kerb = MeshBuilder.CreateBox('kerb', { width: 0.18, height: 0.5, depth: LANE_LEN + 4 }, scene)
-    kerb.position.set(side * (LANE_W / 2 + GUTTER_W + 0.09), 0.1, lane.position.z)
+    const kerb = MeshBuilder.CreateBox('kerb', { width: 0.18, height: 0.5, depth: floorLen }, scene)
+    kerb.position.set(side * (LANE_W / 2 + GUTTER_W + 0.09), 0.1, floorZ)
     kerb.material = darkMat
     aggs.push(makeStatic(kerb, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.25 }))
     track(kerb)
   }
+
+  // the pit: a deep floor below/behind the deck so everything visibly drops in
+  const pit = MeshBuilder.CreateBox('pit', { width: LANE_W + 2 * GUTTER_W + 1, height: 0.3, depth: 2.6 }, scene)
+  pit.position.set(0, -1.5, DECK_END - 1.3)
+  pit.material = darkMat
+  aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
+  track(pit)
 
   // neon edge strips (visual) — the page color-cycles their emissive
   const edges = []
@@ -92,11 +103,12 @@ export function buildAlley(scene, shadow, colors) {
     track(a)
   }
 
-  // backstop pit wall + side walls behind the pin deck
-  const back = MeshBuilder.CreateBox('back', { width: LANE_W + 2 * GUTTER_W + 1, height: 1.6, depth: 0.3 }, scene)
-  back.position.set(0, 0.6, PIT_Z - 0.8)
+  // backstop curtain at the far side of the pit (below deck height, so nothing
+  // ever bounces back onto the lane)
+  const back = MeshBuilder.CreateBox('back', { width: LANE_W + 2 * GUTTER_W + 1, height: 2.2, depth: 0.3 }, scene)
+  back.position.set(0, -0.5, DECK_END - 2.7)
   back.material = darkMat
-  aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0.02 }))
+  aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0 }))
   track(back)
 
   // gutter floor color pulse handle (lava alley)

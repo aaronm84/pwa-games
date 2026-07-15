@@ -28,7 +28,7 @@
     </transition>
 
     <div class="hud-hint" v-if="state === 'aiming' && rolls.length === 0">
-      Drag back to set power — sideways to hook it
+      Slide sideways to line up · drag down to wind up, snap forward to bowl
     </div>
 
     <!-- ball rack -->
@@ -156,9 +156,16 @@ let confetti = []
 let disco = null
 let ufo = null
 let tickN = 0
-let curPower = 0
-let curHook = 0
 let quipUntil = 0
+// swing state: 'idle' → (horizontal drag = aiming) | (downward drag = 'swinging')
+let gestureMode = null
+let aimX = 0 // where the bowler stands (lateral)
+let swingSamples = [] // {t, dx, dy} — the stroke path, for release velocity
+let maxBackswing = 0
+let bottomDx = 0 // stroke dx at the deepest point of the backswing
+let bottomT = 0 // when the backswing peaked — release speed is measured from here
+let guide = null
+let lastLaunch = null
 let bannerUntil = 0
 let thrown = false
 let throwTick = 0
@@ -193,7 +200,9 @@ async function boot() {
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
   shadowGen = outdoorLight(scene, { intensity: 0.8 }).shadow
-  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.02, 7.6, new Vector3(0, 0.2, 2.4), scene)
+  // flat enough that the ball at the bowler's feet is in frame, high enough to
+  // read the whole lane
+  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
 
   await initPhysics(scene, { gravity: alley.gravity })
   laneKit = buildAlley(scene, shadowGen, alley.colors)
@@ -201,6 +210,17 @@ async function boot() {
   makeBall()
   rackPins()
 
+  // the target line: a faint straight guide from the bowler down the lane,
+  // visible while aiming/swinging (Switch-bowling style)
+  guide = MeshBuilder.CreateBox('guide', { width: 0.05, height: 0.012, depth: 9 }, scene)
+  const gm = new StandardMaterial('guideMat', scene)
+  gm.emissiveColor = Color3.FromHexString(alley.colors.arrow)
+  gm.disableLighting = true
+  gm.alpha = 0.4
+  guide.material = gm
+  guide.position.set(0, 0.02, START_Z - 5.2)
+
+  // the power cue behind the ball while winding up
   aimArrow = MeshBuilder.CreateBox('aim', { width: 0.14, height: 0.04, depth: 1 }, scene)
   const am = new StandardMaterial('aimMat', scene)
   am.emissiveColor = Color3.FromHexString(alley.colors.arrow)
@@ -226,6 +246,8 @@ async function boot() {
       gameOver: gameOver.value,
       alley: alley.id,
       ballId: activeBallId.value,
+      aimX,
+      lastLaunch,
       selectBall,
       // deterministic throw for headless verification
       devThrow: (speed, x, spin) => {
@@ -268,14 +290,15 @@ function applyBallLook() {
 function parkBall() {
   ballAgg.body.setLinearVelocity(Vector3.Zero())
   ballAgg.body.setAngularVelocity(Vector3.Zero())
-  ball.position.set(0, BALL_R, START_Z)
+  ball.position.set(aimX, BALL_R, START_Z) // stay where the bowler stood
   ballAgg.body.disablePreStep = false
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
 function placeBallForThrow(x) {
+  aimX = Math.max(-1.35, Math.min(1.35, x))
   ballAgg.body.setLinearVelocity(Vector3.Zero())
   ballAgg.body.setAngularVelocity(Vector3.Zero())
-  ball.position.set(Math.max(-0.9, Math.min(0.9, x)), BALL_R, START_Z)
+  ball.position.set(aimX, BALL_R, START_Z)
   ballAgg.body.disablePreStep = false
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
@@ -308,34 +331,108 @@ function selectBall(id) {
   haptics.light()
 }
 
-// ---- aiming / throwing ----
+// ---- the swing (Switch-bowling style) ----
+// A sideways drag walks the bowler along the approach (aim — you can line up
+// anything from the pocket to the gutter). A downward drag starts the swing:
+// the ball visibly winds back and up behind you; snapping the drag forward and
+// RELEASING WHILE MOVING throws it. Power = backswing depth × release snap
+// speed; drifting the forward stroke sideways puts hook on the ball. A limp
+// release dribbles the ball down the lane. Timing is the skill.
 function onAim(g) {
   if (state.value !== 'aiming') return
-  curPower = Math.min(Math.max(g.dy, 0) / 170, 1)
-  curHook = Math.max(-1, Math.min(1, g.dx / 130))
-  if (curPower < 0.05) { aimArrow.isVisible = false; return }
-  aimArrow.isVisible = true
-  const len = 1 + curPower * 3.4
-  aimArrow.scaling.z = len
-  aimArrow.rotation.y = -curHook * 0.5
-  aimArrow.position.set(ball.position.x - Math.sin(aimArrow.rotation.y) * len * 0.5, 0.05, ball.position.z - Math.cos(aimArrow.rotation.y) * len * 0.5)
-  aimArrow.material.emissiveColor = curPower < 0.5 ? Color3.FromHexString(alley.colors.arrow) : curPower < 0.8 ? new Color3(1, 0.7, 0.1) : new Color3(1, 0.32, 0.32)
+  if (!gestureMode && g.dist > 12) {
+    gestureMode = Math.abs(g.dx) > Math.abs(g.dy) ? 'aim' : g.dy > 0 ? 'swing' : null
+    if (gestureMode === 'aim') gestureMode = { kind: 'aim', fromX: aimX }
+    else if (gestureMode === 'swing') gestureMode = { kind: 'swing' }
+  }
+  if (!gestureMode) return
+
+  if (gestureMode.kind === 'aim') {
+    aimX = Math.max(-1.35, Math.min(1.35, gestureMode.fromX + g.dx / 130))
+    ball.position.set(aimX, BALL_R, START_Z)
+    syncBallBody()
+    return
+  }
+
+  // swing: sample the stroke and animate the ball back along the pendulum
+  swingSamples.push({ t: performance.now(), dx: g.dx, dy: g.dy })
+  if (swingSamples.length > 40) swingSamples.shift()
+  if (g.dy >= maxBackswing) { maxBackswing = g.dy; bottomDx = g.dx; bottomT = performance.now() }
+  // pendulum: the ball lifts visibly into frame as you wind up
+  const p = Math.max(0, Math.min(1.15, g.dy / 230))
+  ball.position.set(aimX + g.dx / 600, BALL_R + p * 1.6, START_Z + p * 0.4)
+  syncBallBody()
+  // power cue
+  const pw = Math.min(maxBackswing / 230, 1)
+  aimArrow.isVisible = pw > 0.05
+  aimArrow.scaling.z = 1 + pw * 3
+  aimArrow.rotation.y = 0
+  aimArrow.position.set(aimX, 0.05, START_Z - 1 - pw * 1.5)
+  aimArrow.material.emissiveColor = pw < 0.5 ? Color3.FromHexString(alley.colors.arrow) : pw < 0.85 ? new Color3(1, 0.7, 0.1) : new Color3(1, 0.32, 0.32)
 }
-function onRelease() {
+function syncBallBody() {
+  ballAgg.body.setLinearVelocity(Vector3.Zero())
+  ballAgg.body.disablePreStep = false
+}
+function onRelease(g) {
   aimArrow.isVisible = false
-  if (state.value !== 'aiming' || curPower < 0.06) return
+  const mode = gestureMode
+  gestureMode = null
+  if (state.value !== 'aiming' || !mode) return
+  if (mode.kind === 'aim') {
+    scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
+    return
+  }
+
+  // release: the forward stroke is measured from the deepest point of the
+  // backswing to the release — average speed over the whole snap, so it's
+  // immune to pointer-event coalescing on janky frames
+  const now = performance.now()
+  const forwardTravel = maxBackswing - g.dy // px swung back toward the pins
+  const strokeDt = Math.max(0.03, (now - bottomT) / 1000)
+  const upSpeed = forwardTravel / strokeDt
+  const backswing = Math.min(maxBackswing / 230, 1)
+  const swungForward = forwardTravel > maxBackswing * 0.45
+  swingSamples = []
+  const hadWindup = maxBackswing > 30
+  maxBackswing = 0
+
+  if (!hadWindup) { resetSwingBall(); return } // never wound up — not a throw
+  if (import.meta.env.DEV) window.__swingDebug = { forwardTravel, strokeDt, upSpeed, backswing, swungForward, endDy: g.dy }
   const mods = activeBall.value.mods
-  launch((6.5 + curPower * 13.5) * mods.power, curHook * mods.hook)
+  if (!swungForward || upSpeed < 260) {
+    // limp release: the ball plops out of your hand and trickles
+    launch(3.2 * mods.power, 0, 0)
+    setQuip('…a gentle lay-up. The pins are unbothered.')
+    haptics.light()
+    return
+  }
+  const snap = Math.min(upSpeed / 2400, 1)
+  const power = snap * (0.45 + 0.55 * backswing)
+  const spin = Math.max(-1.2, Math.min(1.2, (g.dx - bottomDx) / 130)) * mods.hook
+  launch((4.5 + 11.5 * power) * mods.power, spin, spin * 0.7)
   haptics.medium()
 }
-function launch(speed, spin) {
+function resetSwingBall() {
+  ball.position.set(aimX, BALL_R, START_Z)
+  syncBallBody()
+  scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
+}
+function launch(speed, spin, vx0 = 0) {
+  spin = Math.max(-1.6, Math.min(1.6, spin))
+  lastLaunch = { speed, spin }
   thrown = true
   throwTick = tickN
   gutterBall = false
   gutterQuipped = false
   state.value = 'rolling'
-  ballAgg.body.setLinearVelocity(new Vector3(0, 0, -speed))
-  ballAgg.body.setAngularVelocity(new Vector3(-speed / BALL_R, 0, 0))
+  ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), BALL_R, START_Z)
+  ballAgg.body.disablePreStep = false
+  scene.onAfterRenderObservable.addOnce(() => {
+    ballAgg.body.setLinearVelocity(new Vector3(vx0, 0, -speed))
+    ballAgg.body.setAngularVelocity(new Vector3(-speed / BALL_R, 0, 0))
+    ballAgg.body.disablePreStep = true
+  })
   ball.__spin = spin
 }
 
@@ -355,6 +452,10 @@ function tick(dt = 1 / 60) {
       const pulse = 0.5 + Math.sin(tickN * 0.05) * 0.3
       laneKit.gutterMat.emissiveColor = Color3.FromHexString(alley.colors.gutterGlow).scale(pulse)
     }
+  }
+  if (guide) {
+    guide.isVisible = state.value === 'aiming'
+    guide.position.x = aimX
   }
   disco?.update(tickN)
   ufo?.update()
@@ -392,7 +493,7 @@ function tick(dt = 1 / 60) {
     cam.radius += (6.4 - cam.radius) * 0.03
 
     const speed = Math.hypot(v.x, v.y, v.z)
-    const done = ball.position.z < PIT_Z || (speed < 0.35 && tickN - throwTick > 40) || tickN - throwTick > 420
+    const done = ball.position.z < PIT_Z || ball.position.y < -0.35 || (speed < 0.35 && tickN - throwTick > 40) || tickN - throwTick > 420
     if (done) {
       thrown = false
       state.value = 'sweep'

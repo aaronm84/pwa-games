@@ -31,10 +31,11 @@
             </div>
             <h2>How to Play</h2>
             <ol>
-              <li><strong>Drag back</strong> to wind up — further is <strong>more power</strong></li>
-              <li>Drag <strong>sideways</strong> while winding up to add <strong>hook</strong> — the ball bends down-lane</li>
-              <li><strong>Release</strong> to bowl</li>
-              <li>Swap balls anytime from the <strong>rack</strong> (bottom-right)</li>
+              <li><strong>Slide sideways</strong> to walk the approach and line up your shot</li>
+              <li><strong>Drag down</strong> to wind up — the ball swings back behind you</li>
+              <li><strong>Snap forward and let go</strong> to bowl — power comes from your backswing <em>and</em> how fast you release</li>
+              <li>Drift the forward stroke <strong>sideways</strong> to put hook on the ball</li>
+              <li>A limp release <strong>dribbles</strong>. Swap balls anytime from the <strong>rack</strong>.</li>
             </ol>
           </div>
 
@@ -73,9 +74,9 @@
             </div>
             <h2>Tips</h2>
             <ul>
-              <li>Aim the hook <strong>into the pocket</strong> — between the head pin and its neighbor</li>
+              <li>Line up <strong>off-center</strong> and hook <strong>into the pocket</strong> — dead straight at the head pin leaves splits</li>
+              <li>A full backswing with a <strong>fast, straight snap</strong> is the money throw</li>
               <li>Heavy balls <strong>plow through</strong>; light balls <strong>bend more</strong></li>
-              <li>Straight at the head pin often leaves a <strong>split</strong> — the pros curve it</li>
               <li>For spares, play <strong>straight and simple</strong>. Save the style for fresh racks.</li>
             </ul>
           </div>
