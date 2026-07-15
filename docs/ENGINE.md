@@ -100,10 +100,15 @@ the kit to grow (that's a feature — each game should harden the kit).
    then (flippers = windmill tech, bumpers, ramps, sensors from geysers);
    budget extra time for feel tuning.
 
-**Extraction trigger:** the kit still lives inside `minigolf3d-pwa/`. The moment
-a second game adopts it, extract `src/engine/` into a shared workspace package
-(e.g. `packages/engine-kit/`) rather than copying — that was always the plan,
-and two consumers is the forcing function.
+**Status:** 🎳 **Bowling shipped** as `bowling-pwa/` ("Alley Nights") — the
+kit's second adopter. It carried `src/engine/` over unchanged (a good sign for
+the API) and exercised the new muscles as predicted: eleven simultaneous dynamic
+bodies, per-alley gravity, and a real turn/score UI driven by a pure, unit-tested
+scoring module.
+
+**Extraction trigger (now met):** with two consumers, the next infrastructure
+task is extracting `src/engine/` into a shared workspace package
+(e.g. `packages/engine-kit/`) so fixes stop needing to be copied between games.
 
 ## How a new engine game starts (the recipe)
 

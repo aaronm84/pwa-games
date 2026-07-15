@@ -1,0 +1,11 @@
+{
+  "appId": "dev.quickbeam.minigolf3d",
+  "appName": "Mini Golf 3D",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#8ec9ec",
+    "scrollEnabled": false
+  },
+  "backgroundColor": "#8ec9ec"
+}

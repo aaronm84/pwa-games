@@ -1,0 +1,540 @@
+<template>
+  <q-page class="bowl" :style="{ background: alley.sky }">
+    <canvas ref="canvasEl" class="stage-canvas" />
+
+    <div class="hud-top">
+      <q-btn flat round icon="arrow_back" color="white" @click="goBack" />
+      <div class="chips">
+        <div class="chip"><span>Frame</span><b>{{ frameNum }}/10</b></div>
+        <div class="chip"><span>Throw</span><b>{{ throwNum }}</b></div>
+        <div class="chip"><span>Score</span><b>{{ runningTotal ?? '–' }}</b></div>
+      </div>
+      <div class="chip mode">{{ backend }}</div>
+    </div>
+
+    <!-- mini per-frame marks strip -->
+    <div class="marks">
+      <div v-for="(f, i) in framesView" :key="i" class="mark-cell" :class="{ cur: i === curFrame && !gameOver }">
+        <span class="m-rolls">{{ f.marks }}</span>
+        <span class="m-cum">{{ f.cumulative ?? '' }}</span>
+      </div>
+    </div>
+
+    <transition name="fade">
+      <div v-if="banner" class="banner" :class="bannerKind">{{ banner }}</div>
+    </transition>
+    <transition name="fade">
+      <div v-if="quip" class="quip">{{ quip }}</div>
+    </transition>
+
+    <div class="hud-hint" v-if="state === 'aiming' && rolls.length === 0">
+      Drag back to set power — sideways to hook it
+    </div>
+
+    <!-- ball rack -->
+    <button v-if="state === 'aiming' || state === 'rolling'" class="bag-btn" @click="showRack = true" aria-label="Open ball rack">
+      <span class="bag-emoji">{{ activeBall.emoji }}</span>
+      <span class="bag-label">{{ activeBall.name }}</span>
+    </button>
+
+    <transition name="fade">
+      <div v-if="showRack" class="bag-overlay" @click.self="showRack = false">
+        <div class="bag-sheet">
+          <div class="bag-head">
+            <span>The rack</span>
+            <q-btn flat round dense icon="close" color="white" @click="showRack = false" />
+          </div>
+          <div class="bag-list">
+            <button v-for="b in balls" :key="b.id" class="ball-card" :class="{ active: b.id === activeBallId }" @click="selectBall(b.id)">
+              <span class="p-emoji">{{ b.emoji }}</span>
+              <span class="p-text">
+                <span class="p-name">{{ b.name }}</span>
+                <span class="p-blurb">{{ b.blurb }}</span>
+              </span>
+              <span v-if="b.id === activeBallId" class="p-check">✓</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- game over: the full scorecard -->
+    <transition name="fade">
+      <div v-if="gameOver" class="overlay">
+        <div class="o-title">{{ finalLabel }}</div>
+        <div class="o-sub big">{{ finalTotal }}</div>
+        <div class="scorecard">
+          <div class="sc-grid">
+            <div v-for="(f, i) in framesView" :key="'f' + i" class="sc-frame">
+              <div class="sc-marks">{{ f.marks || '–' }}</div>
+              <div class="sc-cum">{{ f.cumulative ?? '' }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-if="statLine" class="o-unlock">{{ statLine }}</div>
+        <div class="row-btns">
+          <q-btn unelevated color="primary" text-color="white" label="Bowl Again" @click="newGame" />
+          <q-btn flat color="white" label="Menu" @click="goBack" />
+        </div>
+      </div>
+    </transition>
+
+    <div v-if="booting" class="boot">Polishing the lane…</div>
+  </q-page>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
+import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
+import { scoreGame, rollPosition } from 'src/game/scoring'
+import { alleyById } from 'src/game/alleys'
+import { balls, ballById } from 'src/game/balls'
+import { makeDiscoBall, burstConfetti, makeUfo } from 'src/game/fx3d'
+import { useSettingsStore } from 'src/stores/settings'
+import { useProgressStore } from 'src/stores/progress'
+import { useHaptics } from 'src/composables/useHaptics'
+
+const router = useRouter()
+const settings = useSettingsStore()
+const progress = useProgressStore()
+const haptics = useHaptics()
+const canvasEl = ref(null)
+
+function devParam(k) {
+  if (!import.meta.env.DEV) return null
+  return new URLSearchParams(location.hash.split('?')[1] || '').get(k)
+}
+const alley = alleyById(devParam('alley') || settings.settings.selectedAlley)
+
+const booting = ref(true)
+const backend = ref('')
+const state = ref('aiming') // aiming | rolling | sweep | over
+const rolls = ref([])
+const quip = ref(null)
+const banner = ref(null)
+const bannerKind = ref('good')
+const showRack = ref(false)
+const gameOver = ref(false)
+const finalTotal = ref(0)
+const finalLabel = ref('')
+const statLine = ref(null)
+
+const activeBallId = ref(devParam('ball') || settings.settings.selectedBall)
+const activeBall = computed(() => ballById(activeBallId.value))
+
+const score = computed(() => scoreGame(rolls.value))
+const framesView = computed(() =>
+  score.value.frames.map((f) => ({
+    marks: f.rolls.map((r, i) => (r === 10 && (i === 0 || f.rolls[i - 1] === 10 || f.rolls.length === 3) ? 'X' : i > 0 && f.rolls[i - 1] + r === 10 && f.rolls[i - 1] !== 10 ? '/' : r === 0 ? '-' : r)).join(' '),
+    cumulative: f.cumulative,
+  })),
+)
+const curFrame = computed(() => rollPosition(rolls.value)?.frame ?? 9)
+const frameNum = computed(() => curFrame.value + 1)
+const throwNum = computed(() => (rollPosition(rolls.value)?.throw ?? 0) + 1)
+const runningTotal = computed(() => {
+  let last = null
+  for (const f of score.value.frames) if (f.cumulative != null) last = f.cumulative
+  return last
+})
+
+let stage = null
+let scene = null
+let cam = null
+let shadowGen = null
+let laneKit = null
+let ball = null
+let ballAgg = null
+let ballGlowMat = null
+let aimArrow = null
+let gestures = null
+let pins = []
+let fading = [] // downed pins fading out
+let confetti = []
+let disco = null
+let ufo = null
+let tickN = 0
+let curPower = 0
+let curHook = 0
+let quipUntil = 0
+let bannerUntil = 0
+let thrown = false
+let throwTick = 0
+let gutterBall = false
+let standingBefore = 10
+let sweepAt = 0
+let gutterQuipped = false
+let strikesThisGame = 0
+
+const pick = (a) => a[Math.floor(Math.random() * a.length)]
+
+onMounted(async () => {
+  try {
+    await progress.loadFromStorage()
+    await boot()
+  } catch (e) {
+    console.error('[Bowling] boot failed:', e)
+    booting.value = false
+  }
+})
+onBeforeUnmount(() => {
+  disco?.dispose()
+  ufo?.dispose()
+  for (const c of confetti) c.dispose()
+  gestures?.dispose()
+  stage?.dispose()
+})
+
+async function boot() {
+  stage = new Stage(canvasEl.value, { clear: hexToRgba(alley.colors.clear), webgpu: false })
+  await stage.init()
+  backend.value = stage.backend.toUpperCase()
+  scene = stage.scene
+  shadowGen = outdoorLight(scene, { intensity: 0.8 }).shadow
+  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.02, 7.6, new Vector3(0, 0.2, 2.4), scene)
+
+  await initPhysics(scene, { gravity: alley.gravity })
+  laneKit = buildAlley(scene, shadowGen, alley.colors)
+
+  makeBall()
+  rackPins()
+
+  aimArrow = MeshBuilder.CreateBox('aim', { width: 0.14, height: 0.04, depth: 1 }, scene)
+  const am = new StandardMaterial('aimMat', scene)
+  am.emissiveColor = Color3.FromHexString(alley.colors.arrow)
+  am.disableLighting = true
+  aimArrow.material = am
+  aimArrow.isVisible = false
+
+  if (alley.fx === 'discoball') disco = makeDiscoBall(scene, 0, 4.6, -3)
+  if (alley.fx === 'ufo') ufo = makeUfo(scene)
+
+  gestures = new Gestures(canvasEl.value, { onDrag: (g) => onAim(g), onDragEnd: (g) => onRelease(g) })
+  stage.run((dt) => tick(dt))
+  booting.value = false
+
+  if (import.meta.env.DEV) {
+    window.__bwl = () => ({
+      backend: stage.backend,
+      state: state.value,
+      rolls: [...rolls.value],
+      standing: pins.filter((p) => p.isStanding()).length,
+      ball: { x: ball.position.x, y: ball.position.y, z: ball.position.z },
+      total: runningTotal.value,
+      gameOver: gameOver.value,
+      alley: alley.id,
+      ballId: activeBallId.value,
+      selectBall,
+      // deterministic throw for headless verification
+      devThrow: (speed, x, spin) => {
+        if (state.value !== 'aiming') return
+        placeBallForThrow(x ?? 0)
+        launch(speed ?? 13, spin ?? 0)
+      },
+    })
+  }
+}
+
+function hexToRgba(hex) {
+  const c = Color3.FromHexString(hex)
+  return [c.r, c.g, c.b, 1]
+}
+
+function makeBall() {
+  ball = MeshBuilder.CreateSphere('ball', { diameter: BALL_R * 2, segments: 20 }, scene)
+  applyBallLook()
+  shadowGen.addShadowCaster(ball)
+  ball.position.set(0, BALL_R, START_Z)
+  ballAgg = makeDynamic(ball, { mass: activeBall.value.mods.mass, restitution: 0.2, friction: 0.35, linearDamping: 0.06, angularDamping: 0.4 })
+  parkBall()
+}
+function applyBallLook() {
+  ball.material?.dispose()
+  ballGlowMat?.dispose()
+  const b = activeBall.value
+  if (b.glow) {
+    const m = new StandardMaterial('ballMat', scene)
+    m.diffuseColor = Color3.FromHexString(b.color)
+    m.emissiveColor = Color3.FromHexString(b.glow).scale(0.55)
+    m.specularColor = new Color3(0.9, 0.9, 0.9)
+    ball.material = m
+    ballGlowMat = m
+  } else {
+    ball.material = pbr(scene, { color: b.color, rough: 0.25, name: 'ballMat' })
+  }
+}
+function parkBall() {
+  ballAgg.body.setLinearVelocity(Vector3.Zero())
+  ballAgg.body.setAngularVelocity(Vector3.Zero())
+  ball.position.set(0, BALL_R, START_Z)
+  ballAgg.body.disablePreStep = false
+  scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
+}
+function placeBallForThrow(x) {
+  ballAgg.body.setLinearVelocity(Vector3.Zero())
+  ballAgg.body.setAngularVelocity(Vector3.Zero())
+  ball.position.set(Math.max(-0.9, Math.min(0.9, x)), BALL_R, START_Z)
+  ballAgg.body.disablePreStep = false
+  scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
+}
+
+function rackPins() {
+  for (const p of pins) p.dispose()
+  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors))
+  standingBefore = 10
+}
+// keep the standing pins where they are, clear the deadwood (with a shrink-out)
+function clearDeadwood() {
+  const keep = []
+  for (const p of pins) {
+    if (p.isStanding()) keep.push(p)
+    else {
+      p.freeze() // collider off immediately; the mesh fades out
+      fading.push({ p, t: 18 })
+    }
+  }
+  pins = keep
+  standingBefore = pins.length
+}
+
+function selectBall(id) {
+  activeBallId.value = id
+  settings.updateSetting('selectedBall', id)
+  applyBallLook()
+  ballAgg.body.setMassProperties({ mass: ballById(id).mods.mass })
+  showRack.value = false
+  haptics.light()
+}
+
+// ---- aiming / throwing ----
+function onAim(g) {
+  if (state.value !== 'aiming') return
+  curPower = Math.min(Math.max(g.dy, 0) / 170, 1)
+  curHook = Math.max(-1, Math.min(1, g.dx / 130))
+  if (curPower < 0.05) { aimArrow.isVisible = false; return }
+  aimArrow.isVisible = true
+  const len = 1 + curPower * 3.4
+  aimArrow.scaling.z = len
+  aimArrow.rotation.y = -curHook * 0.5
+  aimArrow.position.set(ball.position.x - Math.sin(aimArrow.rotation.y) * len * 0.5, 0.05, ball.position.z - Math.cos(aimArrow.rotation.y) * len * 0.5)
+  aimArrow.material.emissiveColor = curPower < 0.5 ? Color3.FromHexString(alley.colors.arrow) : curPower < 0.8 ? new Color3(1, 0.7, 0.1) : new Color3(1, 0.32, 0.32)
+}
+function onRelease() {
+  aimArrow.isVisible = false
+  if (state.value !== 'aiming' || curPower < 0.06) return
+  const mods = activeBall.value.mods
+  launch((6.5 + curPower * 13.5) * mods.power, curHook * mods.hook)
+  haptics.medium()
+}
+function launch(speed, spin) {
+  thrown = true
+  throwTick = tickN
+  gutterBall = false
+  gutterQuipped = false
+  state.value = 'rolling'
+  ballAgg.body.setLinearVelocity(new Vector3(0, 0, -speed))
+  ballAgg.body.setAngularVelocity(new Vector3(-speed / BALL_R, 0, 0))
+  ball.__spin = spin
+}
+
+// ---- per-frame ----
+function tick(dt = 1 / 60) {
+  dt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.05)
+  tickN++
+  if (quip.value && tickN > quipUntil) quip.value = null
+  if (banner.value && tickN > bannerUntil) banner.value = null
+
+  // neon edge color cycling + alley fx
+  const hue = (tickN * 1.2) % 360
+  if (laneKit) {
+    laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.85)
+    laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, 0.85, 0.85)
+    if (laneKit.gutterMat) {
+      const pulse = 0.5 + Math.sin(tickN * 0.05) * 0.3
+      laneKit.gutterMat.emissiveColor = Color3.FromHexString(alley.colors.gutterGlow).scale(pulse)
+    }
+  }
+  disco?.update(tickN)
+  ufo?.update()
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    confetti[i].update(dt)
+    if (confetti[i].done) confetti.splice(i, 1)
+  }
+  for (let i = fading.length - 1; i >= 0; i--) {
+    const f = fading[i]
+    f.t--
+    f.p.body.scaling.setAll(Math.max(0.01, f.t / 18))
+    if (f.t <= 0) { f.p.dispose(); fading.splice(i, 1) }
+  }
+
+  if (state.value === 'rolling' && thrown) {
+    const v = ballAgg.body.getLinearVelocity()
+    // hook: side-spin bends the ball harder as it travels down the oiled lane
+    const onLane = ball.position.z > PIN_Z + 0.5 && Math.abs(ball.position.x) < LANE_W / 2 && !gutterBall
+    if (onLane && ball.__spin) {
+      const progress = Math.min(1, (START_Z - ball.position.z) / 14)
+      const a = ball.__spin * 4.6 * progress
+      ballAgg.body.applyImpulse(new Vector3(a * activeBall.value.mods.mass * dt, 0, 0), ball.getAbsolutePosition())
+    }
+    // gutter
+    if (!gutterBall && Math.abs(ball.position.x) > LANE_W / 2 + 0.05 && ball.position.z > PIN_Z + 0.9) {
+      gutterBall = true
+      if (!gutterQuipped) {
+        gutterQuipped = true
+        setBanner('GUTTER.', 'bad')
+        setQuip(pick(alley.lines.gutter))
+      }
+    }
+    // follow cam
+    cam.target.z += (Math.max(ball.position.z * 0.55, -4.2) + 1.6 - cam.target.z) * 0.05
+    cam.radius += (6.4 - cam.radius) * 0.03
+
+    const speed = Math.hypot(v.x, v.y, v.z)
+    const done = ball.position.z < PIT_Z || (speed < 0.35 && tickN - throwTick > 40) || tickN - throwTick > 420
+    if (done) {
+      thrown = false
+      state.value = 'sweep'
+      sweepAt = tickN + 80 // let the pins finish falling
+    }
+  } else if (state.value === 'sweep') {
+    cam.target.z += (-3.5 - cam.target.z) * 0.04 // linger on the pin deck
+    if (tickN >= sweepAt) settleThrow()
+  } else {
+    // ease camera home
+    cam.target.z += (2.4 - cam.target.z) * 0.06
+    cam.radius += (7.6 - cam.radius) * 0.04
+  }
+}
+
+function settleThrow() {
+  const standingNow = pins.filter((p) => p.isStanding()).length
+  const knocked = Math.max(0, standingBefore - standingNow)
+  const pos = rollPosition(rolls.value)
+  rolls.value = [...rolls.value, knocked]
+
+  // celebrate — a 10 off a fresh rack is a strike even on the tenth's bonus balls
+  const isStrike = knocked === 10 && pos.standing === 10
+  const isSpare = !isStrike && pos.throw > 0 && knocked === pos.standing && knocked > 0
+  if (isStrike) {
+    strikesThisGame++
+    setBanner('STRIKE!', 'good')
+    setQuip(pick(alley.lines.strike))
+    celebrate()
+    haptics.success()
+  } else if (isSpare) {
+    setBanner('SPARE!', 'good')
+    setQuip(pick(alley.lines.spare))
+    celebrate()
+    haptics.success()
+  } else if (knocked === 0 && !gutterBall) {
+    setQuip(pick(alley.lines.open))
+  } else if (pos.throw === 0 && knocked > 0 && knocked < 10 && isSplit()) {
+    setQuip(pick(alley.lines.split))
+  }
+
+  const next = rollPosition(rolls.value)
+  if (!next) return endGame()
+
+  // fresh rack when the next throw starts a new frame (or a tenth-frame re-rack)
+  if (next.standing === 10) rackPins()
+  else clearDeadwood()
+  parkBall()
+  state.value = 'aiming'
+}
+
+// a split-ish read: head pin down, survivors far apart
+function isSplit() {
+  const up = pins.filter((p) => p.isStanding())
+  if (up.length < 2) return false
+  const head = pins.find((p) => Math.abs(p.home.x) < 0.01 && Math.abs(p.home.z - PIN_Z) < 0.01)
+  if (head && head.isStanding()) return false
+  let maxGap = 0
+  for (const a of up) for (const b of up) maxGap = Math.max(maxGap, Math.abs(a.home.x - b.home.x))
+  return maxGap > 1.1
+}
+
+function celebrate() {
+  disco?.flash()
+  ufo?.buzz()
+  const palette = [alley.colors.laneEdgeA, alley.colors.laneEdgeB, '#ffffff', alley.colors.pinStripe]
+  confetti.push(burstConfetti(scene, 0, 2.2, PIN_Z - 0.4, palette))
+}
+
+function endGame() {
+  const total = score.value.total ?? 0
+  finalTotal.value = total
+  finalLabel.value = total === 300 ? 'PERFECT GAME!' : total >= 200 ? 'On Fire!' : total >= 150 ? 'Great Game' : total >= 100 ? 'Solid Game' : 'Game Over'
+  const rec = progress.recordGame(total, strikesThisGame)
+  statLine.value = rec.newBest ? `🏆 New best game: ${total}` : null
+  gameOver.value = true
+  state.value = 'over'
+  haptics.success()
+}
+
+function newGame() {
+  rolls.value = []
+  strikesThisGame = 0
+  gameOver.value = false
+  statLine.value = null
+  rackPins()
+  parkBall()
+  state.value = 'aiming'
+  haptics.light()
+}
+
+function setQuip(t) { quip.value = t; quipUntil = tickN + 200 }
+function setBanner(t, kind) { banner.value = t; bannerKind.value = kind; bannerUntil = tickN + 110 }
+function goBack() { router.push({ name: 'menu' }) }
+</script>
+
+<style scoped>
+.bowl { position: relative; width: 100%; height: 100vh; overflow: hidden; }
+.stage-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; touch-action: none; }
+.hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 8px; right: 8px; display: flex; align-items: center; gap: 8px; z-index: 3; }
+.chips { flex: 1; display: flex; justify-content: center; gap: 6px; }
+.chip { display: flex; flex-direction: column; align-items: center; min-width: 52px; padding: 3px 8px; border-radius: 10px; background: rgba(0,0,0,0.38); color: #fff; backdrop-filter: blur(6px); }
+.chip span { font-size: 0.52rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
+.chip b { font-size: 0.95rem; line-height: 1.1; }
+.chip.mode { font-size: 0.55rem; font-weight: 700; padding: 6px 7px; }
+.marks { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 3; }
+.mark-cell { display: flex; flex-direction: column; align-items: center; min-width: 26px; padding: 2px 3px; border-radius: 6px; background: rgba(0,0,0,0.3); color: #fff; }
+.mark-cell.cur { outline: 1px solid rgba(255,255,255,0.55); }
+.m-rolls { font-size: 0.6rem; font-weight: 700; min-height: 0.8rem; }
+.m-cum { font-size: 0.55rem; opacity: 0.75; min-height: 0.7rem; }
+.banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font-size: 3rem; font-weight: 900; letter-spacing: 0.06em; z-index: 3; pointer-events: none; text-shadow: 0 4px 18px rgba(0,0,0,0.6); }
+.banner.good { color: #7dffb0; }
+.banner.bad { color: #ff8f7d; }
+.quip { position: absolute; top: 26%; left: 50%; transform: translateX(-50%); max-width: 86%; text-align: center; background: rgba(0,0,0,0.45); color: #fff; padding: 5px 14px; border-radius: 999px; font-size: 0.85rem; z-index: 3; }
+.hud-hint { position: absolute; bottom: max(24px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; color: #fff; font-size: 0.85rem; z-index: 2; text-shadow: 0 2px 8px rgba(0,0,0,0.5); pointer-events: none; }
+.bag-btn { position: absolute; right: 10px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 3; display: flex; align-items: center; gap: 7px; padding: 8px 13px 8px 10px; border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; background: rgba(0,0,0,0.4); color: #fff; backdrop-filter: blur(6px); cursor: pointer; }
+.bag-btn:active { transform: scale(0.96); }
+.bag-emoji { font-size: 1.25rem; line-height: 1; }
+.bag-label { font-size: 0.78rem; font-weight: 600; }
+.bag-overlay { position: absolute; inset: 0; z-index: 6; background: rgba(0,0,0,0.5); backdrop-filter: blur(3px); display: flex; align-items: flex-end; }
+.bag-sheet { width: 100%; background: #1c2530; border-radius: 18px 18px 0 0; padding: 12px 14px max(18px, env(safe-area-inset-bottom)); color: #fff; box-shadow: 0 -8px 30px rgba(0,0,0,0.4); }
+.bag-head { display: flex; align-items: center; justify-content: space-between; font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; padding-left: 4px; }
+.bag-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; }
+.ball-card { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 11px 12px; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; background: rgba(255,255,255,0.05); color: #fff; cursor: pointer; }
+.ball-card.active { border-color: #4caf50; background: rgba(76,175,80,0.16); }
+.ball-card:active { transform: scale(0.99); }
+.p-emoji { font-size: 1.7rem; line-height: 1; flex-shrink: 0; }
+.p-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.p-name { font-weight: 700; font-size: 0.95rem; }
+.p-blurb { font-size: 0.75rem; opacity: 0.72; line-height: 1.25; }
+.p-check { color: #6ee07a; font-weight: 800; font-size: 1.1rem; }
+.overlay { position: absolute; inset: 0; z-index: 4; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #fff; padding: 16px; }
+.o-title { font-size: 2rem; font-weight: 800; }
+.o-sub.big { font-size: 2.4rem; font-weight: 900; margin-top: -8px; }
+.o-unlock { background: rgba(76,175,80,0.22); border: 1px solid rgba(110,224,122,0.5); border-radius: 999px; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; }
+.scorecard { max-width: 96vw; overflow-x: auto; }
+.sc-grid { display: flex; gap: 3px; }
+.sc-frame { display: flex; flex-direction: column; align-items: center; min-width: 32px; padding: 4px 3px; border-radius: 6px; background: rgba(255,255,255,0.08); }
+.sc-marks { font-size: 0.72rem; font-weight: 700; min-height: 1rem; }
+.sc-cum { font-size: 0.68rem; opacity: 0.8; min-height: 0.9rem; }
+.row-btns { display: flex; gap: 10px; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.boot { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; z-index: 5; }
+</style>

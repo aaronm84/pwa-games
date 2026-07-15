@@ -1,0 +1,43 @@
+{
+  "name": "Alley Nights",
+  "short_name": "Alley Nights",
+  "description": "Cosmic ten-pin bowling with real physics - strikes, hooks and funky alleys",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0817",
+  "theme_color": "#0b0817",
+  "start_url": ".",
+  "icons": [
+    {
+      "src": "icons/icon-128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-256x256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-384x384.png",
+      "sizes": "384x384",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
