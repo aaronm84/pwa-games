@@ -86,7 +86,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera } from 'src/engine'
+import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer } from 'src/engine'
 import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
 import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
@@ -157,6 +157,9 @@ let disco = null
 let ufo = null
 let tickN = 0
 let quipUntil = 0
+let neonL = null
+let neonR = null
+let strikeFlash = 0
 // swing state: 'idle' → (horizontal drag = aiming) | (downward drag = 'swinging')
 let gestureMode = null
 let aimX = 0 // where the bowler stands (lateral)
@@ -199,7 +202,18 @@ async function boot() {
   await stage.init()
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
-  shadowGen = outdoorLight(scene, { intensity: 0.8 }).shadow
+  shadowGen = outdoorLight(scene, { intensity: 0.5 }).shadow // dim base — the alley lights do the talking
+  // bloom on every emissive: the neon strips, guide line and power cue glow
+  const glow = new GlowLayer('glow', scene)
+  glow.intensity = 0.8
+  // the classic pin-deck spotlight
+  const spot = new SpotLight('deckSpot', new Vector3(0, 6.2, PIN_Z + 2.2), new Vector3(0, -1, -0.35), Math.PI / 2.6, 8, scene)
+  spot.intensity = 1.5
+  spot.diffuse = Color3.FromHexString('#fff2dd')
+  // neon accents washing the lane from each side (hue-cycled in tick)
+  neonL = new PointLight('neonL', new Vector3(-2.4, 1.6, 1.5), scene)
+  neonR = new PointLight('neonR', new Vector3(2.4, 1.6, -2.5), scene)
+  for (const l of [neonL, neonR]) { l.intensity = 0.55; l.range = 13 }
   // flat enough that the ball at the bowler's feet is in frame, high enough to
   // read the whole lane
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
@@ -265,7 +279,7 @@ function hexToRgba(hex) {
 }
 
 function makeBall() {
-  ball = MeshBuilder.CreateSphere('ball', { diameter: BALL_R * 2, segments: 20 }, scene)
+  ball = MeshBuilder.CreateSphere('ball', { diameter: BALL_R * 2, segments: 48 }, scene)
   applyBallLook()
   shadowGen.addShadowCaster(ball)
   ball.position.set(0, BALL_R, START_Z)
@@ -444,7 +458,15 @@ function tick(dt = 1 / 60) {
   if (banner.value && tickN > bannerUntil) banner.value = null
 
   // neon edge color cycling + alley fx
-  const hue = (tickN * 1.2) % 360
+  const hue = (tickN * (strikeFlash > 0 ? 4.5 : 1.2)) % 360
+  if (strikeFlash > 0) strikeFlash--
+  if (neonL) {
+    const boost = strikeFlash > 0 ? (strikeFlash / 90) * 1.9 : 0
+    neonL.intensity = 0.55 + boost
+    neonR.intensity = 0.55 + boost
+    neonL.diffuse = Color3.FromHSV(hue, 0.7, 1)
+    neonR.diffuse = Color3.FromHSV((hue + 140) % 360, 0.7, 1)
+  }
   if (laneKit) {
     laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.85)
     laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, 0.85, 0.85)
@@ -557,6 +579,7 @@ function isSplit() {
 }
 
 function celebrate() {
+  strikeFlash = 90
   disco?.flash()
   ufo?.buzz()
   const palette = [alley.colors.laneEdgeA, alley.colors.laneEdgeB, '#ffffff', alley.colors.pinStripe]

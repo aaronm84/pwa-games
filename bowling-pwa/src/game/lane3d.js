@@ -22,7 +22,6 @@ export const START_Z = 6.2 // where the bowler stands (in frame, below the camer
 const GUTTER_W = 0.62
 
 export const PIN_H = 0.78
-const PIN_D = 0.22
 const PIN_SPACING = 0.58
 
 // standard 10-pin triangle, head pin toward the bowler
@@ -41,9 +40,10 @@ export function buildAlley(scene, shadow, colors) {
   const aggs = []
   const track = (m) => (meshes.push(m), m)
 
-  const laneMat = pbr(scene, { color: colors.lane, rough: 0.35, name: 'lane' })
+  const laneMat = pbr(scene, { color: colors.lane, rough: 0.28, name: 'lane' })
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
+  for (const m of [laneMat, gutterMat, darkMat]) m.maxSimultaneousLights = 6
 
   // lane bed (top at y=0), slick like an oiled lane. The floor STOPS at the pit
   // edge — balls and deadwood drop away behind the pin deck like a real house.
@@ -56,7 +56,9 @@ export function buildAlley(scene, shadow, colors) {
   aggs.push(makeStatic(lane, { shape: PhysicsShapeType.BOX, friction: 0.18, restitution: 0.1 }))
   track(lane)
 
-  // gutters: a lower floor channel each side, with an outer kerb wall
+  // gutters: a lower floor channel each side. The edges are rounded — a soft
+  // lip where the lane drops off, and a smooth cylindrical rail outside —
+  // so a ball rolls INTO the channel on a curve, not off a cliff.
   for (const side of [-1, 1]) {
     const gx = side * (LANE_W / 2 + GUTTER_W / 2)
     const g = MeshBuilder.CreateBox('gutterFloor', { width: GUTTER_W, height: 0.3, depth: floorLen }, scene)
@@ -64,11 +66,20 @@ export function buildAlley(scene, shadow, colors) {
     g.material = gutterMat
     aggs.push(makeStatic(g, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.05 }))
     track(g)
-    const kerb = MeshBuilder.CreateBox('kerb', { width: 0.18, height: 0.5, depth: floorLen }, scene)
-    kerb.position.set(side * (LANE_W / 2 + GUTTER_W + 0.09), 0.1, floorZ)
-    kerb.material = darkMat
-    aggs.push(makeStatic(kerb, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.25 }))
-    track(kerb)
+    // rounded lip at the lane/gutter boundary
+    const lip = MeshBuilder.CreateCylinder('lip', { diameter: 0.09, height: floorLen, tessellation: 20 }, scene)
+    lip.rotation.x = Math.PI / 2
+    lip.position.set(side * (LANE_W / 2 + 0.01), -0.045, floorZ)
+    lip.material = laneMat
+    aggs.push(makeStatic(lip, { shape: PhysicsShapeType.CYLINDER, friction: 0.2, restitution: 0.05 }))
+    track(lip)
+    // smooth outer rail
+    const rail = MeshBuilder.CreateCylinder('rail', { diameter: 0.22, height: floorLen, tessellation: 24 }, scene)
+    rail.rotation.x = Math.PI / 2
+    rail.position.set(side * (LANE_W / 2 + GUTTER_W + 0.1), 0.02, floorZ)
+    rail.material = darkMat
+    aggs.push(makeStatic(rail, { shape: PhysicsShapeType.CYLINDER, friction: 0.3, restitution: 0.2 }))
+    track(rail)
   }
 
   // the pit: a deep floor below/behind the deck so everything visibly drops in
@@ -129,28 +140,55 @@ export function buildAlley(scene, shadow, colors) {
   }
 }
 
-// One pin: a cylinder body (the collider) with a painted stripe and a head.
-// Dynamic from birth so a hit topples it realistically.
+// The classic pin silhouette, lathe-turned: broad belly, slim neck, rounded
+// head. Radii/heights are the real pin's proportions scaled to PIN_H.
+// (r, y) pairs from base to crown, in units of PIN_H.
+const PIN_PROFILE = [
+  [0.067, 0.0],
+  [0.123, 0.064],
+  [0.151, 0.154],
+  [0.159, 0.244], // the belly
+  [0.144, 0.359],
+  [0.108, 0.487],
+  [0.071, 0.615],
+  [0.060, 0.699], // the neck
+  [0.067, 0.769],
+  [0.083, 0.840], // the head
+  [0.079, 0.910],
+  [0.054, 0.968],
+  [0.015, 0.994],
+]
+
+// One pin: a lathed body whose collider is its convex hull, so the ball meets a
+// real pin shape. Dynamic from birth so a hit topples it realistically.
 export function makePin(scene, shadow, x, z, colors) {
-  const body = MeshBuilder.CreateCylinder('pin', { diameter: PIN_D, height: PIN_H, tessellation: 12 }, scene)
-  body.position.set(x, PIN_H / 2, z)
-  const mat = pbr(scene, { color: colors.pin, rough: 0.4, name: 'pinMat' })
+  const shape = PIN_PROFILE.map(([r, y]) => new Vector3(r * PIN_H, y * PIN_H, 0))
+  const body = MeshBuilder.CreateLathe('pin', { shape, tessellation: 28, closed: true, cap: 3 }, scene)
+  body.position.set(x, 0.001, z)
+  const mat = pbr(scene, { color: colors.pin, rough: 0.32, name: 'pinMat' })
+  mat.maxSimultaneousLights = 6
   body.material = mat
   shadow.addShadowCaster(body)
-  const stripe = MeshBuilder.CreateCylinder('stripe', { diameter: PIN_D + 0.015, height: 0.06, tessellation: 12 }, scene)
-  stripe.material = pbr(scene, { color: colors.pinStripe, rough: 0.4, name: 'stripeMat' })
-  stripe.parent = body
-  stripe.position.y = PIN_H * 0.22
-  let agg = new PhysicsAggregate(body, PhysicsShapeType.CYLINDER, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
+  // hull first, then the decorative neck bands (so they don't inflate the hull)
+  let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
   agg.body.setLinearDamping(0.1)
   agg.body.setAngularDamping(0.2)
+  const stripeMat = pbr(scene, { color: colors.pinStripe, rough: 0.4, name: 'stripeMat' })
+  const stripes = []
+  for (const sy of [0.66, 0.735]) {
+    const band = MeshBuilder.CreateTorus('band', { diameter: 0.132 * PIN_H * 2, thickness: 0.016, tessellation: 24 }, scene)
+    band.material = stripeMat
+    band.parent = body
+    band.position.y = sy * PIN_H
+    stripes.push(band)
+  }
   return {
     body,
     home: { x, z },
-    // standing = still mostly upright and still on the deck
+    // standing = still mostly upright, on the deck, not down in the pit
     isStanding() {
       const up = Vector3.TransformNormal(Vector3.Up(), body.getWorldMatrix())
-      return up.y > 0.8 && body.position.y > PIN_H * 0.3 && body.position.z > PIT_Z
+      return up.y > 0.8 && body.position.y > -0.4 && body.position.z > PIT_Z
     },
     // drop the collider now (deadwood must stop interacting) but keep the mesh
     // so the page can fade it out
@@ -161,8 +199,8 @@ export function makePin(scene, shadow, x, z, colors) {
     dispose() {
       agg?.dispose()
       agg = null
-      stripe.material.dispose()
-      stripe.dispose()
+      for (const s of stripes) s.dispose()
+      stripeMat.dispose()
       mat.dispose()
       body.dispose()
     },

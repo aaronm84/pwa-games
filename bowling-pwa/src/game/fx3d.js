@@ -13,7 +13,7 @@ function flat(scene, hex, { alpha = 1, emissive } = {}) {
 
 // A mirror ball hanging over the pin deck. Spins forever; flashes on demand.
 export function makeDiscoBall(scene, x, y, z) {
-  const ball = MeshBuilder.CreateSphere('disco', { diameter: 1.1, segments: 12 }, scene)
+  const ball = MeshBuilder.CreateSphere('disco', { diameter: 1.1, segments: 32 }, scene)
   const mat = new StandardMaterial('discoMat', scene)
   mat.diffuseColor = Color3.FromHexString('#cfd6e4')
   mat.specularColor = new Color3(1, 1, 1)
@@ -81,9 +81,9 @@ export function burstConfetti(scene, x, y, z, palette) {
 export function makeUfo(scene) {
   const mat = flat(scene, '#9aa7b3')
   mat.specularColor = new Color3(0.9, 0.9, 1)
-  const saucer = MeshBuilder.CreateSphere('ufo', { diameterX: 1.6, diameterY: 0.45, diameterZ: 1.6, segments: 12 }, scene)
+  const saucer = MeshBuilder.CreateSphere('ufo', { diameterX: 1.6, diameterY: 0.45, diameterZ: 1.6, segments: 24 }, scene)
   saucer.material = mat
-  const dome = MeshBuilder.CreateSphere('dome', { diameter: 0.8, segments: 10 }, scene)
+  const dome = MeshBuilder.CreateSphere('dome', { diameter: 0.8, segments: 20 }, scene)
   dome.material = flat(scene, '#bfe8ff', { alpha: 0.7 })
   dome.parent = saucer
   dome.position.y = 0.18

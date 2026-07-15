@@ -16,7 +16,9 @@ import '@babylonjs/core/Meshes/Builders/cylinderBuilder'
 import '@babylonjs/core/Meshes/Builders/planeBuilder'
 import '@babylonjs/core/Meshes/Builders/polygonBuilder' // CreatePolygon (uses earcut)
 import '@babylonjs/core/Meshes/Builders/torusBuilder'
-import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc (bird splats)
+import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc
+import '@babylonjs/core/Meshes/Builders/latheBuilder' // CreateLathe (bowling pins)
+import '@babylonjs/core/Layers/effectLayerSceneComponent' // GlowLayer hooks
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // shadows hook into scene render
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent' // adds Scene.enablePhysics
 
@@ -28,6 +30,9 @@ export { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector'
 export { Color3, Color4 } from '@babylonjs/core/Maths/math.color'
 export { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera'
 export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
+export { PointLight } from '@babylonjs/core/Lights/pointLight'
+export { SpotLight } from '@babylonjs/core/Lights/spotLight'
+export { GlowLayer } from '@babylonjs/core/Layers/glowLayer'
 export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight'
 export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 export { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
