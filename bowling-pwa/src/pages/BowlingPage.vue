@@ -479,6 +479,12 @@ function tick(dt = 1 / 60) {
     guide.isVisible = state.value === 'aiming'
     guide.position.x = aimX
   }
+  // the pinsetter sweep drops while the deck is being serviced, lifts to reveal
+  // the fresh rack
+  if (laneKit?.sweep) {
+    const target = state.value === 'sweep' || fading.length ? laneKit.sweepDownY : laneKit.sweepUpY
+    laneKit.sweep.position.y += (target - laneKit.sweep.position.y) * 0.09
+  }
   disco?.update(tickN)
   ufo?.update()
   for (let i = confetti.length - 1; i >= 0; i--) {
@@ -519,7 +525,7 @@ function tick(dt = 1 / 60) {
     if (done) {
       thrown = false
       state.value = 'sweep'
-      sweepAt = tickN + 80 // let the pins finish falling
+      sweepAt = tickN + 95 // pins finish falling while the sweep bar drops
     }
   } else if (state.value === 'sweep') {
     cam.target.z += (-3.5 - cam.target.z) * 0.04 // linger on the pin deck
@@ -556,6 +562,7 @@ function settleThrow() {
   } else if (pos.throw === 0 && knocked > 0 && knocked < 10 && isSplit()) {
     setQuip(pick(alley.lines.split))
   }
+  if (knocked > 0 && !isStrike && !isSpare) haptics.crash(knocked / 10) // pin-crash buzz
 
   const next = rollPosition(rolls.value)
   if (!next) return endGame()

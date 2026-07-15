@@ -82,12 +82,31 @@ export function buildAlley(scene, shadow, colors) {
     track(rail)
   }
 
-  // the pit: a deep floor below/behind the deck so everything visibly drops in
-  const pit = MeshBuilder.CreateBox('pit', { width: LANE_W + 2 * GUTTER_W + 1, height: 0.3, depth: 2.6 }, scene)
+  // the pit: everything past the deck reads as an open VOID — flat-black,
+  // unlit surfaces (no light or glow ever catches them), with a black masking
+  // hood over the opening so the pins stand silhouetted in front of a hole.
+  const voidMat = new StandardMaterial('voidMat', scene)
+  voidMat.diffuseColor = new Color3(0, 0, 0)
+  voidMat.specularColor = new Color3(0, 0, 0)
+  voidMat.disableLighting = true
+  const totalW = LANE_W + 2 * GUTTER_W + 1
+  const pit = MeshBuilder.CreateBox('pit', { width: totalW, height: 0.3, depth: 2.6 }, scene)
   pit.position.set(0, -1.5, DECK_END - 1.3)
-  pit.material = darkMat
+  pit.material = voidMat
   aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
   track(pit)
+  // masking hood above the opening (the "mouth" of the void)
+  const hood = MeshBuilder.CreateBox('hood', { width: totalW, height: 1.8, depth: 0.12 }, scene)
+  hood.position.set(0, 2.0, DECK_END - 0.15)
+  hood.material = voidMat
+  track(hood)
+  // side cheeks inside the pit so no lit surface shows through the opening
+  for (const side of [-1, 1]) {
+    const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: 2.4, depth: 2.8 }, scene)
+    cheek.position.set(side * (totalW / 2 - 0.06), -0.3, DECK_END - 1.4)
+    cheek.material = voidMat
+    track(cheek)
+  }
 
   // neon edge strips (visual) — the page color-cycles their emissive
   const edges = []
@@ -114,13 +133,31 @@ export function buildAlley(scene, shadow, colors) {
     track(a)
   }
 
-  // backstop curtain at the far side of the pit (below deck height, so nothing
-  // ever bounces back onto the lane)
-  const back = MeshBuilder.CreateBox('back', { width: LANE_W + 2 * GUTTER_W + 1, height: 2.2, depth: 0.3 }, scene)
-  back.position.set(0, -0.5, DECK_END - 2.7)
-  back.material = darkMat
+  // backstop curtain at the far side of the pit — pure void-black, and fully
+  // below the deck line so nothing ever bounces back onto the lane
+  const back = MeshBuilder.CreateBox('back', { width: totalW, height: 2.0, depth: 0.3 }, scene)
+  back.position.set(0, -1.0, DECK_END - 2.7)
+  back.material = voidMat
   aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0 }))
   track(back)
+
+  // the sweep: the pinsetter's bar that drops down while the deck is serviced.
+  // Visual-only (deadwood colliders are already gone when it runs); the page
+  // animates sweep.position.y between sweepDownY and sweepUpY.
+  const sweep = MeshBuilder.CreateBox('sweep', { width: LANE_W + 0.7, height: 0.46, depth: 0.16 }, scene)
+  const sweepMat = pbr(scene, { color: '#22242c', rough: 0.5, name: 'sweepMat' })
+  sweepMat.maxSimultaneousLights = 6
+  sweep.material = sweepMat
+  sweep.position.set(0, 3.6, PIN_Z + 1.05)
+  const sweepGlow = MeshBuilder.CreateBox('sweepGlow', { width: LANE_W + 0.7, height: 0.05, depth: 0.17 }, scene)
+  const sweepGlowMat = new StandardMaterial('sweepGlowMat', scene)
+  sweepGlowMat.emissiveColor = Color3.FromHexString(colors.arrow)
+  sweepGlowMat.disableLighting = true
+  sweepGlow.material = sweepGlowMat
+  sweepGlow.parent = sweep
+  sweepGlow.position.y = -0.22
+  track(sweepGlow)
+  track(sweep)
 
   // gutter floor color pulse handle (lava alley)
   const gutterGlow = colors.gutterGlow ? gutterMat : null
@@ -128,6 +165,9 @@ export function buildAlley(scene, shadow, colors) {
   return {
     edges,
     gutterMat: gutterGlow,
+    sweep,
+    sweepDownY: 0.42,
+    sweepUpY: 3.6,
     dispose() {
       for (const a of aggs) a.dispose?.()
       for (const m of meshes) m.dispose()
@@ -135,6 +175,9 @@ export function buildAlley(scene, shadow, colors) {
       gutterMat.dispose()
       darkMat.dispose()
       arrowMat.dispose()
+      voidMat.dispose()
+      sweepMat.dispose()
+      sweepGlowMat.dispose()
       for (const e of edges) e.mat.dispose()
     },
   }
