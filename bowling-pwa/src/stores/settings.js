@@ -19,7 +19,7 @@ export const useSettingsStore = defineStore('settings', () => {
     confirmations: true,
     selectedAlley: 'disco', // which alley to bowl
     selectedBall: 'house', // which ball is equipped
-    laneHazards: false, // theme hazards drop onto the lane
+    hazardLevel: 'light', // lane hazards: 'off' | 'light' (sometimes) | 'wild' (every frame)
     ballColor: null, // custom ball color (null = ball type's own)
     customBall: { mass: 6.5, power: 1.0, hook: 1.2, color: '#7b2ff0' }, // the pro-shop build
     reflections: true, // mirror-polished lane
@@ -39,6 +39,11 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const savedSettings = await storage.loadSettings()
       if (savedSettings) {
+        // migrate the old on/off hazard toggle to the leveled setting
+        if (savedSettings.laneHazards !== undefined && savedSettings.hazardLevel === undefined) {
+          savedSettings.hazardLevel = savedSettings.laneHazards ? 'light' : 'off'
+          delete savedSettings.laneHazards
+        }
         settings.value = { ...settings.value, ...savedSettings }
         console.log('Settings loaded successfully')
       } else {

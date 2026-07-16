@@ -9,7 +9,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'discoball', // mirror ball drops the confetti on strikes
     pin: { body: '#f4f0ff', bands: [{ y: 0.66, c: '#ff3df0' }, { y: 0.735, c: '#28d7fe' }] },
-    hazard: { type: 'sphere', name: 'a rogue mirror ball', d: 0.5, mass: 3, color: '#cfd6e4', shiny: true },
+    hazards: ['mirrorball', 'discoshoe'],
     colors: {
       clear: '#0b0817',
       lane: '#241b3a',
@@ -20,6 +20,8 @@ export const alleys = [
       pin: '#f4f0ff',
       pinStripe: '#ff3df0',
       arrow: '#28d7fe',
+      sweep: '#2a2340',
+      sweepGlow: '#ff3df0',
     },
     sky: 'linear-gradient(160deg,#2a1b4a 0%,#0b0817 100%)',
     lines: {
@@ -38,7 +40,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'lava', // molten gutters pulse; gutter balls sizzle
     pin: { body: '#fff3e6', bands: [{ y: 0.66, c: '#e8481c' }, { y: 0.735, c: '#ffb52f' }] },
-    hazard: { type: 'sphere', name: 'a basalt boulder', d: 0.42, mass: 5, color: '#3a3230' },
+    hazards: ['lavapatch', 'boulder'],
     colors: {
       clear: '#160d0a',
       lane: '#3a2c22',
@@ -50,6 +52,8 @@ export const alleys = [
       pin: '#fff3e6',
       pinStripe: '#e8481c',
       arrow: '#ffb52f',
+      sweep: '#33241c',
+      sweepGlow: '#ff6a1f',
     },
     sky: 'linear-gradient(160deg,#4a2430 0%,#160f12 100%)',
     lines: {
@@ -68,7 +72,7 @@ export const alleys = [
     gravity: -5.2, // floatier pin scatter — the signature gimmick
     fx: 'ufo', // a saucer buzzes the deck on strikes
     pin: { body: '#eef4ff', bands: [{ y: 0.66, c: '#4dff9d' }, { y: 0.735, c: '#4d9dff' }] },
-    hazard: { type: 'sphere', name: 'a drifting asteroid', d: 0.48, mass: 2, color: '#5c6470' },
+    hazards: ['saucer', 'alien'],
     colors: {
       clear: '#050912',
       lane: '#152238',
@@ -79,6 +83,8 @@ export const alleys = [
       pin: '#eef4ff',
       pinStripe: '#4dff9d',
       arrow: '#4dff9d',
+      sweep: '#1b2634',
+      sweepGlow: '#4dff9d',
     },
     sky: 'linear-gradient(160deg,#12203c 0%,#050912 100%)',
     lines: {
@@ -97,7 +103,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'tiki', // torchlight flickers; strikes flare the flames
     pin: { body: '#c98d4e', bands: [{ y: 0.24, c: '#7a4a22' }, { y: 0.49, c: '#2e8b57' }, { y: 0.7, c: '#e8481c' }] },
-    hazard: { type: 'sphere', name: 'a fallen coconut', d: 0.34, mass: 2, color: '#6b4a2b' },
+    hazards: ['coconut', 'pineapple', 'tikidrink', 'fallentorch'],
     colors: {
       clear: '#1a1410',
       lane: '#4a3520',
@@ -108,6 +114,8 @@ export const alleys = [
       pin: '#c98d4e',
       pinStripe: '#7a4a22',
       arrow: '#ffb52f',
+      sweep: '#8a6a3a',
+      sweepGlow: '#ffab3a',
     },
     sky: 'linear-gradient(160deg,#43301c 0%,#150e08 100%)',
     lines: {
@@ -126,7 +134,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'casino', // gold sparkle; strikes hit the jackpot
     pin: { body: '#e8c86a', bands: [{ y: 0.66, c: '#a01a2e' }, { y: 0.735, c: '#7a1522' }] },
-    hazard: { type: 'box', name: 'a giant die', d: 0.42, mass: 3, color: '#f2ede4' },
+    hazards: ['die', 'chipstack', 'cocktail'],
     colors: {
       clear: '#160a0e',
       lane: '#3a1220',
@@ -137,6 +145,8 @@ export const alleys = [
       pin: '#e8c86a',
       pinStripe: '#a01a2e',
       arrow: '#ffd23f',
+      sweep: '#4a1626',
+      sweepGlow: '#ffd23f',
     },
     sky: 'linear-gradient(160deg,#4a1626 0%,#12060c 100%)',
     lines: {
@@ -155,8 +165,9 @@ export const alleys = [
     gravity: -9.81,
     fx: 'poolside', // sunny; strikes splash
     bright: true, // full daylight rig
+    pit: 'water', // no dark backstop — the deck ends over open pool water
     pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
-    hazard: { type: 'sphere', name: 'a beach ball', d: 0.6, mass: 0.8, color: '#ff5e5e' },
+    hazards: ['beachball', 'floaty', 'sunglasses', 'towel', 'sandal'],
     colors: {
       clear: '#bfe4f5',
       lane: '#d8b078',
@@ -167,6 +178,8 @@ export const alleys = [
       pin: '#ffffff',
       pinStripe: '#29b5d8',
       arrow: '#0a7ea4',
+      sweep: '#f2ede4',
+      sweepGlow: '#29b5d8',
     },
     sky: 'linear-gradient(160deg,#8fd0ea 0%,#4a9cc2 100%)',
     lines: {

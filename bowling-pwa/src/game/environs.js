@@ -3,6 +3,7 @@
 // draw calls; only the small animated bits (embers, asteroids) tick.
 import { MeshBuilder, Mesh, Color3, StandardMaterial, pbr } from 'src/engine'
 import { makePinMesh, pinSpots, LANE_W, START_Z, DECK_END } from './lane3d'
+import { addDiePips } from './hazards'
 
 function emissiveMat(scene, hex, { alpha = 1, scale = 1 } = {}) {
   const m = new StandardMaterial('envGlow', scene)
@@ -385,21 +386,19 @@ export function buildEnvirons(scene, alley) {
   } else if (alley.fx === 'casino') {
     // High Roller: giant dice, drifting cards, and a golden sparkle field
     const dieMat = tmat(pbr(scene, { color: '#f2ede4', rough: 0.35, name: 'die' }))
-    const pipMat = tmat(pbr(scene, { color: '#a01a2e', rough: 0.4, name: 'pip' }))
     for (const [dx, dz, rot] of [[-2.9, -3, 0.5], [3, -5.5, 1.1]]) {
       const die = MeshBuilder.CreateBox('bigdie', { size: 1.1 }, scene)
       die.position.set(dx, 0.55, dz)
       die.rotation.y = rot
       die.material = dieMat
       die.isPickable = false
-      die.freezeWorldMatrix()
       track(die)
-      const pip = MeshBuilder.CreateSphere('pip', { diameter: 0.22, segments: 8 }, scene)
-      pip.position.set(dx, 1.11, dz)
-      pip.material = pipMat
-      pip.isPickable = false
-      pip.freezeWorldMatrix()
-      track(pip)
+      // real faces — pip layouts shared with the lane-hazard dice
+      const { pips, mat: bigPipMat } = addDiePips(scene, die, 1.1, '#a01a2e')
+      mats.push(bigPipMat)
+      die.freezeWorldMatrix()
+      pips.freezeWorldMatrix()
+      track(pips)
     }
     // drifting cards
     const cardMat = tmat(pbr(scene, { color: '#f4f0e8', rough: 0.5, name: 'card' }))
@@ -444,10 +443,11 @@ export function buildEnvirons(scene, alley) {
     sun.isPickable = false
     sun.freezeWorldMatrix()
     track(sun)
-    // umbrellas flanking the approach
+    // umbrellas: one pair flanking the OPEN END of the deck (there's no
+    // backstop at the pool — just water behind the pins), one pair up-lane
     const brellaMats = [tmat(pbr(scene, { color: '#ff5e5e', rough: 0.6, name: 'brella1' })), tmat(pbr(scene, { color: '#ffd23f', rough: 0.6, name: 'brella2' }))]
     const poleMat = tmat(pbr(scene, { color: '#e8e2d4', rough: 0.6, name: 'bpole' }))
-    for (const [ux, uz, mi] of [[-2.6, 1.5, 0], [2.7, -1, 1], [-2.9, -6, 1], [3.1, -8.5, 0]]) {
+    for (const [ux, uz, mi] of [[-2.6, 1.5, 0], [2.7, -1, 1], [-2.3, -9.4, 1], [2.4, -9.7, 0]]) {
       const pole = MeshBuilder.CreateCylinder('bp', { diameter: 0.07, height: 1.9, tessellation: 8 }, scene)
       pole.position.set(ux, 0.95, uz)
       pole.material = poleMat

@@ -40,6 +40,7 @@ export function pinSpots() {
 export function buildAlley(scene, shadow, colors, opts = {}) {
   const meshes = []
   const aggs = []
+  const meshesOwnMats = [] // per-alley extras (pit trim) disposed with the kit
   const track = (m) => (meshes.push(m), m)
   const freeze = (m) => (m.freezeWorldMatrix(), m)
 
@@ -99,9 +100,14 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     track(freeze(rail))
   }
 
-  // the pit: everything past the deck reads as an open VOID — flat-black,
-  // unlit surfaces (no light or glow ever catches them), with a black masking
-  // hood over the opening so the pins stand silhouetted in front of a hole.
+  // the pit. Two styles:
+  //  - 'void' (default): everything past the deck reads as an open hole —
+  //    flat-black unlit surfaces with a masking hood, TRIMMED in the alley's
+  //    neon so the machinery belongs to the room instead of floating in it.
+  //  - 'water' (Poolside): no hood, no curtain — the deck simply ends over
+  //    open pool water and the ball drops in. Colliders stay (invisible)
+  //    so physics still swallows everything.
+  const waterPit = opts.pit === 'water'
   const voidMat = new StandardMaterial('voidMat', scene)
   voidMat.diffuseColor = new Color3(0, 0, 0)
   voidMat.specularColor = new Color3(0, 0, 0)
@@ -109,21 +115,43 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   voidMat.freeze()
   const totalW = LANE_W + 2 * GUTTER_W + 1
   const pit = MeshBuilder.CreateBox('pit', { width: totalW, height: 0.3, depth: 2.6 }, scene)
-  pit.position.set(0, -1.5, DECK_END - 1.3)
+  pit.position.set(0, waterPit ? -0.85 : -1.5, DECK_END - 1.3)
   pit.material = voidMat
+  pit.isVisible = !waterPit // under water level — the environs' pool shows instead
   aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
   track(freeze(pit))
-  // masking hood above the opening (the "mouth" of the void)
-  const hood = MeshBuilder.CreateBox('hood', { width: totalW, height: 1.8, depth: 0.12 }, scene)
-  hood.position.set(0, 2.0, DECK_END - 0.15)
-  hood.material = voidMat
-  track(freeze(hood))
-  // side cheeks inside the pit so no lit surface shows through the opening
-  for (const side of [-1, 1]) {
-    const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: 2.4, depth: 2.8 }, scene)
-    cheek.position.set(side * (totalW / 2 - 0.06), -0.3, DECK_END - 1.4)
-    cheek.material = voidMat
-    track(freeze(cheek))
+  if (!waterPit) {
+    // masking hood above the opening (the "mouth" of the void)
+    const hood = MeshBuilder.CreateBox('hood', { width: totalW, height: 1.8, depth: 0.12 }, scene)
+    hood.position.set(0, 2.0, DECK_END - 0.15)
+    hood.material = voidMat
+    track(freeze(hood))
+    // side cheeks inside the pit so no lit surface shows through the opening
+    for (const side of [-1, 1]) {
+      const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: 2.4, depth: 2.8 }, scene)
+      cheek.position.set(side * (totalW / 2 - 0.06), -0.3, DECK_END - 1.4)
+      cheek.material = voidMat
+      track(freeze(cheek))
+    }
+    // tie the machinery into the room: a neon trim strip along the mouth of
+    // the pit and down both corners, in the lane's own edge colors
+    const trimA = new StandardMaterial('pitTrimA', scene)
+    trimA.emissiveColor = Color3.FromHexString(colors.laneEdgeA).scale(0.75)
+    trimA.disableLighting = true
+    const trimB = new StandardMaterial('pitTrimB', scene)
+    trimB.emissiveColor = Color3.FromHexString(colors.laneEdgeB).scale(0.75)
+    trimB.disableLighting = true
+    meshesOwnMats.push(trimA, trimB)
+    const lintel = MeshBuilder.CreateBox('pitTrim', { width: totalW, height: 0.055, depth: 0.14 }, scene)
+    lintel.position.set(0, 1.12, DECK_END - 0.14)
+    lintel.material = trimA
+    track(freeze(lintel))
+    for (const side of [-1, 1]) {
+      const post = MeshBuilder.CreateBox('pitPost', { width: 0.055, height: 1.12, depth: 0.14 }, scene)
+      post.position.set(side * (totalW / 2 - 0.03), 0.56, DECK_END - 0.14)
+      post.material = trimB
+      track(freeze(post))
+    }
   }
 
   // neon edge strips (visual) — the page color-cycles their emissive
@@ -152,24 +180,28 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   }
 
   // backstop curtain at the far side of the pit — pure void-black, and fully
-  // below the deck line so nothing ever bounces back onto the lane
+  // below the deck line so nothing ever bounces back onto the lane. On the
+  // water pit it's invisible: the ball visually plunks into the pool.
   const back = MeshBuilder.CreateBox('back', { width: totalW, height: 2.0, depth: 0.3 }, scene)
   back.position.set(0, -1.0, DECK_END - 2.7)
   back.material = voidMat
+  back.isVisible = !waterPit
   aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0 }))
   track(freeze(back))
 
   // the sweep: the pinsetter's bar that drops down while the deck is serviced.
   // Visual-only (deadwood colliders are already gone when it runs); the page
   // animates sweep.position.y between sweepDownY and sweepUpY.
+  // The arm wears the house colors — bamboo at the tiki grove, gold-trimmed
+  // velvet at the casino, lifeguard white at the pool.
   const sweep = MeshBuilder.CreateBox('sweep', { width: LANE_W + 0.7, height: 0.46, depth: 0.16 }, scene)
-  const sweepMat = pbr(scene, { color: '#22242c', rough: 0.5, name: 'sweepMat' })
+  const sweepMat = pbr(scene, { color: colors.sweep || '#22242c', rough: 0.5, name: 'sweepMat' })
   sweepMat.maxSimultaneousLights = 6
   sweep.material = sweepMat
   sweep.position.set(0, 3.6, PIN_Z + 1.05)
   const sweepGlow = MeshBuilder.CreateBox('sweepGlow', { width: LANE_W + 0.7, height: 0.05, depth: 0.17 }, scene)
   const sweepGlowMat = new StandardMaterial('sweepGlowMat', scene)
-  sweepGlowMat.emissiveColor = Color3.FromHexString(colors.arrow)
+  sweepGlowMat.emissiveColor = Color3.FromHexString(colors.sweepGlow || colors.arrow)
   sweepGlowMat.disableLighting = true
   sweepGlow.material = sweepGlowMat
   sweepGlow.parent = sweep
@@ -198,6 +230,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
       voidMat.dispose()
       sweepMat.dispose()
       sweepGlowMat.dispose()
+      for (const m of meshesOwnMats) m.dispose()
       for (const e of edges) e.mat.dispose()
     },
   }

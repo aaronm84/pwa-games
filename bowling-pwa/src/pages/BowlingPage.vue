@@ -12,7 +12,7 @@
       <div class="chips" v-else>
         <div class="chip" :class="{ turn: bowler === 'me' }"><span>You</span><b>{{ myTotal }}</b></div>
         <div class="chip"><span>Frame</span><b>{{ frameNum }}/10</b></div>
-        <div class="chip" :class="{ turn: bowler === 'ai' }"><span>{{ vsRival.emoji }}</span><b>{{ aiTotal }}</b></div>
+        <div class="chip chip-rival" :class="{ turn: bowler === 'ai' }"><RivalAvatar :id="vsRival.id" :size="20" /><b>{{ aiTotal }}</b></div>
       </div>
       <div class="chip mode">{{ backend }}</div>
     </div>
@@ -132,8 +132,10 @@ import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
 import { balls } from 'src/game/balls'
 import { rivalById, planThrow } from 'src/game/rivals'
+import { pickHazards, spawnHazard } from 'src/game/hazards'
 import { makeDiscoBall, burstConfetti, makeUfo } from 'src/game/fx3d'
 import { buildEnvirons } from 'src/game/environs'
+import RivalAvatar from 'src/components/RivalAvatar.vue'
 import { useSettingsStore } from 'src/stores/settings'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
@@ -253,6 +255,7 @@ let throwTick = 0
 let gutterBall = false
 let sweepAt = 0
 let gutterQuipped = false
+let patchSizzled = false // the lava patch only quips once per throw
 let strikesThisGame = 0
 let aiActAt = -1 // when the rival takes their next throw
 
@@ -268,7 +271,7 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
-  for (const h of hazards) { h.agg?.dispose(); h.mesh.dispose(); h.mat.dispose() }
+  for (const h of hazards) h.dispose()
   environs?.dispose()
   traceMesh?.dispose()
   disco?.dispose()
@@ -310,7 +313,7 @@ async function boot() {
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit })
   environs = buildEnvirons(scene, alley)
 
   makeBall()
@@ -370,6 +373,7 @@ async function boot() {
       rollsAI: [...rollsAI.value],
       vs: vsRival?.id ?? null,
       hazardCount: hazards.length,
+      hazardIds: hazards.map((h) => h.id),
       aimX,
       lastLaunch,
       selectBall,
@@ -398,14 +402,17 @@ function makeBall() {
   refreshMirror()
 }
 function applyBallLook() {
+  const b = activeBall.value
+  applyLook({ color: settings.settings.ballColor || b.color, glow: b.glow ? settings.settings.ballColor || b.glow : null })
+}
+function applyLook({ color, glow }) {
   ball.material?.dispose()
   ballGlowMat?.dispose()
-  const b = activeBall.value
-  const color = settings.settings.ballColor || b.color // custom paint over any type
-  if (b.glow) {
+  ballGlowMat = null
+  if (glow) {
     const m = new StandardMaterial('ballMat', scene)
     m.diffuseColor = Color3.FromHexString(color)
-    m.emissiveColor = Color3.FromHexString(settings.settings.ballColor || b.glow).scale(0.55)
+    m.emissiveColor = Color3.FromHexString(glow).scale(0.55)
     m.specularColor = new Color3(0.9, 0.9, 0.9)
     ball.material = m
     ballGlowMat = m
@@ -413,9 +420,21 @@ function applyBallLook() {
     ball.material = pbr(scene, { color, rough: 0.25, name: 'ballMat' })
   }
 }
+// the rival brings their own ball: swap look + weight whenever the lane
+// changes hands, and hand the bowler's own ball back afterwards
+function syncBallToBowler() {
+  if (bowler.value === 'ai' && vsRival?.ball) {
+    applyLook({ color: vsRival.ball.color, glow: vsRival.ball.glow || null })
+    ballAgg.body.setMassProperties({ mass: vsRival.ball.mass })
+  } else {
+    applyBallLook()
+    ballAgg.body.setMassProperties({ mass: activeBall.value.mods.mass })
+  }
+}
 function setBallColor(hex) {
   settings.updateSetting('ballColor', hex)
-  applyBallLook()
+  if (vsRival) syncBallToBowler()
+  else applyBallLook()
   haptics.light()
 }
 function saveCustomBall(patch) {
@@ -447,34 +466,32 @@ function rackPins() {
   spawnHazards()
   refreshMirror()
 }
-// theme hazards: stuff falls onto the lane and you bowl around (or through) it
+// lane hazards: themed junk (plus cross-theme clutter — rogue pins, spilled
+// drinks, lost shoes) scattered on the boards. Frequency follows the hazard
+// level: light = sometimes one, wild = always a mess.
 function spawnHazards() {
-  for (const h of hazards) { h.agg?.dispose(); h.mesh.dispose(); h.mat.dispose() }
+  for (const h of hazards) h.dispose()
   hazards = []
-  if (!(settings.settings.laneHazards || devParam('hazards')) || !alley.hazard) return
-  const def = alley.hazard
-  const n = 1 + (Math.random() < 0.45 ? 1 : 0)
-  for (let i = 0; i < n; i++) {
-    const mesh = def.type === 'box'
-      ? MeshBuilder.CreateBox('hzd', { size: def.d }, scene)
-      : MeshBuilder.CreateSphere('hzd', { diameter: def.d, segments: 20 }, scene)
-    const mat = pbr(scene, { color: def.color, rough: def.shiny ? 0.2 : 0.7, name: 'hzdMat' })
-    mat.maxSimultaneousLights = 6
-    mesh.material = mat
-    mesh.position.set(-0.8 + Math.random() * 1.6, def.d / 2 + 0.02, -0.5 - Math.random() * 4)
-    if (def.type === 'box') mesh.rotation.y = Math.random() * Math.PI
-    shadowGen.addShadowCaster(mesh)
-    const agg = makeDynamic(mesh, { mass: def.mass, restitution: 0.4, friction: 0.5, linearDamping: 0.4, angularDamping: 0.4 })
-    hazards.push({ mesh, mat, agg })
+  const dv = devParam('hazards')
+  const level = dv === '1' ? 'wild' : dv || settings.settings.hazardLevel
+  const ids = pickHazards(alley, level, devParam('hazard'))
+  for (const id of ids) {
+    const h = spawnHazard(scene, id)
+    if (!h) continue
+    for (const m of h.meshes) if (m.isVisible !== false) shadowGen.addShadowCaster(m)
+    hazards.push(h)
   }
-  setQuip(`Heads up — ${def.name} on the lane.`)
+  if (hazards.length) {
+    const names = [...new Set(hazards.map((h) => h.name))]
+    setQuip(`Heads up — ${names.join(' and ')} on the lane.`)
+  }
 }
 // keep the lane's mirror reflecting the things that matter (and only those)
 function refreshMirror() {
   if (!laneKit?.mirror) return
   laneKit.mirror.renderList = [
     ...pins.map((p) => p.body),
-    ...hazards.map((h) => h.mesh),
+    ...hazards.flatMap((h) => h.meshes.filter((m) => m.isVisible !== false)),
     ...(ball ? [ball] : []),
     ...laneKit.edges.map((e) => e.mesh),
     laneKit.sweep,
@@ -496,8 +513,11 @@ function clearDeadwood() {
 function selectBall(id) {
   activeBallId.value = id
   settings.updateSetting('selectedBall', id)
-  applyBallLook()
-  ballAgg.body.setMassProperties({ mass: (rackBalls.value.find((b) => b.id === id) || balls[0]).mods.mass })
+  if (vsRival) syncBallToBowler() // never repaint the rival's ball mid-turn
+  else {
+    applyBallLook()
+    ballAgg.body.setMassProperties({ mass: (rackBalls.value.find((b) => b.id === id) || balls[0]).mods.mass })
+  }
   showRack.value = false
   haptics.light()
 }
@@ -602,6 +622,7 @@ function launch(speed, spin, vx0 = 0) {
   throwTick = tickN
   gutterBall = false
   gutterQuipped = false
+  patchSizzled = false
   state.value = 'rolling'
   ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), BALL_R, START_Z)
   ballAgg.body.disablePreStep = false
@@ -685,7 +706,8 @@ function tick(dt = 1 / 60) {
     if (onLane && ball.__spin) {
       const progress = Math.min(1, (START_Z - ball.position.z) / 14)
       const a = ball.__spin * 4.6 * progress
-      ballAgg.body.applyImpulse(new Vector3(a * activeBall.value.mods.mass * dt, 0, 0), ball.getAbsolutePosition())
+      const massNow = bowler.value === 'ai' && vsRival?.ball ? vsRival.ball.mass : activeBall.value.mods.mass
+      ballAgg.body.applyImpulse(new Vector3(a * massNow * dt, 0, 0), ball.getAbsolutePosition())
     }
     // gutter
     if (!gutterBall && Math.abs(ball.position.x) > LANE_W / 2 + 0.05 && ball.position.z > PIN_Z + 0.9) {
@@ -696,6 +718,20 @@ function tick(dt = 1 / 60) {
         setQuip(pick(alley.lines.gutter))
       }
     }
+    // encroaching lava: rolling through the molten patch costs real speed
+    for (const h of hazards) {
+      if (!h.patch) continue
+      const dx = ball.position.x - h.patch.x
+      const dz = ball.position.z - h.patch.z
+      if (dx * dx + dz * dz < h.patch.r * h.patch.r) {
+        ballAgg.body.setLinearVelocity(v.scale(0.975))
+        if (!patchSizzled) {
+          patchSizzled = true
+          setQuip('Ssssizzle — right through the lava.')
+          haptics.light()
+        }
+      }
+    }
     // follow cam
     cam.target.z += (Math.max(ball.position.z * 0.55, -4.2) + 1.6 - cam.target.z) * 0.05
     cam.radius += (6.4 - cam.radius) * 0.03
@@ -703,6 +739,10 @@ function tick(dt = 1 / 60) {
     const speed = Math.hypot(v.x, v.y, v.z)
     const done = ball.position.z < PIT_Z || ball.position.y < -0.35 || (speed < 0.35 && tickN - throwTick > 40) || tickN - throwTick > 420
     if (done) {
+      // at the pool there's no pit curtain — the ball plunks into the water
+      if (alley.pit === 'water' && (ball.position.z < PIT_Z || ball.position.y < -0.35)) {
+        confetti.push(burstConfetti(scene, Math.max(-1.6, Math.min(1.6, ball.position.x)), 0.4, PIT_Z - 0.6, ['#bfe8ff', '#7fd0ea', '#ffffff', '#4a9cc2']))
+      }
       thrown = false
       state.value = 'sweep'
       sweepAt = tickN + 95 // pins finish falling while the sweep bar drops
@@ -791,11 +831,12 @@ function settleThrow() {
       const other = mine ? 'ai' : 'me'
       const otherDone = other === 'ai' ? aiDone : myDone
       bowler.value = otherDone ? bowler.value : other
+      syncBallToBowler()
       rackPins()
       parkBall()
       state.value = 'aiming'
       if (bowler.value === 'ai') {
-        setBanner(`${vsRival.emoji} ${vsRival.name}`, 'good')
+        setBanner(`${vsRival.name}'s turn`, 'good')
         setQuip(vsRival.taunt)
         aiActAt = tickN + 130
       }
@@ -877,6 +918,7 @@ function newGame() {
   rollsAI.value = []
   bowler.value = 'me'
   aiActAt = -1
+  if (vsRival) syncBallToBowler()
   strikesThisGame = 0
   gameOver.value = false
   statLine.value = null
@@ -901,6 +943,8 @@ function goBack() { router.push({ name: 'menu' }) }
 .chip b { font-size: 0.95rem; line-height: 1.1; }
 .chip.mode { font-size: 0.55rem; font-weight: 700; padding: 6px 7px; }
 .chip.turn { outline: 2px solid rgba(110,224,122,0.8); }
+.chip-rival { gap: 1px; }
+.chip-rival .rival-avatar { margin-top: 1px; }
 .marks { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 3; }
 .mark-cell { display: flex; flex-direction: column; align-items: center; min-width: 26px; padding: 2px 3px; border-radius: 6px; background: rgba(0,0,0,0.3); color: #fff; }
 .mark-cell.cur { outline: 1px solid rgba(255,255,255,0.55); }

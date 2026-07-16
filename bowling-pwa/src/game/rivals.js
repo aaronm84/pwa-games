@@ -8,6 +8,8 @@ export const rivals = [
     blurb: 'Slow. Unbothered. Occasionally brilliant.',
     skill: 0.45,
     taunt: 'Rollo yawns, then bowls.',
+    // every rival brings their own ball — the lane swaps to it on their turn
+    ball: { color: '#8a6a4a', mass: 5, name: 'The Snoozer' },
   },
   {
     id: 'rex',
@@ -16,6 +18,7 @@ export const rivals = [
     blurb: 'All power. Tiny arms, huge hook.',
     skill: 0.62,
     taunt: 'Rexxie ROARS at the pins.',
+    ball: { color: '#3fa060', mass: 9, name: 'The Meteor' },
   },
   {
     id: 'sparo',
@@ -24,6 +27,7 @@ export const rivals = [
     blurb: 'Cold. Calculating. Converts.',
     skill: 0.78,
     taunt: 'SPARE-O computes the pocket.',
+    ball: { color: '#9aa4b2', mass: 7, glow: '#28d7fe', name: 'Unit 07' },
   },
   {
     id: 'lois',
@@ -32,6 +36,7 @@ export const rivals = [
     blurb: 'League champion, 1974–present.',
     skill: 0.9,
     taunt: 'Granny Lois cracks her knuckles.',
+    ball: { color: '#b13df0', mass: 7.5, glow: '#ff8ac2', name: 'Old Reliable' },
   },
 ]
 

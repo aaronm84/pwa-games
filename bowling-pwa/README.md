@@ -26,17 +26,24 @@ Havok, carried over from Mini Golf 3D). See `docs/ENGINE.md` at the repo root.
   zero chill). Any ball can be **repainted** from an eight-swatch palette, and
   the **Pro Shop** (🎨 in-game) builds a fully custom fifth ball: weight, punch
   and hook sliders plus a shell color.
-- **Rivals & tournament** — challenge one of four regulars (Cousin Rollo 🦥,
-  Rexxie 🦖, SPARE-O 3000 🤖, Granny Lois 👵) to a head-to-head game: you
-  alternate frames on the same physics lane, and the rival actually bowls —
+- **Rivals & tournament** — challenge one of four regulars (Cousin Rollo,
+  Rexxie, SPARE-O 3000, Granny Lois — each with a hand-drawn league portrait)
+  to a head-to-head game on **any alley** (the rival picker has an alley row):
+  you alternate frames on the same physics lane, and the rival actually bowls —
   skill-based aim at the pocket or at what's standing, with hook and speed noise
-  scaling down as skill goes up. **Tournament** runs the three toughest rivals
-  as a ladder: win to advance, lose and it resets, survive Granny Lois to take
-  the title.
-- **Lane hazards (optional)** — a Settings toggle drops themed obstacles on the
-  lane each frame (coconuts at Tiki Grove, giant dice at High Roller, beach
-  balls at Poolside, a rogue mirror ball at Disco Nova…) that you bowl around —
-  or through, if you're feeling strong.
+  scaling down as skill goes up. Every rival **brings their own ball** (look and
+  weight swap in on their turn — Rexxie hurls a 9-pound Meteor, Rollo lobs the
+  5-pound Snoozer). **Tournament** runs the three toughest rivals as a ladder:
+  win to advance, lose and it resets, survive Granny Lois to take the title.
+- **Lane hazards (leveled)** — a Settings level (Off / Light / Wild) scatters
+  junk on the boards to bowl around. Every alley has its own catalog —
+  platform disco shoes and rogue mirror balls; **encroaching lava** that
+  visibly slows any ball that rolls through it; a crash-landed saucer and a
+  passed-out alien; pineapples, mai tais and still-burning fallen torches;
+  pip-faced dice, chip stacks and stray martinis; beach balls, floaties,
+  sunglasses, towels and flip-flops — plus cross-theme clutter (a rogue pin
+  from lane 12, somebody's spilled soda, a runaway house ball, a lost rental
+  shoe) that can turn up anywhere. Light = sometimes one; Wild = always a mess.
 
 ## Graphics & options
 
@@ -64,11 +71,14 @@ a faint line traces the path your ball took.
 | 🛸 **Zero-G Lanes** | Space-station lanes | **Lower gravity** — pins topple in slow motion; a UFO buzzes strikes |
 | 🗿 **Tiki Grove** | Jungle dusk: torches, palms, fireflies | Carved **totem pins**; coconut hazards |
 | 🎰 **High Roller** | Velvet, gold, terrible odds | Giant dice and drifting cards; gilded pins |
-| 🏖️ **Poolside** | Full daylight on the boardwalk | Water, umbrellas, bobbing floaties; beach-ball hazards |
+| 🏖️ **Poolside** | Full daylight on the boardwalk | **No backstop at all** — the deck ends over open water (splash!), flanked by umbrellas |
 
 Each alley has its own announcer lines for strikes, spares, gutters, and splits —
 and its own **pin livery**: every theme dresses the lathe-turned pins in its own
-body color and band set (the tiki pins are three-band carved totems).
+body color and band set (the tiki pins are three-band carved totems). The
+machinery wears the house colors too: the pit mouth is trimmed in the lane's
+neon and the **pinsetter sweep arm is themed per alley** — bamboo at the grove,
+gold-trimmed velvet at the casino, lifeguard white at the pool.
 
 ## Develop / build
 
