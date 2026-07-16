@@ -222,20 +222,14 @@ const PIN_PROFILE = [
   [0.015, 0.994],
 ]
 
-// One pin: a lathed body whose collider is its convex hull, so the ball meets a
-// real pin shape. Dynamic from birth so a hit topples it realistically.
-export function makePin(scene, shadow, x, z, colors) {
+// The bare pin visual (lathed body + neck bands) — shared by the real physics
+// pins and the ghost pins on the neighbor lanes.
+export function makePinMesh(scene, colors, name = 'pin') {
   const shape = PIN_PROFILE.map(([r, y]) => new Vector3(r * PIN_H, y * PIN_H, 0))
-  const body = MeshBuilder.CreateLathe('pin', { shape, tessellation: 28, closed: true, cap: 3 }, scene)
-  body.position.set(x, 0.001, z)
+  const body = MeshBuilder.CreateLathe(name, { shape, tessellation: 28, closed: true, cap: 3 }, scene)
   const mat = pbr(scene, { color: colors.pin, rough: 0.32, name: 'pinMat' })
   mat.maxSimultaneousLights = 6
   body.material = mat
-  shadow.addShadowCaster(body)
-  // hull first, then the decorative neck bands (so they don't inflate the hull)
-  let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
-  agg.body.setLinearDamping(0.1)
-  agg.body.setAngularDamping(0.2)
   const stripeMat = pbr(scene, { color: colors.pinStripe, rough: 0.4, name: 'stripeMat' })
   const stripes = []
   for (const sy of [0.66, 0.735]) {
@@ -245,6 +239,19 @@ export function makePin(scene, shadow, x, z, colors) {
     band.position.y = sy * PIN_H
     stripes.push(band)
   }
+  return { body, stripes, mats: [mat, stripeMat] }
+}
+
+// One pin: a lathed body whose collider is its convex hull, so the ball meets a
+// real pin shape. Dynamic from birth so a hit topples it realistically.
+export function makePin(scene, shadow, x, z, colors) {
+  const { body, stripes, mats } = makePinMesh(scene, colors)
+  body.position.set(x, 0.001, z)
+  shadow.addShadowCaster(body)
+  const agg0 = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
+  let agg = agg0
+  agg.body.setLinearDamping(0.1)
+  agg.body.setAngularDamping(0.2)
   return {
     body,
     home: { x, z },
@@ -263,8 +270,7 @@ export function makePin(scene, shadow, x, z, colors) {
       agg?.dispose()
       agg = null
       for (const s of stripes) s.dispose()
-      stripeMat.dispose()
-      mat.dispose()
+      for (const m of mats) m.dispose()
       body.dispose()
     },
   }

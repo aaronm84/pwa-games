@@ -87,7 +87,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer } from 'src/engine'
+import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer } from 'src/engine'
 import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
 import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
@@ -161,6 +161,9 @@ let tickN = 0
 let quipUntil = 0
 let neonL = null
 let neonR = null
+let deckSpot = null
+let ipcRef = null
+let glowLayer = null
 let strikeFlash = 0
 let environs = null
 let ffHold = false // hold during a roll to fast-forward
@@ -220,13 +223,14 @@ async function boot() {
   ipc.vignetteWeight = 1.5
   // bloom on every emissive: the neon strips, guide line and power cue glow
   if (settings.settings.glowFx !== false) {
-    const glow = new GlowLayer('glow', scene, { mainTextureRatio: 0.5 })
-    glow.intensity = 0.8
+    glowLayer = new GlowLayer('glow', scene, { mainTextureRatio: 0.5 })
+    glowLayer.intensity = 0.8
   }
   // the classic pin-deck spotlight
-  const spot = new SpotLight('deckSpot', new Vector3(0, 6.2, PIN_Z + 2.2), new Vector3(0, -1, -0.35), Math.PI / 2.6, 8, scene)
-  spot.intensity = 1.5
-  spot.diffuse = Color3.FromHexString('#fff2dd')
+  deckSpot = new SpotLight('deckSpot', new Vector3(0, 6.2, PIN_Z + 2.2), new Vector3(0, -1, -0.35), Math.PI / 2.6, 8, scene)
+  deckSpot.intensity = 1.5
+  deckSpot.diffuse = Color3.FromHexString('#fff2dd')
+  ipcRef = ipc
   // neon accents washing the lane from each side (hue-cycled in tick)
   neonL = new PointLight('neonL', new Vector3(-2.4, 1.6, 1.5), scene)
   neonR = new PointLight('neonR', new Vector3(2.4, 1.6, -2.5), scene)
@@ -242,15 +246,24 @@ async function boot() {
   makeBall()
   rackPins()
 
-  // the target line: a faint straight guide from the bowler down the lane,
-  // visible while aiming/swinging (Switch-bowling style)
-  guide = MeshBuilder.CreateBox('guide', { width: 0.05, height: 0.012, depth: 9 }, scene)
-  const gm = new StandardMaterial('guideMat', scene)
-  gm.emissiveColor = Color3.FromHexString(alley.colors.arrow)
-  gm.disableLighting = true
-  gm.alpha = 0.4
-  guide.material = gm
-  guide.position.set(0, 0.02, START_Z - 5.2)
+  // the target line: a subtle DASHED guide from the bowler down the lane —
+  // clearly an aiming aid, not a laser through the alley
+  {
+    const dashes = []
+    for (let i = 0; i < 9; i++) {
+      const d = MeshBuilder.CreateBox('gd', { width: 0.05, height: 0.012, depth: 0.3 }, scene)
+      d.position.set(0, 0.02, START_Z - 1.4 - i * 0.95)
+      dashes.push(d)
+    }
+    guide = Mesh.MergeMeshes(dashes, true, true)
+    const gm = new StandardMaterial('guideMat', scene)
+    gm.emissiveColor = Color3.FromHexString(alley.colors.arrow).scale(0.7)
+    gm.disableLighting = true
+    gm.alpha = 0.32
+    guide.material = gm
+    guide.isPickable = false
+    glowLayer?.addExcludedMesh(guide) // an aim guide, not a laser — never bloom it
+  }
 
   // the power cue behind the ball while winding up
   aimArrow = MeshBuilder.CreateBox('aim', { width: 0.14, height: 0.04, depth: 1 }, scene)
@@ -272,6 +285,7 @@ async function boot() {
   booting.value = false
 
   if (import.meta.env.DEV) {
+    window.__scene = scene
     window.__bwl = () => ({
       backend: stage.backend,
       state: state.value,
@@ -498,15 +512,21 @@ function tick(dt = 1 / 60) {
   if (banner.value && tickN > bannerUntil) banner.value = null
 
   // neon edge color cycling + alley fx
-  const hue = (tickN * (strikeFlash > 0 ? 4.5 : 1.2)) % 360
+  // the room's mood drifts as the round progresses (each frame shifts the base
+  // hue), and the tenth frame goes clutch: dimmer neon, hotter deck spotlight
+  const clutch = curFrame.value === 9 && !gameOver.value && rolls.value.length > 0
+  const hue = (curFrame.value * 36 + tickN * (strikeFlash > 0 ? 4.5 : 1.2)) % 360
   if (strikeFlash > 0) strikeFlash--
   if (neonL) {
+    const base = clutch ? 0.32 : 0.55
     const boost = strikeFlash > 0 ? (strikeFlash / 90) * 1.9 : 0
-    neonL.intensity = 0.55 + boost
-    neonR.intensity = 0.55 + boost
+    neonL.intensity += (base + boost - neonL.intensity) * 0.05
+    neonR.intensity = neonL.intensity
     neonL.diffuse = Color3.FromHSV(hue, 0.7, 1)
     neonR.diffuse = Color3.FromHSV((hue + 140) % 360, 0.7, 1)
   }
+  if (deckSpot) deckSpot.intensity += ((clutch ? 2.3 : 1.5) - deckSpot.intensity) * 0.04
+  if (ipcRef) ipcRef.vignetteWeight += ((clutch ? 2.2 : 1.5) - ipcRef.vignetteWeight) * 0.04
   if (laneKit) {
     laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.85)
     laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, 0.85, 0.85)

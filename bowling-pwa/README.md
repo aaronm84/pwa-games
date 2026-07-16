@@ -32,6 +32,11 @@ surface), every emissive **blooms** through a glow layer, and each alley has a
 full environment beyond the lane — neon arches and a starfield at Disco Nova, a
 glowing volcano, canyon crags and drifting embers at Lava Lanes, a ringed planet
 and slow asteroids at Zero-G. Statics are merged + frozen so it all stays cheap.
+The house is alive: **neighbor lanes on both sides get bowled by ghost players**
+(their pins scatter and re-rack on their own schedules), each alley runs ambient
+events (laser sweeps from the mirror ball, volcano eruptions, passing comets),
+and the room's lighting drifts as your round progresses — the **tenth frame goes
+clutch**: neon dims, the deck spotlight burns hotter, the vignette closes in.
 Settings has a **Lane & Graphics** panel: reflections, glow, ball-path trace,
 snappy pinsetter, and hook/power sensitivity sliders. During a roll, **hold to
 fast-forward**; releasing mid-backswing **cancels** the throw; after each throw
