@@ -8,6 +8,8 @@ export const alleys = [
     icon: '🪩',
     gravity: -9.81,
     fx: 'discoball', // mirror ball drops the confetti on strikes
+    pin: { body: '#f4f0ff', bands: [{ y: 0.66, c: '#ff3df0' }, { y: 0.735, c: '#28d7fe' }] },
+    hazard: { type: 'sphere', name: 'a rogue mirror ball', d: 0.5, mass: 3, color: '#cfd6e4', shiny: true },
     colors: {
       clear: '#0b0817',
       lane: '#241b3a',
@@ -35,6 +37,8 @@ export const alleys = [
     icon: '🌋',
     gravity: -9.81,
     fx: 'lava', // molten gutters pulse; gutter balls sizzle
+    pin: { body: '#fff3e6', bands: [{ y: 0.66, c: '#e8481c' }, { y: 0.735, c: '#ffb52f' }] },
+    hazard: { type: 'sphere', name: 'a basalt boulder', d: 0.42, mass: 5, color: '#3a3230' },
     colors: {
       clear: '#160d0a',
       lane: '#3a2c22',
@@ -63,6 +67,8 @@ export const alleys = [
     icon: '🛸',
     gravity: -5.2, // floatier pin scatter — the signature gimmick
     fx: 'ufo', // a saucer buzzes the deck on strikes
+    pin: { body: '#eef4ff', bands: [{ y: 0.66, c: '#4dff9d' }, { y: 0.735, c: '#4d9dff' }] },
+    hazard: { type: 'sphere', name: 'a drifting asteroid', d: 0.48, mass: 2, color: '#5c6470' },
     colors: {
       clear: '#050912',
       lane: '#152238',
@@ -81,6 +87,94 @@ export const alleys = [
       gutter: ['Gutter. Lost to the void.', 'That ball has achieved escape velocity. Sadly.'],
       split: ['A split, drifting apart. Poetic.', 'Split detected. Thrusters won’t help.'],
       open: ['Pins still standing. Gravity’s alibi.', 'The station keeps a few survivors.'],
+    },
+  },
+  {
+    id: 'tiki',
+    name: 'Tiki Grove',
+    tagline: 'Dusk in the jungle. Torches, totems, and the occasional coconut.',
+    icon: '🗿',
+    gravity: -9.81,
+    fx: 'tiki', // torchlight flickers; strikes flare the flames
+    pin: { body: '#c98d4e', bands: [{ y: 0.24, c: '#7a4a22' }, { y: 0.49, c: '#2e8b57' }, { y: 0.7, c: '#e8481c' }] },
+    hazard: { type: 'sphere', name: 'a fallen coconut', d: 0.34, mass: 2, color: '#6b4a2b' },
+    colors: {
+      clear: '#1a1410',
+      lane: '#4a3520',
+      laneEdgeA: '#ff8a3a',
+      laneEdgeB: '#59c26a',
+      gutter: '#241a10',
+      backstop: '#0e0a06',
+      pin: '#c98d4e',
+      pinStripe: '#7a4a22',
+      arrow: '#ffb52f',
+    },
+    sky: 'linear-gradient(160deg,#43301c 0%,#150e08 100%)',
+    lines: {
+      strike: ['STRIKE! The totems approve.', 'All ten! The torches just flared.', 'The jungle goes quiet. Respect.'],
+      spare: ['Spare! Smooth as coconut milk.', 'Cleaned up, island style.'],
+      gutter: ['Gutter. The tiki gods frown.', 'That one rolled to the sea.'],
+      split: ['A split. Somewhere, a drum stops.', 'The totems saw that split. Sorry.'],
+      open: ['Pins left standing. The jungle waits.', 'The totems are unimpressed.'],
+    },
+  },
+  {
+    id: 'casino',
+    name: 'High Roller',
+    tagline: 'Velvet, gold, and terrible odds. The house always wins. Usually.',
+    icon: '🎰',
+    gravity: -9.81,
+    fx: 'casino', // gold sparkle; strikes hit the jackpot
+    pin: { body: '#e8c86a', bands: [{ y: 0.66, c: '#a01a2e' }, { y: 0.735, c: '#7a1522' }] },
+    hazard: { type: 'box', name: 'a giant die', d: 0.42, mass: 3, color: '#f2ede4' },
+    colors: {
+      clear: '#160a0e',
+      lane: '#3a1220',
+      laneEdgeA: '#ffd23f',
+      laneEdgeB: '#ff4a6a',
+      gutter: '#1c0a10',
+      backstop: '#0c0508',
+      pin: '#e8c86a',
+      pinStripe: '#a01a2e',
+      arrow: '#ffd23f',
+    },
+    sky: 'linear-gradient(160deg,#4a1626 0%,#12060c 100%)',
+    lines: {
+      strike: ['JACKPOT! All ten pay out.', 'STRIKE! The pit boss is watching.', 'Ten for ten. House edge, erased.'],
+      spare: ['Spare! Double or nothing next.', 'The comeback pays 2 to 1.'],
+      gutter: ['Gutter. The house thanks you.', 'That roll was… a donation.'],
+      split: ['A split. Snake eyes.', 'Ouch. The odds just moved.'],
+      open: ['Pins stand. The house smiles.', 'Left some chips on the table.'],
+    },
+  },
+  {
+    id: 'pool',
+    name: 'Poolside',
+    tagline: 'Daylight bowling on the boardwalk. Mind the beach balls.',
+    icon: '🏖️',
+    gravity: -9.81,
+    fx: 'poolside', // sunny; strikes splash
+    bright: true, // full daylight rig
+    pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
+    hazard: { type: 'sphere', name: 'a beach ball', d: 0.6, mass: 0.8, color: '#ff5e5e' },
+    colors: {
+      clear: '#bfe4f5',
+      lane: '#d8b078',
+      laneEdgeA: '#29b5d8',
+      laneEdgeB: '#ff8a5a',
+      gutter: '#3aa0c8',
+      backstop: '#7fb8d0',
+      pin: '#ffffff',
+      pinStripe: '#29b5d8',
+      arrow: '#0a7ea4',
+    },
+    sky: 'linear-gradient(160deg,#8fd0ea 0%,#4a9cc2 100%)',
+    lines: {
+      strike: ['STRIKE! Cannonball!', 'All ten! Somebody call the lifeguard.', 'Sunburn AND a strike. Big day.'],
+      spare: ['Spare! Cool as a popsicle.', 'Cleaned it up before the tide.'],
+      gutter: ['Gutter. Right into the pool.', 'That one needed floaties.'],
+      split: ['A split. Sand in the gears.', 'The seagulls saw that. They talk.'],
+      open: ['Pins survive. The pool party continues.', 'Left a few sunbathing.'],
     },
   },
 ]

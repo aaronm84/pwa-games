@@ -61,7 +61,7 @@ function neighborLane(scene, alley, side, animated, meshes, mats) {
     meshes.push(e)
   }
   // ghost pins: instances of a hidden source pin
-  const src = makePinMesh(scene, alley.colors, 'nPinSrc' + side)
+  const src = makePinMesh(scene, alley.colors, 'nPinSrc' + side, alley.pin)
   src.body.isVisible = false
   src.body.setEnabled(true)
   for (const st of src.stripes) st.isVisible = false
@@ -318,6 +318,162 @@ export function buildEnvirons(scene, alley) {
       }
       if (k >= 1) cometAt = t + 1100 + Math.random() * 1000
     })
+  } else if (alley.fx === 'tiki') {
+    // Tiki Grove: torch poles flanking the lane with flickering flames,
+    // dark palm fronds, and fireflies drifting through the dusk
+    const woodMat = tmat(pbr(scene, { color: '#5a3a1e', rough: 0.9, name: 'tikiWood' }))
+    const flameMat = tmat(emissiveMat(scene, '#ffab3a', { scale: 1.4 }))
+    const flames = []
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const z = 2.5 - i * 4
+        const pole = MeshBuilder.CreateCylinder('torch', { diameter: 0.12, height: 1.6, tessellation: 8 }, scene)
+        pole.position.set(side * 2.35, 0.8, z)
+        pole.material = woodMat
+        pole.isPickable = false
+        pole.freezeWorldMatrix()
+        track(pole)
+        const flame = MeshBuilder.CreateSphere('flame', { diameterX: 0.22, diameterY: 0.34, diameterZ: 0.22, segments: 8 }, scene)
+        flame.position.set(side * 2.35, 1.75, z)
+        flame.material = flameMat
+        flame.isPickable = false
+        track(flame)
+        flames.push({ flame, seed: i * 2.1 + side })
+      }
+    }
+    animated.push((t) => {
+      for (const { flame, seed } of flames) {
+        const f = 1 + Math.sin(t * 0.21 + seed * 5) * 0.18 + Math.sin(t * 0.37 + seed) * 0.1
+        flame.scaling.set(f, f * (1 + Math.sin(t * 0.3 + seed) * 0.15), f)
+      }
+    })
+    // palm silhouettes: dark fronds fanned atop far poles
+    const palmMat = tmat(pbr(scene, { color: '#12200e', rough: 1, name: 'palm' }))
+    for (const [px, pz] of [[-3.3, -11], [3.5, -12], [-4.2, -6], [4.4, -5]]) {
+      const bits = []
+      const trunk = MeshBuilder.CreateCylinder('ptrunk', { diameterTop: 0.12, diameterBottom: 0.2, height: 3.4, tessellation: 8 }, scene)
+      trunk.position.set(px, 1.7, pz)
+      trunk.rotation.z = px > 0 ? -0.12 : 0.12
+      bits.push(trunk)
+      for (let f = 0; f < 5; f++) {
+        const frond = MeshBuilder.CreateBox('frond', { width: 1.5, height: 0.05, depth: 0.3 }, scene)
+        frond.position.set(px, 3.4, pz)
+        frond.rotation.y = (f / 5) * Math.PI * 2
+        frond.rotation.z = 0.35
+        bits.push(frond)
+      }
+      const palm = Mesh.MergeMeshes(bits, true, true)
+      palm.material = palmMat
+      palm.isPickable = false
+      palm.freezeWorldMatrix()
+      track(palm)
+    }
+    // fireflies
+    const flyMat = tmat(emissiveMat(scene, '#d8ff6a', { scale: 1.1 }))
+    for (let i = 0; i < 8; i++) {
+      const fly = MeshBuilder.CreatePlane('firefly', { size: 0.05 }, scene)
+      fly.billboardMode = 7
+      fly.material = flyMat
+      fly.isPickable = false
+      const seed = i * 1.9
+      track(fly)
+      animated.push((t) => {
+        fly.position.set(Math.sin(t * 0.006 + seed * 4) * 2.6, 1 + Math.sin(t * 0.009 + seed) * 0.7, -1 - ((seed * 1.7) % 7))
+        fly.visibility = 0.5 + Math.sin(t * 0.05 + seed * 3) * 0.5
+      })
+    }
+  } else if (alley.fx === 'casino') {
+    // High Roller: giant dice, drifting cards, and a golden sparkle field
+    const dieMat = tmat(pbr(scene, { color: '#f2ede4', rough: 0.35, name: 'die' }))
+    const pipMat = tmat(pbr(scene, { color: '#a01a2e', rough: 0.4, name: 'pip' }))
+    for (const [dx, dz, rot] of [[-2.9, -3, 0.5], [3, -5.5, 1.1]]) {
+      const die = MeshBuilder.CreateBox('bigdie', { size: 1.1 }, scene)
+      die.position.set(dx, 0.55, dz)
+      die.rotation.y = rot
+      die.material = dieMat
+      die.isPickable = false
+      die.freezeWorldMatrix()
+      track(die)
+      const pip = MeshBuilder.CreateSphere('pip', { diameter: 0.22, segments: 8 }, scene)
+      pip.position.set(dx, 1.11, dz)
+      pip.material = pipMat
+      pip.isPickable = false
+      pip.freezeWorldMatrix()
+      track(pip)
+    }
+    // drifting cards
+    const cardMat = tmat(pbr(scene, { color: '#f4f0e8', rough: 0.5, name: 'card' }))
+    for (let i = 0; i < 5; i++) {
+      const card = MeshBuilder.CreatePlane('card', { width: 0.32, height: 0.46 }, scene)
+      card.material = cardMat
+      card.isPickable = false
+      const seed = i * 1.4
+      track(card)
+      animated.push((t) => {
+        card.position.set(Math.sin(t * 0.004 + seed * 3) * 3, 1.6 + Math.sin(t * 0.006 + seed) * 1.1, -3 - i * 1.8)
+        card.rotation.set(t * 0.01 + seed, t * 0.008, 0.4)
+      })
+    }
+    // gold sparkles
+    const sparkMat = tmat(emissiveMat(scene, '#ffd23f', { scale: 1.1 }))
+    for (let i = 0; i < 10; i++) {
+      const sp = MeshBuilder.CreatePlane('spark', { size: 0.06 }, scene)
+      sp.billboardMode = 7
+      sp.material = sparkMat
+      sp.isPickable = false
+      const seed = i * 2.3
+      track(sp)
+      animated.push((t) => {
+        sp.position.set(Math.sin(seed * 5) * 3, 0.4 + ((t * 0.005 + seed) % 3.4), -1 - ((seed * 2.1) % 8))
+        sp.visibility = 0.4 + Math.sin(t * 0.09 + seed) * 0.4
+      })
+    }
+  } else if (alley.fx === 'poolside') {
+    // Poolside: the lanes float on a sunlit pool — water, umbrellas, floaties,
+    // and a sun high over the deck
+    const waterMat = tmat(pbr(scene, { color: '#2e9ec4', rough: 0.25, name: 'water' }))
+    const water = MeshBuilder.CreateBox('poolWater', { width: 40, height: 0.2, depth: 40 }, scene)
+    water.position.set(0, -0.55, -4)
+    water.material = waterMat
+    water.isPickable = false
+    water.freezeWorldMatrix()
+    track(water)
+    const sun = MeshBuilder.CreateSphere('sun', { diameter: 1.6, segments: 16 }, scene)
+    sun.position.set(2.8, 3.8, -18)
+    sun.material = tmat(emissiveMat(scene, '#fff3c4', { scale: 1.6 }))
+    sun.isPickable = false
+    sun.freezeWorldMatrix()
+    track(sun)
+    // umbrellas flanking the approach
+    const brellaMats = [tmat(pbr(scene, { color: '#ff5e5e', rough: 0.6, name: 'brella1' })), tmat(pbr(scene, { color: '#ffd23f', rough: 0.6, name: 'brella2' }))]
+    const poleMat = tmat(pbr(scene, { color: '#e8e2d4', rough: 0.6, name: 'bpole' }))
+    for (const [ux, uz, mi] of [[-2.6, 1.5, 0], [2.7, -1, 1], [-2.9, -6, 1], [3.1, -8.5, 0]]) {
+      const pole = MeshBuilder.CreateCylinder('bp', { diameter: 0.07, height: 1.9, tessellation: 8 }, scene)
+      pole.position.set(ux, 0.95, uz)
+      pole.material = poleMat
+      pole.isPickable = false
+      pole.freezeWorldMatrix()
+      track(pole)
+      const top = MeshBuilder.CreateCylinder('bt', { diameterTop: 0, diameterBottom: 1.7, height: 0.55, tessellation: 10 }, scene)
+      top.position.set(ux, 2.0, uz)
+      top.material = brellaMats[mi]
+      top.isPickable = false
+      top.freezeWorldMatrix()
+      track(top)
+    }
+    // floaty rings bobbing on the water
+    const floatyMats = [tmat(pbr(scene, { color: '#ff8a5a', rough: 0.5, name: 'f1' })), tmat(pbr(scene, { color: '#59c26a', rough: 0.5, name: 'f2' }))]
+    for (let i = 0; i < 3; i++) {
+      const ring = MeshBuilder.CreateTorus('floaty', { diameter: 0.9, thickness: 0.18, tessellation: 20 }, scene)
+      ring.material = floatyMats[i % 2]
+      ring.isPickable = false
+      const seed = i * 2.2
+      track(ring)
+      animated.push((t) => {
+        ring.position.set(Math.sin(seed * 3) * 3.1, -0.4 + Math.sin(t * 0.01 + seed) * 0.06, 1 - i * 4.5)
+        ring.rotation.y = t * 0.002 + seed
+      })
+    }
   }
 
   return {

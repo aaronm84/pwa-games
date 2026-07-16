@@ -34,6 +34,7 @@
           <q-toggle v-model="settings.glowFx" label="Neon glow" @update:model-value="saveSettings" />
           <q-toggle v-model="settings.showTrace" label="Trace the ball's path" @update:model-value="saveSettings" />
           <q-toggle v-model="settings.snappySweep" label="Snappy pinsetter (quicker frames)" @update:model-value="saveSettings" />
+          <q-toggle v-model="settings.laneHazards" label="Lane hazards (theme stuff falls on the lane)" @update:model-value="saveSettings" />
 
           <div class="text-caption text-white q-mt-md" style="opacity: 0.8;">Hook sensitivity</div>
           <q-slider v-model="settings.hookSens" :min="0.6" :max="1.4" :step="0.1" label color="green" @change="saveSettings" />

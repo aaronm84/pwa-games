@@ -4,10 +4,15 @@
 
     <div class="hud-top">
       <q-btn flat round icon="arrow_back" color="white" @click="goBack" />
-      <div class="chips">
+      <div class="chips" v-if="!vsRival">
         <div class="chip"><span>Frame</span><b>{{ frameNum }}/10</b></div>
         <div class="chip"><span>Throw</span><b>{{ throwNum }}</b></div>
         <div class="chip"><span>Score</span><b>{{ runningTotal ?? '–' }}</b></div>
+      </div>
+      <div class="chips" v-else>
+        <div class="chip" :class="{ turn: bowler === 'me' }"><span>You</span><b>{{ myTotal }}</b></div>
+        <div class="chip"><span>Frame</span><b>{{ frameNum }}/10</b></div>
+        <div class="chip" :class="{ turn: bowler === 'ai' }"><span>{{ vsRival.emoji }}</span><b>{{ aiTotal }}</b></div>
       </div>
       <div class="chip mode">{{ backend }}</div>
     </div>
@@ -46,14 +51,48 @@
             <q-btn flat round dense icon="close" color="white" @click="showRack = false" />
           </div>
           <div class="bag-list">
-            <button v-for="b in balls" :key="b.id" class="ball-card" :class="{ active: b.id === activeBallId }" @click="selectBall(b.id)">
+            <button v-for="b in rackBalls" :key="b.id" class="ball-card" :class="{ active: b.id === activeBallId }" @click="selectBall(b.id)">
               <span class="p-emoji">{{ b.emoji }}</span>
               <span class="p-text">
                 <span class="p-name">{{ b.name }}</span>
                 <span class="p-blurb">{{ b.blurb }}</span>
               </span>
+              <q-btn v-if="b.id === 'custom'" flat dense round icon="tune" color="white" @click.stop="showProShop = true" />
               <span v-if="b.id === activeBallId" class="p-check">✓</span>
             </button>
+          </div>
+          <div class="swatch-row">
+            <span class="swatch-label">Paint</span>
+            <button v-for="c in BALL_SWATCHES" :key="c" class="swatch" :style="{ background: c }" :class="{ sel: settings.settings.ballColor === c }" @click="setBallColor(c)" />
+            <button class="swatch swatch-none" :class="{ sel: !settings.settings.ballColor }" @click="setBallColor(null)">×</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- the pro shop: build your own ball -->
+    <transition name="fade">
+      <div v-if="showProShop" class="bag-overlay" @click.self="showProShop = false">
+        <div class="bag-sheet">
+          <div class="bag-head">
+            <span>⚙️ The pro shop</span>
+            <q-btn flat round dense icon="close" color="white" @click="showProShop = false" />
+          </div>
+          <div class="shop-field">
+            <span>Weight — {{ settings.settings.customBall.mass.toFixed(1) }} <small>(scatter)</small></span>
+            <q-slider :model-value="settings.settings.customBall.mass" :min="4" :max="10" :step="0.5" color="green" @update:model-value="(v) => saveCustomBall({ mass: v })" />
+          </div>
+          <div class="shop-field">
+            <span>Power — {{ settings.settings.customBall.power.toFixed(2) }} <small>(launch speed)</small></span>
+            <q-slider :model-value="settings.settings.customBall.power" :min="0.85" :max="1.2" :step="0.05" color="green" @update:model-value="(v) => saveCustomBall({ power: v })" />
+          </div>
+          <div class="shop-field">
+            <span>Hook — {{ settings.settings.customBall.hook.toFixed(1) }} <small>(curve)</small></span>
+            <q-slider :model-value="settings.settings.customBall.hook" :min="0.5" :max="2" :step="0.1" color="green" @update:model-value="(v) => saveCustomBall({ hook: v })" />
+          </div>
+          <div class="swatch-row">
+            <span class="swatch-label">Shell</span>
+            <button v-for="c in BALL_SWATCHES" :key="c" class="swatch" :style="{ background: c }" :class="{ sel: settings.settings.customBall.color === c }" @click="saveCustomBall({ color: c })" />
           </div>
         </div>
       </div>
@@ -86,12 +125,13 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer } from 'src/engine'
 import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
 import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
-import { balls, ballById } from 'src/game/balls'
+import { balls } from 'src/game/balls'
+import { rivalById, planThrow } from 'src/game/rivals'
 import { makeDiscoBall, burstConfetti, makeUfo } from 'src/game/fx3d'
 import { buildEnvirons } from 'src/game/environs'
 import { useSettingsStore } from 'src/stores/settings'
@@ -99,6 +139,7 @@ import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
 
 const router = useRouter()
+const route = useRoute()
 const settings = useSettingsStore()
 const progress = useProgressStore()
 const haptics = useHaptics()
@@ -109,11 +150,16 @@ function devParam(k) {
   return new URLSearchParams(location.hash.split('?')[1] || '').get(k)
 }
 const alley = alleyById(devParam('alley') || settings.settings.selectedAlley)
+// vs mode: ?vs=<rivalId> plays a match; ?tour=1 makes it a tournament round
+const vsRival = rivalById(route.query.vs)
+const inTournament = !!route.query.tour
 
 const booting = ref(true)
 const backend = ref('')
 const state = ref('aiming') // aiming | rolling | sweep | over
 const rolls = ref([])
+const rollsAI = ref([])
+const bowler = ref('me') // 'me' | 'ai'
 const quip = ref(null)
 const banner = ref(null)
 const bannerKind = ref('good')
@@ -124,18 +170,40 @@ const finalLabel = ref('')
 const statLine = ref(null)
 
 const activeBallId = ref(devParam('ball') || settings.settings.selectedBall)
-const activeBall = computed(() => ballById(activeBallId.value))
+// the rack = the four house balls + the pro-shop custom build
+const rackBalls = computed(() => [
+  ...balls,
+  {
+    id: 'custom',
+    name: 'The Custom',
+    emoji: '⚙️',
+    blurb: 'Built in the pro shop. Tuned by you.',
+    color: settings.settings.customBall?.color || '#7b2ff0',
+    glow: null,
+    mods: {
+      mass: settings.settings.customBall?.mass ?? 6.5,
+      power: settings.settings.customBall?.power ?? 1,
+      hook: settings.settings.customBall?.hook ?? 1.2,
+    },
+  },
+])
+const activeBall = computed(() => rackBalls.value.find((b) => b.id === activeBallId.value) || rackBalls.value[0])
+const showProShop = ref(false)
+const BALL_SWATCHES = ['#2a5db0', '#d64a1f', '#b13df0', '#1fb867', '#e8c400', '#e33a6f', '#232733', '#f2ede4']
 
-const score = computed(() => scoreGame(rolls.value))
+const activeRolls = computed(() => (bowler.value === 'ai' ? rollsAI.value : rolls.value))
+const score = computed(() => scoreGame(activeRolls.value))
+const myTotal = computed(() => { let t = 0; for (const f of scoreGame(rolls.value).frames) if (f.cumulative != null) t = f.cumulative; return t })
+const aiTotal = computed(() => { let t = 0; for (const f of scoreGame(rollsAI.value).frames) if (f.cumulative != null) t = f.cumulative; return t })
 const framesView = computed(() =>
   score.value.frames.map((f) => ({
     marks: f.rolls.map((r, i) => (r === 10 && (i === 0 || f.rolls[i - 1] === 10 || f.rolls.length === 3) ? 'X' : i > 0 && f.rolls[i - 1] + r === 10 && f.rolls[i - 1] !== 10 ? '/' : r === 0 ? '-' : r)).join(' '),
     cumulative: f.cumulative,
   })),
 )
-const curFrame = computed(() => rollPosition(rolls.value)?.frame ?? 9)
+const curFrame = computed(() => rollPosition(activeRolls.value)?.frame ?? 9)
 const frameNum = computed(() => curFrame.value + 1)
-const throwNum = computed(() => (rollPosition(rolls.value)?.throw ?? 0) + 1)
+const throwNum = computed(() => (rollPosition(activeRolls.value)?.throw ?? 0) + 1)
 const runningTotal = computed(() => {
   let last = null
   for (const f of score.value.frames) if (f.cumulative != null) last = f.cumulative
@@ -166,6 +234,7 @@ let ipcRef = null
 let glowLayer = null
 let strikeFlash = 0
 let environs = null
+let hazards = []
 let ffHold = false // hold during a roll to fast-forward
 let tracePts = []
 let traceMesh = null
@@ -185,6 +254,7 @@ let gutterBall = false
 let sweepAt = 0
 let gutterQuipped = false
 let strikesThisGame = 0
+let aiActAt = -1 // when the rival takes their next throw
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
@@ -198,6 +268,7 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  for (const h of hazards) { h.agg?.dispose(); h.mesh.dispose(); h.mat.dispose() }
   environs?.dispose()
   traceMesh?.dispose()
   disco?.dispose()
@@ -212,18 +283,18 @@ async function boot() {
   await stage.init()
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
-  shadowGen = outdoorLight(scene, { intensity: 0.5 }).shadow // dim base — the alley lights do the talking
+  shadowGen = outdoorLight(scene, { intensity: alley.bright ? 1.15 : 0.5 }).shadow // Poolside is daylight; the rest are moody
   scene.skipPointerMovePicking = true
   // cinematic grade: gentle contrast + vignette
   const ipc = scene.imageProcessingConfiguration
-  ipc.contrast = 1.15
+  ipc.contrast = alley.bright ? 1.05 : 1.15
   ipc.exposure = 1.05
   ipc.vignetteEnabled = true
-  ipc.vignetteWeight = 1.5
+  ipc.vignetteWeight = alley.bright ? 0.9 : 1.5
   // bloom on every emissive: the neon strips, guide line and power cue glow
   if (settings.settings.glowFx !== false) {
     glowLayer = new GlowLayer('glow', scene, { mainTextureRatio: 0.5 })
-    glowLayer.intensity = 0.8
+    glowLayer.intensity = alley.bright ? 0.45 : 0.8
   }
   // the classic pin-deck spotlight
   deckSpot = new SpotLight('deckSpot', new Vector3(0, 6.2, PIN_Z + 2.2), new Vector3(0, -1, -0.35), Math.PI / 2.6, 8, scene)
@@ -295,6 +366,10 @@ async function boot() {
       gameOver: gameOver.value,
       alley: alley.id,
       ballId: activeBallId.value,
+      bowler: bowler.value,
+      rollsAI: [...rollsAI.value],
+      vs: vsRival?.id ?? null,
+      hazardCount: hazards.length,
       aimX,
       lastLaunch,
       selectBall,
@@ -326,15 +401,28 @@ function applyBallLook() {
   ball.material?.dispose()
   ballGlowMat?.dispose()
   const b = activeBall.value
+  const color = settings.settings.ballColor || b.color // custom paint over any type
   if (b.glow) {
     const m = new StandardMaterial('ballMat', scene)
-    m.diffuseColor = Color3.FromHexString(b.color)
-    m.emissiveColor = Color3.FromHexString(b.glow).scale(0.55)
+    m.diffuseColor = Color3.FromHexString(color)
+    m.emissiveColor = Color3.FromHexString(settings.settings.ballColor || b.glow).scale(0.55)
     m.specularColor = new Color3(0.9, 0.9, 0.9)
     ball.material = m
     ballGlowMat = m
   } else {
-    ball.material = pbr(scene, { color: b.color, rough: 0.25, name: 'ballMat' })
+    ball.material = pbr(scene, { color, rough: 0.25, name: 'ballMat' })
+  }
+}
+function setBallColor(hex) {
+  settings.updateSetting('ballColor', hex)
+  applyBallLook()
+  haptics.light()
+}
+function saveCustomBall(patch) {
+  settings.updateSetting('customBall', { ...settings.settings.customBall, ...patch })
+  if (activeBallId.value === 'custom') {
+    applyBallLook()
+    ballAgg.body.setMassProperties({ mass: settings.settings.customBall.mass })
   }
 }
 function parkBall() {
@@ -355,14 +443,38 @@ function placeBallForThrow(x) {
 
 function rackPins() {
   for (const p of pins) p.dispose()
-  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors))
+  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors, alley.pin))
+  spawnHazards()
   refreshMirror()
+}
+// theme hazards: stuff falls onto the lane and you bowl around (or through) it
+function spawnHazards() {
+  for (const h of hazards) { h.agg?.dispose(); h.mesh.dispose(); h.mat.dispose() }
+  hazards = []
+  if (!(settings.settings.laneHazards || devParam('hazards')) || !alley.hazard) return
+  const def = alley.hazard
+  const n = 1 + (Math.random() < 0.45 ? 1 : 0)
+  for (let i = 0; i < n; i++) {
+    const mesh = def.type === 'box'
+      ? MeshBuilder.CreateBox('hzd', { size: def.d }, scene)
+      : MeshBuilder.CreateSphere('hzd', { diameter: def.d, segments: 20 }, scene)
+    const mat = pbr(scene, { color: def.color, rough: def.shiny ? 0.2 : 0.7, name: 'hzdMat' })
+    mat.maxSimultaneousLights = 6
+    mesh.material = mat
+    mesh.position.set(-0.8 + Math.random() * 1.6, def.d / 2 + 0.02, -0.5 - Math.random() * 4)
+    if (def.type === 'box') mesh.rotation.y = Math.random() * Math.PI
+    shadowGen.addShadowCaster(mesh)
+    const agg = makeDynamic(mesh, { mass: def.mass, restitution: 0.4, friction: 0.5, linearDamping: 0.4, angularDamping: 0.4 })
+    hazards.push({ mesh, mat, agg })
+  }
+  setQuip(`Heads up — ${def.name} on the lane.`)
 }
 // keep the lane's mirror reflecting the things that matter (and only those)
 function refreshMirror() {
   if (!laneKit?.mirror) return
   laneKit.mirror.renderList = [
     ...pins.map((p) => p.body),
+    ...hazards.map((h) => h.mesh),
     ...(ball ? [ball] : []),
     ...laneKit.edges.map((e) => e.mesh),
     laneKit.sweep,
@@ -385,7 +497,7 @@ function selectBall(id) {
   activeBallId.value = id
   settings.updateSetting('selectedBall', id)
   applyBallLook()
-  ballAgg.body.setMassProperties({ mass: ballById(id).mods.mass })
+  ballAgg.body.setMassProperties({ mass: (rackBalls.value.find((b) => b.id === id) || balls[0]).mods.mass })
   showRack.value = false
   haptics.light()
 }
@@ -398,7 +510,7 @@ function selectBall(id) {
 // speed; drifting the forward stroke sideways puts hook on the ball. A limp
 // release dribbles the ball down the lane. Timing is the skill.
 function onAim(g) {
-  if (state.value !== 'aiming') return
+  if (state.value !== 'aiming' || bowler.value === 'ai') return
   if (!gestureMode && g.dist > 12) {
     gestureMode = Math.abs(g.dx) > Math.abs(g.dy) ? 'aim' : g.dy > 0 ? 'swing' : null
     if (gestureMode === 'aim') gestureMode = { kind: 'aim', fromX: aimX }
@@ -437,7 +549,7 @@ function onRelease(g) {
   aimArrow.isVisible = false
   const mode = gestureMode
   gestureMode = null
-  if (state.value !== 'aiming' || !mode) return
+  if (state.value !== 'aiming' || !mode || bowler.value === 'ai') return
   if (mode.kind === 'aim') {
     scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
     return
@@ -515,15 +627,15 @@ function tick(dt = 1 / 60) {
   const hue = (curFrame.value * 36 + tickN * (strikeFlash > 0 ? 4.5 : 1.2)) % 360
   if (strikeFlash > 0) strikeFlash--
   if (neonL) {
-    const base = clutch ? 0.32 : 0.55
+    const base = (clutch ? 0.32 : 0.55) * (alley.bright ? 0.5 : 1)
     const boost = strikeFlash > 0 ? (strikeFlash / 90) * 1.9 : 0
     neonL.intensity += (base + boost - neonL.intensity) * 0.05
     neonR.intensity = neonL.intensity
     neonL.diffuse = Color3.FromHSV(hue, 0.7, 1)
     neonR.diffuse = Color3.FromHSV((hue + 140) % 360, 0.7, 1)
   }
-  if (deckSpot) deckSpot.intensity += ((clutch ? 2.3 : 1.5) - deckSpot.intensity) * 0.04
-  if (ipcRef) ipcRef.vignetteWeight += ((clutch ? 2.2 : 1.5) - ipcRef.vignetteWeight) * 0.04
+  if (deckSpot) deckSpot.intensity += ((clutch ? 2.3 : 1.5) * (alley.bright ? 0.6 : 1) - deckSpot.intensity) * 0.04
+  if (ipcRef) ipcRef.vignetteWeight += ((clutch ? 2.2 : 1.5) * (alley.bright ? 0.65 : 1) - ipcRef.vignetteWeight) * 0.04
   if (laneKit) {
     laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.85)
     laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, 0.85, 0.85)
@@ -533,8 +645,12 @@ function tick(dt = 1 / 60) {
     }
   }
   if (guide) {
-    guide.isVisible = state.value === 'aiming'
+    guide.isVisible = state.value === 'aiming' && bowler.value === 'me'
     guide.position.x = aimX
+  }
+  if (vsRival && bowler.value === 'ai' && state.value === 'aiming' && aiActAt >= 0 && tickN > aiActAt) {
+    aiActAt = -1
+    aiThrow()
   }
   // the pinsetter sweep drops while the deck is being serviced, lifts to reveal
   // the fresh rack
@@ -610,14 +726,15 @@ function tick(dt = 1 / 60) {
           fading.push({ p, t: 18 })
         }
         pins = pins.filter((p) => p.isStanding())
-        const pos = rollPosition(rolls.value)
+        const cur = bowler.value === 'ai' ? rollsAI : rolls
+        const pos = rollPosition(cur.value)
         if (pos && pos.throw > 0) {
-          const r = [...rolls.value]
+          const r = [...cur.value]
           r[r.length - 1] += fallen.length
-          rolls.value = r
-          const next = rollPosition(rolls.value)
-          if (!next) return endGame()
-          if (next.standing === 10) rackPins() // the credit completed the rack
+          cur.value = r
+          const next = rollPosition(cur.value)
+          if (!next && !vsRival) return endGame()
+          if (next && next.standing === 10) rackPins() // the credit completed the rack
         }
       }
     }
@@ -633,17 +750,20 @@ function settleThrow() {
     traceMesh.isPickable = false
   }
   const standingNow = pins.filter((p) => p.isStanding()).length
-  const pos = rollPosition(rolls.value)
+  const mine = bowler.value === 'me'
+  const cur = mine ? rolls : rollsAI
+  const pos = rollPosition(cur.value)
   // measured against the rack the scorecard expects, so a pin that toppled
   // between throws can never come back as a phantom
   const knocked = Math.max(0, Math.min(pos.standing, pos.standing - standingNow))
-  rolls.value = [...rolls.value, knocked]
+  const preFrame = pos.frame
+  cur.value = [...cur.value, knocked]
 
   // celebrate — a 10 off a fresh rack is a strike even on the tenth's bonus balls
   const isStrike = knocked === 10 && pos.standing === 10
   const isSpare = !isStrike && pos.throw > 0 && knocked === pos.standing && knocked > 0
   if (isStrike) {
-    strikesThisGame++
+    if (mine) strikesThisGame++
     setBanner('STRIKE!', 'good')
     setQuip(pick(alley.lines.strike))
     celebrate()
@@ -660,7 +780,33 @@ function settleThrow() {
   }
   if (knocked > 0 && !isStrike && !isSpare) haptics.crash(knocked / 10) // pin-crash buzz
 
-  const next = rollPosition(rolls.value)
+  const next = rollPosition(cur.value)
+  if (vsRival) {
+    // alternate frames: when the current bowler's frame ends, hand the lane over
+    const frameEnded = !next || next.frame !== preFrame
+    const myDone = scoreGame(rolls.value).complete
+    const aiDone = scoreGame(rollsAI.value).complete
+    if (myDone && aiDone) return endGame()
+    if (frameEnded) {
+      const other = mine ? 'ai' : 'me'
+      const otherDone = other === 'ai' ? aiDone : myDone
+      bowler.value = otherDone ? bowler.value : other
+      rackPins()
+      parkBall()
+      state.value = 'aiming'
+      if (bowler.value === 'ai') {
+        setBanner(`${vsRival.emoji} ${vsRival.name}`, 'good')
+        setQuip(vsRival.taunt)
+        aiActAt = tickN + 130
+      }
+      return
+    }
+    clearDeadwood()
+    parkBall()
+    state.value = 'aiming'
+    if (bowler.value === 'ai') aiActAt = tickN + 90
+    return
+  }
   if (!next) return endGame()
 
   // fresh rack when the next throw starts a new frame (or a tenth-frame re-rack)
@@ -668,6 +814,14 @@ function settleThrow() {
   else clearDeadwood()
   parkBall()
   state.value = 'aiming'
+}
+
+// the rival's turn: plan a throw at the pocket (or what's left) and bowl it
+function aiThrow() {
+  const standingXs = pins.filter((p) => p.isStanding()).map((p) => p.body.position.x)
+  const plan = planThrow(vsRival, standingXs.length === 10 ? null : standingXs)
+  placeBallForThrow(plan.x)
+  launch(plan.speed, plan.spin, plan.spin * 0.7)
 }
 
 // a split-ish read: head pin down, survivors far apart
@@ -690,6 +844,24 @@ function celebrate() {
 }
 
 function endGame() {
+  if (vsRival) {
+    const me = myTotal.value
+    const them = aiTotal.value
+    const won = me > them
+    finalTotal.value = `${me} — ${them}`
+    finalLabel.value = won ? 'You Win!' : me === them ? 'Dead Even' : `${vsRival.name} Wins`
+    const rec = progress.recordGame(me, strikesThisGame)
+    const outcome = progress.recordMatch(won, inTournament)
+    statLine.value =
+      outcome === 'champion' ? '🏆 TOURNAMENT CHAMPION!' :
+      inTournament && outcome === 'advance' ? '✅ Advancing to the next round' :
+      inTournament ? '❌ Tournament over — back to round one' :
+      rec.newBest ? `🏆 New best game: ${me}` : (won ? '🎉 Rival defeated' : null)
+    gameOver.value = true
+    state.value = 'over'
+    haptics.success()
+    return
+  }
   const total = score.value.total ?? 0
   finalTotal.value = total
   finalLabel.value = total === 300 ? 'PERFECT GAME!' : total >= 200 ? 'On Fire!' : total >= 150 ? 'Great Game' : total >= 100 ? 'Solid Game' : 'Game Over'
@@ -702,6 +874,9 @@ function endGame() {
 
 function newGame() {
   rolls.value = []
+  rollsAI.value = []
+  bowler.value = 'me'
+  aiActAt = -1
   strikesThisGame = 0
   gameOver.value = false
   statLine.value = null
@@ -725,6 +900,7 @@ function goBack() { router.push({ name: 'menu' }) }
 .chip span { font-size: 0.52rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
 .chip b { font-size: 0.95rem; line-height: 1.1; }
 .chip.mode { font-size: 0.55rem; font-weight: 700; padding: 6px 7px; }
+.chip.turn { outline: 2px solid rgba(110,224,122,0.8); }
 .marks { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 3; }
 .mark-cell { display: flex; flex-direction: column; align-items: center; min-width: 26px; padding: 2px 3px; border-radius: 6px; background: rgba(0,0,0,0.3); color: #fff; }
 .mark-cell.cur { outline: 1px solid rgba(255,255,255,0.55); }
@@ -751,6 +927,13 @@ function goBack() { router.push({ name: 'menu' }) }
 .p-name { font-weight: 700; font-size: 0.95rem; }
 .p-blurb { font-size: 0.75rem; opacity: 0.72; line-height: 1.25; }
 .p-check { color: #6ee07a; font-weight: 800; font-size: 1.1rem; }
+.swatch-row { display: flex; align-items: center; gap: 8px; padding: 12px 4px 2px; flex-wrap: wrap; }
+.swatch-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; margin-right: 2px; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.25); cursor: pointer; }
+.swatch.sel { border-color: #6ee07a; transform: scale(1.12); }
+.swatch-none { background: transparent; color: #fff; font-weight: 700; line-height: 1; }
+.shop-field { padding: 6px 4px 0; font-size: 0.85rem; }
+.shop-field small { opacity: 0.6; }
 .overlay { position: absolute; inset: 0; z-index: 4; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: #fff; padding: 16px; }
 .o-title { font-size: 2rem; font-weight: 800; }
 .o-sub.big { font-size: 2.4rem; font-weight: 900; margin-top: -8px; }

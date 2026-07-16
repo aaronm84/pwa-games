@@ -23,7 +23,20 @@ Havok, carried over from Mini Golf 3D). See `docs/ENGINE.md` at the repo root.
   edge cases).
 - **The rack** — four balls with different feels: the House Ball, the Boulder
   (heavy, straight), the Comet (fast, bendy) and the Glitterball (maximum hook,
-  zero chill).
+  zero chill). Any ball can be **repainted** from an eight-swatch palette, and
+  the **Pro Shop** (🎨 in-game) builds a fully custom fifth ball: weight, punch
+  and hook sliders plus a shell color.
+- **Rivals & tournament** — challenge one of four regulars (Cousin Rollo 🦥,
+  Rexxie 🦖, SPARE-O 3000 🤖, Granny Lois 👵) to a head-to-head game: you
+  alternate frames on the same physics lane, and the rival actually bowls —
+  skill-based aim at the pocket or at what's standing, with hook and speed noise
+  scaling down as skill goes up. **Tournament** runs the three toughest rivals
+  as a ladder: win to advance, lose and it resets, survive Granny Lois to take
+  the title.
+- **Lane hazards (optional)** — a Settings toggle drops themed obstacles on the
+  lane each frame (coconuts at Tiki Grove, giant dice at High Roller, beach
+  balls at Poolside, a rogue mirror ball at Disco Nova…) that you bowl around —
+  or through, if you're feeling strong.
 
 ## Graphics & options
 
@@ -42,15 +55,20 @@ snappy pinsetter, and hook/power sensitivity sliders. During a roll, **hold to
 fast-forward**; releasing mid-backswing **cancels** the throw; after each throw
 a faint line traces the path your ball took.
 
-## Three funky alleys
+## Six funky alleys
 
 | Alley | Vibe | Gimmick |
 | --- | --- | --- |
 | 🪩 **Disco Nova** | Cosmic bowling, color-cycling neon lane | The mirror ball flashes and drops confetti on strikes |
 | 🌋 **Lava Lanes** | Bowling over a magma flow | The gutters glow and pulse; gutter balls *sizzle* |
 | 🛸 **Zero-G Lanes** | Space-station lanes | **Lower gravity** — pins topple in slow motion; a UFO buzzes strikes |
+| 🗿 **Tiki Grove** | Jungle dusk: torches, palms, fireflies | Carved **totem pins**; coconut hazards |
+| 🎰 **High Roller** | Velvet, gold, terrible odds | Giant dice and drifting cards; gilded pins |
+| 🏖️ **Poolside** | Full daylight on the boardwalk | Water, umbrellas, bobbing floaties; beach-ball hazards |
 
-Each alley has its own announcer lines for strikes, spares, gutters, and splits.
+Each alley has its own announcer lines for strikes, spares, gutters, and splits —
+and its own **pin livery**: every theme dresses the lathe-turned pins in its own
+body color and band set (the tiki pins are three-band carved totems).
 
 ## Develop / build
 
@@ -61,8 +79,8 @@ npm run build          # quasar build -m pwa -> dist/pwa
 node src/game/scoring.test.mjs   # scoring rules unit tests
 ```
 
-DEV-only `?alley=&ball=` URL overrides and a `window.__bwl()` state hook (with a
-deterministic `devThrow`) support headless Playwright verification, same recipe
-as Mini Golf 3D.
+DEV-only `?alley=&ball=&vs=&tour=&hazards=1` URL overrides and a
+`window.__bwl()` state hook (with a deterministic `devThrow`) support headless
+Playwright verification, same recipe as Mini Golf 3D.
 
 Stack: Quasar (Vue 3) + Capacitor · `@babylonjs/core` (tree-shaken) · `@babylonjs/havok`.

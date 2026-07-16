@@ -222,30 +222,47 @@ const PIN_PROFILE = [
   [0.015, 0.994],
 ]
 
-// The bare pin visual (lathed body + neck bands) — shared by the real physics
-// pins and the ghost pins on the neighbor lanes.
-export function makePinMesh(scene, colors, name = 'pin') {
+// Ring radius of the pin silhouette at a normalized height (for band sizing)
+function pinRadiusAt(yn) {
+  for (let i = 1; i < PIN_PROFILE.length; i++) {
+    if (PIN_PROFILE[i][1] >= yn) {
+      const [r0, y0] = PIN_PROFILE[i - 1]
+      const [r1, y1] = PIN_PROFILE[i]
+      const t = (yn - y0) / (y1 - y0 || 1)
+      return r0 + (r1 - r0) * t
+    }
+  }
+  return PIN_PROFILE[PIN_PROFILE.length - 1][0]
+}
+
+// The bare pin visual (lathed body + themed bands) — shared by the real physics
+// pins and the ghost pins on the neighbor lanes. `pinStyle` comes from the
+// alley: { body: hex, bands: [{ y, c }] } — totem stripes, gold rings, etc.
+export function makePinMesh(scene, colors, name = 'pin', pinStyle = null) {
   const shape = PIN_PROFILE.map(([r, y]) => new Vector3(r * PIN_H, y * PIN_H, 0))
   const body = MeshBuilder.CreateLathe(name, { shape, tessellation: 28, closed: true, cap: 3 }, scene)
-  const mat = pbr(scene, { color: colors.pin, rough: 0.32, name: 'pinMat' })
+  const mat = pbr(scene, { color: pinStyle?.body || colors.pin, rough: 0.32, name: 'pinMat' })
   mat.maxSimultaneousLights = 6
   body.material = mat
-  const stripeMat = pbr(scene, { color: colors.pinStripe, rough: 0.4, name: 'stripeMat' })
+  const bands = pinStyle?.bands || [{ y: 0.66, c: colors.pinStripe }, { y: 0.735, c: colors.pinStripe }]
   const stripes = []
-  for (const sy of [0.66, 0.735]) {
-    const band = MeshBuilder.CreateTorus('band', { diameter: 0.132 * PIN_H * 2, thickness: 0.016, tessellation: 24 }, scene)
-    band.material = stripeMat
+  const mats = [mat]
+  for (const b of bands) {
+    const band = MeshBuilder.CreateTorus('band', { diameter: (pinRadiusAt(b.y) + 0.012) * PIN_H * 2, thickness: 0.018, tessellation: 24 }, scene)
+    const bm = pbr(scene, { color: b.c, rough: 0.4, name: 'bandMat' })
+    band.material = bm
     band.parent = body
-    band.position.y = sy * PIN_H
+    band.position.y = b.y * PIN_H
     stripes.push(band)
+    mats.push(bm)
   }
-  return { body, stripes, mats: [mat, stripeMat] }
+  return { body, stripes, mats }
 }
 
 // One pin: a lathed body whose collider is its convex hull, so the ball meets a
 // real pin shape. Dynamic from birth so a hit topples it realistically.
-export function makePin(scene, shadow, x, z, colors) {
-  const { body, stripes, mats } = makePinMesh(scene, colors)
+export function makePin(scene, shadow, x, z, colors, pinStyle = null) {
+  const { body, stripes, mats } = makePinMesh(scene, colors, 'pin', pinStyle)
   body.position.set(x, 0.001, z)
   shadow.addShadowCaster(body)
   let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)

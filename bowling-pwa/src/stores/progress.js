@@ -11,6 +11,9 @@ export const useProgressStore = defineStore('progress', () => {
     bestScore: null,
     totalStrikes: 0,
     perfectGames: 0,
+    rivalWins: 0,
+    tournamentStage: 0, // 0..2 — which tournament round is next
+    tournamentsWon: 0,
   })
 
   // Called once when a full ten-frame game finishes. Returns { newBest }.
@@ -45,10 +48,31 @@ export const useProgressStore = defineStore('progress', () => {
     }
   }
 
+  // Returns 'champion' when the win closes out the final round.
+  function recordMatch(won, inTournament) {
+    const g = bowling.value
+    if (won) g.rivalWins++
+    if (inTournament) {
+      if (won) {
+        g.tournamentStage++
+        if (g.tournamentStage > 2) {
+          g.tournamentStage = 0
+          g.tournamentsWon++
+          saveToStorage()
+          return 'champion'
+        }
+      } else {
+        g.tournamentStage = 0
+      }
+    }
+    saveToStorage()
+    return won ? 'advance' : 'reset'
+  }
+
   async function resetProgress() {
-    bowling.value = { games: 0, bestScore: null, totalStrikes: 0, perfectGames: 0 }
+    bowling.value = { games: 0, bestScore: null, totalStrikes: 0, perfectGames: 0, rivalWins: 0, tournamentStage: 0, tournamentsWon: 0 }
     await saveToStorage()
   }
 
-  return { bowling, recordGame, resetProgress, saveToStorage, loadFromStorage }
+  return { bowling, recordGame, recordMatch, resetProgress, saveToStorage, loadFromStorage }
 })

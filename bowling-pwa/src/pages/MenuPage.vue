@@ -34,6 +34,26 @@
           </div>
         </q-btn>
 
+        <q-btn unelevated size="xl" color="secondary" text-color="white" class="menu-btn" @click="showRivals = true">
+          <div class="btn-content">
+            <span class="btn-icon btn-emoji">🎳</span>
+            <div class="btn-text">
+              <div class="btn-label">Challenge a Rival</div>
+              <div class="btn-sublabel">Head-to-head vs the regulars ({{ selectedAlleyName }})</div>
+            </div>
+          </div>
+        </q-btn>
+
+        <q-btn unelevated size="xl" color="secondary" text-color="white" class="menu-btn" @click="playTournament">
+          <div class="btn-content">
+            <span class="btn-icon btn-emoji">🏆</span>
+            <div class="btn-text">
+              <div class="btn-label">Tournament</div>
+              <div class="btn-sublabel">Round {{ bowling.tournamentStage + 1 }} of 3 — vs {{ nextTournamentRival.name }}</div>
+            </div>
+          </div>
+        </q-btn>
+
         <q-btn
           unelevated
           size="xl"
@@ -85,6 +105,20 @@
         </div>
       </div>
     </div>
+    <q-dialog v-model="showRivals">
+      <q-card class="rival-card">
+        <q-card-section class="text-h6 text-white">Pick your rival</q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-btn v-for="r in rivals" :key="r.id" flat no-caps class="rival-row" @click="playRival(r.id)">
+            <span class="r-emoji">{{ r.emoji }}</span>
+            <span class="r-text">
+              <span class="r-name">{{ r.name }}</span>
+              <span class="r-blurb">{{ r.blurb }}</span>
+            </span>
+          </q-btn>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -94,7 +128,9 @@ import { storeToRefs } from 'pinia'
 import { useProgressStore } from 'src/stores/progress'
 import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
-import { alleys } from 'src/game/alleys'
+import { ref, computed } from 'vue'
+import { alleys, alleyById } from 'src/game/alleys'
+import { rivals, rivalById, TOURNAMENT } from 'src/game/rivals'
 import DynamicBackground from 'src/components/DynamicBackground.vue'
 
 const router = useRouter()
@@ -102,6 +138,20 @@ const progressStore = useProgressStore()
 const settings = useSettingsStore()
 const { bowling } = storeToRefs(progressStore)
 const haptics = useHaptics()
+
+const showRivals = ref(false)
+const selectedAlleyName = computed(() => alleyById(settings.settings.selectedAlley).name)
+const nextTournamentRival = computed(() => rivalById(TOURNAMENT[Math.min(2, bowling.value.tournamentStage)]) || rivals[1])
+
+function playRival(id) {
+  haptics.medium()
+  showRivals.value = false
+  router.push({ name: 'bowl', query: { vs: id } })
+}
+function playTournament() {
+  haptics.medium()
+  router.push({ name: 'bowl', query: { vs: nextTournamentRival.value.id, tour: 1 } })
+}
 
 function playAlley(id) {
   haptics.medium()
@@ -121,6 +171,14 @@ function openSettings() {
 </script>
 
 <style lang="scss" scoped>
+.rival-card { background: #1c2530; min-width: 300px; }
+.rival-row { display: flex; width: 100%; justify-content: flex-start; text-align: left; color: #fff; padding: 10px 12px; }
+.rival-row :deep(.q-btn__content) { justify-content: flex-start; gap: 12px; }
+.r-emoji { font-size: 1.7rem; }
+.r-text { display: flex; flex-direction: column; }
+.r-name { font-weight: 700; }
+.r-blurb { font-size: 0.75rem; opacity: 0.7; }
+
 .menu-page {
   position: relative;
   overflow: hidden;
