@@ -20,6 +20,9 @@ export { outdoorLight, pbr, orbitCamera } from './presets.js'
 // so game code imports everything from 'src/engine' and never the heavy barrel.
 export {
   MeshBuilder,
+  Mesh,
+  MirrorTexture,
+  Plane,
   Vector3,
   Quaternion,
   PointLight,

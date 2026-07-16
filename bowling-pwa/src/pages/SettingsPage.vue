@@ -25,6 +25,28 @@
         </q-card-section>
       </q-card>
 
+      <!-- Lane & Graphics -->
+      <q-card class="settings-card q-mb-md">
+        <q-card-section>
+          <div class="text-h6 q-mb-md text-white">Lane &amp; Graphics</div>
+
+          <q-toggle v-model="settings.reflections" label="Mirror-polished lane" @update:model-value="saveSettings" />
+          <q-toggle v-model="settings.glowFx" label="Neon glow" @update:model-value="saveSettings" />
+          <q-toggle v-model="settings.showTrace" label="Trace the ball's path" @update:model-value="saveSettings" />
+          <q-toggle v-model="settings.snappySweep" label="Snappy pinsetter (quicker frames)" @update:model-value="saveSettings" />
+
+          <div class="text-caption text-white q-mt-md" style="opacity: 0.8;">Hook sensitivity</div>
+          <q-slider v-model="settings.hookSens" :min="0.6" :max="1.4" :step="0.1" label color="green" @change="saveSettings" />
+
+          <div class="text-caption text-white" style="opacity: 0.8;">Swing power</div>
+          <q-slider v-model="settings.powerSens" :min="0.8" :max="1.2" :step="0.05" label color="green" @change="saveSettings" />
+
+          <div class="text-caption text-white q-mt-sm" style="opacity: 0.6;">
+            Graphics changes apply the next time you enter the alley.
+          </div>
+        </q-card-section>
+      </q-card>
+
       <!-- Display Settings -->
       <q-card class="settings-card q-mb-md">
         <q-card-section>

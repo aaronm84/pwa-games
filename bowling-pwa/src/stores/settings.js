@@ -19,6 +19,12 @@ export const useSettingsStore = defineStore('settings', () => {
     confirmations: true,
     selectedAlley: 'disco', // which alley to bowl
     selectedBall: 'house', // which ball is equipped
+    reflections: true, // mirror-polished lane
+    glowFx: true, // neon bloom
+    showTrace: true, // draw the last ball's path
+    snappySweep: false, // shorter pinsetter pause (quick sessions)
+    hookSens: 1, // hook sensitivity multiplier
+    powerSens: 1, // swing power multiplier
   })
 
   function updateSetting(key, value) {

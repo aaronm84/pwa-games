@@ -3,6 +3,8 @@
 // the bowler stands at +z, the pins live near z = PIN_Z (negative, far end).
 import {
   MeshBuilder,
+  MirrorTexture,
+  Plane,
   Vector3,
   Color3,
   StandardMaterial,
@@ -35,12 +37,27 @@ export function pinSpots() {
   return spots
 }
 
-export function buildAlley(scene, shadow, colors) {
+export function buildAlley(scene, shadow, colors, opts = {}) {
   const meshes = []
   const aggs = []
   const track = (m) => (meshes.push(m), m)
+  const freeze = (m) => (m.freezeWorldMatrix(), m)
 
-  const laneMat = pbr(scene, { color: colors.lane, rough: 0.28, name: 'lane' })
+  // the oiled lane: optionally a true planar mirror, so the neon strips, pins
+  // and ball reflect in the surface (the page keeps the render list current)
+  let laneMat
+  let mirror = null
+  if (opts.reflections) {
+    laneMat = new StandardMaterial('lane', scene)
+    laneMat.diffuseColor = Color3.FromHexString(colors.lane)
+    laneMat.specularColor = new Color3(0.14, 0.14, 0.18)
+    mirror = new MirrorTexture('laneMirror', { ratio: 0.5 }, scene, true)
+    mirror.mirrorPlane = new Plane(0, -1, 0, 0)
+    mirror.level = 0.4
+    laneMat.reflectionTexture = mirror
+  } else {
+    laneMat = pbr(scene, { color: colors.lane, rough: 0.28, name: 'lane' })
+  }
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
   for (const m of [laneMat, gutterMat, darkMat]) m.maxSimultaneousLights = 6
@@ -54,7 +71,7 @@ export function buildAlley(scene, shadow, colors) {
   lane.material = laneMat
   lane.receiveShadows = true
   aggs.push(makeStatic(lane, { shape: PhysicsShapeType.BOX, friction: 0.18, restitution: 0.1 }))
-  track(lane)
+  track(freeze(lane))
 
   // gutters: a lower floor channel each side. The edges are rounded — a soft
   // lip where the lane drops off, and a smooth cylindrical rail outside —
@@ -65,21 +82,21 @@ export function buildAlley(scene, shadow, colors) {
     g.position.set(gx, -0.27, floorZ)
     g.material = gutterMat
     aggs.push(makeStatic(g, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.05 }))
-    track(g)
+    track(freeze(g))
     // rounded lip at the lane/gutter boundary
     const lip = MeshBuilder.CreateCylinder('lip', { diameter: 0.09, height: floorLen, tessellation: 20 }, scene)
     lip.rotation.x = Math.PI / 2
     lip.position.set(side * (LANE_W / 2 + 0.01), -0.045, floorZ)
     lip.material = laneMat
     aggs.push(makeStatic(lip, { shape: PhysicsShapeType.CYLINDER, friction: 0.2, restitution: 0.05 }))
-    track(lip)
+    track(freeze(lip))
     // smooth outer rail
     const rail = MeshBuilder.CreateCylinder('rail', { diameter: 0.22, height: floorLen, tessellation: 24 }, scene)
     rail.rotation.x = Math.PI / 2
     rail.position.set(side * (LANE_W / 2 + GUTTER_W + 0.1), 0.02, floorZ)
     rail.material = darkMat
     aggs.push(makeStatic(rail, { shape: PhysicsShapeType.CYLINDER, friction: 0.3, restitution: 0.2 }))
-    track(rail)
+    track(freeze(rail))
   }
 
   // the pit: everything past the deck reads as an open VOID — flat-black,
@@ -89,23 +106,24 @@ export function buildAlley(scene, shadow, colors) {
   voidMat.diffuseColor = new Color3(0, 0, 0)
   voidMat.specularColor = new Color3(0, 0, 0)
   voidMat.disableLighting = true
+  voidMat.freeze()
   const totalW = LANE_W + 2 * GUTTER_W + 1
   const pit = MeshBuilder.CreateBox('pit', { width: totalW, height: 0.3, depth: 2.6 }, scene)
   pit.position.set(0, -1.5, DECK_END - 1.3)
   pit.material = voidMat
   aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
-  track(pit)
+  track(freeze(pit))
   // masking hood above the opening (the "mouth" of the void)
   const hood = MeshBuilder.CreateBox('hood', { width: totalW, height: 1.8, depth: 0.12 }, scene)
   hood.position.set(0, 2.0, DECK_END - 0.15)
   hood.material = voidMat
-  track(hood)
+  track(freeze(hood))
   // side cheeks inside the pit so no lit surface shows through the opening
   for (const side of [-1, 1]) {
     const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: 2.4, depth: 2.8 }, scene)
     cheek.position.set(side * (totalW / 2 - 0.06), -0.3, DECK_END - 1.4)
     cheek.material = voidMat
-    track(cheek)
+    track(freeze(cheek))
   }
 
   // neon edge strips (visual) — the page color-cycles their emissive
@@ -118,7 +136,7 @@ export function buildAlley(scene, shadow, colors) {
     m.disableLighting = true
     e.material = m
     edges.push({ mesh: e, mat: m })
-    track(e)
+    track(freeze(e))
   }
 
   // aiming arrows painted on the lane (classic range markers)
@@ -130,7 +148,7 @@ export function buildAlley(scene, shadow, colors) {
     const a = MeshBuilder.CreateBox('arrow', { width: 0.07, height: 0.01, depth: 0.34 }, scene)
     a.position.set(i * 0.4, 0.006, 3.4 - Math.abs(i) * 0.5)
     a.material = arrowMat
-    track(a)
+    track(freeze(a))
   }
 
   // backstop curtain at the far side of the pit — pure void-black, and fully
@@ -139,7 +157,7 @@ export function buildAlley(scene, shadow, colors) {
   back.position.set(0, -1.0, DECK_END - 2.7)
   back.material = voidMat
   aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0 }))
-  track(back)
+  track(freeze(back))
 
   // the sweep: the pinsetter's bar that drops down while the deck is serviced.
   // Visual-only (deadwood colliders are already gone when it runs); the page
@@ -165,12 +183,14 @@ export function buildAlley(scene, shadow, colors) {
   return {
     edges,
     gutterMat: gutterGlow,
+    mirror,
     sweep,
     sweepDownY: 0.42,
     sweepUpY: 3.6,
     dispose() {
       for (const a of aggs) a.dispose?.()
       for (const m of meshes) m.dispose()
+      mirror?.dispose()
       laneMat.dispose()
       gutterMat.dispose()
       darkMat.dispose()

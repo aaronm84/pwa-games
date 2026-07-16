@@ -18,6 +18,7 @@ import '@babylonjs/core/Meshes/Builders/polygonBuilder' // CreatePolygon (uses e
 import '@babylonjs/core/Meshes/Builders/torusBuilder'
 import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc
 import '@babylonjs/core/Meshes/Builders/latheBuilder' // CreateLathe (bowling pins)
+import '@babylonjs/core/Meshes/Builders/linesBuilder' // CreateLines (path traces)
 import '@babylonjs/core/Layers/effectLayerSceneComponent' // GlowLayer hooks
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // shadows hook into scene render
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent' // adds Scene.enablePhysics
@@ -36,6 +37,9 @@ export { GlowLayer } from '@babylonjs/core/Layers/glowLayer'
 export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight'
 export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 export { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
+export { Mesh } from '@babylonjs/core/Meshes/mesh'
+export { MirrorTexture } from '@babylonjs/core/Materials/Textures/mirrorTexture'
+export { Plane } from '@babylonjs/core/Maths/math.plane'
 export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'
 export { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial'
 export { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin'

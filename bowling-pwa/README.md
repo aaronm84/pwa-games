@@ -25,6 +25,18 @@ Havok, carried over from Mini Golf 3D). See `docs/ENGINE.md` at the repo root.
   (heavy, straight), the Comet (fast, bendy) and the Glitterball (maximum hook,
   zero chill).
 
+## Graphics & options
+
+The lane is a true **planar mirror** (pins, ball and neon reflect in the oiled
+surface), every emissive **blooms** through a glow layer, and each alley has a
+full environment beyond the lane — neon arches and a starfield at Disco Nova, a
+glowing volcano, canyon crags and drifting embers at Lava Lanes, a ringed planet
+and slow asteroids at Zero-G. Statics are merged + frozen so it all stays cheap.
+Settings has a **Lane & Graphics** panel: reflections, glow, ball-path trace,
+snappy pinsetter, and hook/power sensitivity sliders. During a roll, **hold to
+fast-forward**; releasing mid-backswing **cancels** the throw; after each throw
+a faint line traces the path your ball took.
+
 ## Three funky alleys
 
 | Alley | Vibe | Gimmick |

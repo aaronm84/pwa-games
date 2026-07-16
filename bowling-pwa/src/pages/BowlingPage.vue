@@ -30,6 +30,7 @@
     <div class="hud-hint" v-if="state === 'aiming' && rolls.length === 0">
       Slide sideways to line up · drag down to wind up, snap forward to bowl
     </div>
+    <div class="hud-hint" v-if="state === 'rolling'">⏩ hold to fast-forward</div>
 
     <!-- ball rack -->
     <button v-if="state === 'aiming' || state === 'rolling'" class="bag-btn" @click="showRack = true" aria-label="Open ball rack">
@@ -92,6 +93,7 @@ import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
 import { balls, ballById } from 'src/game/balls'
 import { makeDiscoBall, burstConfetti, makeUfo } from 'src/game/fx3d'
+import { buildEnvirons } from 'src/game/environs'
 import { useSettingsStore } from 'src/stores/settings'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
@@ -160,6 +162,10 @@ let quipUntil = 0
 let neonL = null
 let neonR = null
 let strikeFlash = 0
+let environs = null
+let ffHold = false // hold during a roll to fast-forward
+let tracePts = []
+let traceMesh = null
 // swing state: 'idle' → (horizontal drag = aiming) | (downward drag = 'swinging')
 let gestureMode = null
 let aimX = 0 // where the bowler stands (lateral)
@@ -190,6 +196,8 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  environs?.dispose()
+  traceMesh?.dispose()
   disco?.dispose()
   ufo?.dispose()
   for (const c of confetti) c.dispose()
@@ -203,9 +211,18 @@ async function boot() {
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
   shadowGen = outdoorLight(scene, { intensity: 0.5 }).shadow // dim base — the alley lights do the talking
+  scene.skipPointerMovePicking = true
+  // cinematic grade: gentle contrast + vignette
+  const ipc = scene.imageProcessingConfiguration
+  ipc.contrast = 1.15
+  ipc.exposure = 1.05
+  ipc.vignetteEnabled = true
+  ipc.vignetteWeight = 1.5
   // bloom on every emissive: the neon strips, guide line and power cue glow
-  const glow = new GlowLayer('glow', scene)
-  glow.intensity = 0.8
+  if (settings.settings.glowFx !== false) {
+    const glow = new GlowLayer('glow', scene, { mainTextureRatio: 0.5 })
+    glow.intensity = 0.8
+  }
   // the classic pin-deck spotlight
   const spot = new SpotLight('deckSpot', new Vector3(0, 6.2, PIN_Z + 2.2), new Vector3(0, -1, -0.35), Math.PI / 2.6, 8, scene)
   spot.intensity = 1.5
@@ -219,7 +236,8 @@ async function boot() {
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors)
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false })
+  environs = buildEnvirons(scene, alley)
 
   makeBall()
   rackPins()
@@ -245,7 +263,11 @@ async function boot() {
   if (alley.fx === 'discoball') disco = makeDiscoBall(scene, 0, 4.6, -3)
   if (alley.fx === 'ufo') ufo = makeUfo(scene)
 
-  gestures = new Gestures(canvasEl.value, { onDrag: (g) => onAim(g), onDragEnd: (g) => onRelease(g) })
+  gestures = new Gestures(canvasEl.value, {
+    onDragStart: () => { if (state.value === 'rolling') ffHold = true },
+    onDrag: (g) => onAim(g),
+    onDragEnd: (g) => { ffHold = false; onRelease(g) },
+  })
   stage.run((dt) => tick(dt))
   booting.value = false
 
@@ -285,6 +307,7 @@ function makeBall() {
   ball.position.set(0, BALL_R, START_Z)
   ballAgg = makeDynamic(ball, { mass: activeBall.value.mods.mass, restitution: 0.2, friction: 0.35, linearDamping: 0.06, angularDamping: 0.4 })
   parkBall()
+  refreshMirror()
 }
 function applyBallLook() {
   ball.material?.dispose()
@@ -321,6 +344,17 @@ function rackPins() {
   for (const p of pins) p.dispose()
   pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors))
   standingBefore = 10
+  refreshMirror()
+}
+// keep the lane's mirror reflecting the things that matter (and only those)
+function refreshMirror() {
+  if (!laneKit?.mirror) return
+  laneKit.mirror.renderList = [
+    ...pins.map((p) => p.body),
+    ...(ball ? [ball] : []),
+    ...laneKit.edges.map((e) => e.mesh),
+    laneKit.sweep,
+  ]
 }
 // keep the standing pins where they are, clear the deadwood (with a shrink-out)
 function clearDeadwood() {
@@ -414,17 +448,20 @@ function onRelease(g) {
   if (!hadWindup) { resetSwingBall(); return } // never wound up — not a throw
   if (import.meta.env.DEV) window.__swingDebug = { forwardTravel, strokeDt, upSpeed, backswing, swungForward, endDy: g.dy }
   const mods = activeBall.value.mods
-  if (!swungForward || upSpeed < 260) {
+  if (!swungForward) { resetSwingBall(); return } // let go mid-backswing = cancel, not a throw
+  if (upSpeed < 260) {
     // limp release: the ball plops out of your hand and trickles
     launch(3.2 * mods.power, 0, 0)
     setQuip('…a gentle lay-up. The pins are unbothered.')
     haptics.light()
     return
   }
+  const powerSens = settings.settings.powerSens || 1
+  const hookSens = settings.settings.hookSens || 1
   const snap = Math.min(upSpeed / 2400, 1)
   const power = snap * (0.45 + 0.55 * backswing)
-  const spin = Math.max(-1.2, Math.min(1.2, (g.dx - bottomDx) / 130)) * mods.hook
-  launch((4.5 + 11.5 * power) * mods.power, spin, spin * 0.7)
+  const spin = Math.max(-1.2, Math.min(1.2, ((g.dx - bottomDx) / 130) * hookSens)) * mods.hook
+  launch((4.5 + 11.5 * power) * mods.power * powerSens, spin, spin * 0.7)
   haptics.medium()
 }
 function resetSwingBall() {
@@ -433,6 +470,9 @@ function resetSwingBall() {
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
 function launch(speed, spin, vx0 = 0) {
+  traceMesh?.dispose()
+  traceMesh = null
+  tracePts = []
   spin = Math.max(-1.6, Math.min(1.6, spin))
   lastLaunch = { speed, spin }
   thrown = true
@@ -483,10 +523,14 @@ function tick(dt = 1 / 60) {
   // the fresh rack
   if (laneKit?.sweep) {
     const target = state.value === 'sweep' || fading.length ? laneKit.sweepDownY : laneKit.sweepUpY
-    laneKit.sweep.position.y += (target - laneKit.sweep.position.y) * 0.09
+    laneKit.sweep.position.y += (target - laneKit.sweep.position.y) * (settings.settings.snappySweep ? 0.16 : 0.09)
   }
   disco?.update(tickN)
   ufo?.update()
+  environs?.update(tickN)
+  // hold-to-fast-forward: double the physics clock while the finger is down
+  const pe = scene?.getPhysicsEngine?.()
+  if (pe) pe.setTimeStep(ffHold && state.value === 'rolling' ? 1 / 30 : 1 / 60)
   for (let i = confetti.length - 1; i >= 0; i--) {
     confetti[i].update(dt)
     if (confetti[i].done) confetti.splice(i, 1)
@@ -499,6 +543,9 @@ function tick(dt = 1 / 60) {
   }
 
   if (state.value === 'rolling' && thrown) {
+    if (settings.settings.showTrace !== false && tickN % 3 === 0 && tracePts.length < 220 && ball.position.y > -0.3) {
+      tracePts.push(ball.position.clone().add(new Vector3(0, 0.02 - BALL_R + 0.03, 0)))
+    }
     const v = ballAgg.body.getLinearVelocity()
     // hook: side-spin bends the ball harder as it travels down the oiled lane
     const onLane = ball.position.z > PIN_Z + 0.5 && Math.abs(ball.position.x) < LANE_W / 2 && !gutterBall
@@ -538,6 +585,13 @@ function tick(dt = 1 / 60) {
 }
 
 function settleThrow() {
+  // draw the path the ball just took, so you can read your own hook
+  if (settings.settings.showTrace !== false && tracePts.length > 1) {
+    traceMesh = MeshBuilder.CreateLines('trace', { points: tracePts }, scene)
+    traceMesh.color = Color3.FromHexString(alley.colors.arrow)
+    traceMesh.alpha = 0.5
+    traceMesh.isPickable = false
+  }
   const standingNow = pins.filter((p) => p.isStanding()).length
   const knocked = Math.max(0, standingBefore - standingNow)
   const pos = rollPosition(rolls.value)
