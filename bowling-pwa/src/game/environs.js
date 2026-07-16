@@ -36,7 +36,7 @@ function starfield(scene, count, mat, seedMul = 1) {
 // source mesh) and a ghost bowler's ball that rolls, scatters pins and re-racks
 // on its own schedule. No physics — everything is choreographed.
 function neighborLane(scene, alley, side, animated, meshes, mats) {
-  const off = side * 5.4
+  const off = side * 3.65 // directly adjacent — visible in a portrait view
   const laneMat = new StandardMaterial('nLane' + side, scene)
   laneMat.diffuseColor = Color3.FromHexString(alley.colors.lane).scale(0.6)
   laneMat.specularColor = new Color3(0.05, 0.05, 0.06)
@@ -206,14 +206,14 @@ export function buildEnvirons(scene, alley) {
       wall.freezeWorldMatrix()
       track(wall)
     }
-    const cone = MeshBuilder.CreateCylinder('volcano', { diameterTop: 2.2, diameterBottom: 8, height: 6, tessellation: 24 }, scene)
-    cone.position.set(-6.5, 2.5, -22)
+    const cone = MeshBuilder.CreateCylinder('volcano', { diameterTop: 1.4, diameterBottom: 5, height: 3.4, tessellation: 24 }, scene)
+    cone.position.set(-3.4, 1.4, -14.5)
     cone.material = rockMat
     cone.isPickable = false
     cone.freezeWorldMatrix()
     track(cone)
-    const crater = MeshBuilder.CreateTorus('crater', { diameter: 2.3, thickness: 0.35, tessellation: 28 }, scene)
-    crater.position.set(-6.5, 5.55, -22)
+    const crater = MeshBuilder.CreateTorus('crater', { diameter: 1.5, thickness: 0.26, tessellation: 28 }, scene)
+    crater.position.set(-3.4, 3.15, -14.5)
     crater.material = tmat(emissiveMat(scene, '#ff6a1f', { scale: 1.1 }))
     crater.isPickable = false
     crater.freezeWorldMatrix()
@@ -230,9 +230,9 @@ export function buildEnvirons(scene, alley) {
       animated.push((t) => {
         const phase = ((t * 0.004) + seed) % 6
         e.position.set(
-          Math.sin(seed * 3.3) * 5 + Math.sin(t * 0.01 + seed) * 0.6,
-          phase * 1.4 - 0.5,
-          -2 - ((seed * 2.9) % 8),
+          Math.sin(seed * 3.3) * 2.8 + Math.sin(t * 0.01 + seed) * 0.5,
+          phase * 0.75 - 0.3,
+          -2 - ((seed * 2.9) % 6),
         )
         e.visibility = phase < 5 ? 1 : Math.max(0, 6 - phase)
       })
@@ -259,8 +259,8 @@ export function buildEnvirons(scene, alley) {
         b.setEnabled(active)
         if (active) {
           const a = (i / 10) * Math.PI * 2
-          const r = k * (1.5 + (i % 3))
-          b.position.set(-6.5 + Math.cos(a) * r, 5.6 + k * 5 - k * k * 4, -22 + Math.sin(a) * r * 0.5)
+          const r = k * (1 + (i % 3) * 0.6)
+          b.position.set(-3.4 + Math.cos(a) * r, 3.2 + k * 2.6 - k * k * 2.1, -14.5 + Math.sin(a) * r * 0.5)
           b.visibility = 1 - k
         }
       })
@@ -273,7 +273,7 @@ export function buildEnvirons(scene, alley) {
     const planetMat = tmat(pbr(scene, { color: '#3d6fb5', rough: 0.75, name: 'planet' }))
     planetMat.emissiveColor = Color3.FromHexString('#16304f')
     const planet = MeshBuilder.CreateSphere('planet', { diameter: 10, segments: 32 }, scene)
-    planet.position.set(7.5, 6, -26)
+    planet.position.set(4.2, 3.6, -24)
     planet.material = planetMat
     planet.isPickable = false
     track(planet)
@@ -294,7 +294,7 @@ export function buildEnvirons(scene, alley) {
       const seed = i * 2.3
       track(a)
       animated.push((t) => {
-        a.position.set(Math.sin(t * 0.002 + seed) * (6 + i), 2.5 + Math.sin(t * 0.003 + seed * 2) * 1.2, -10 - i * 3)
+        a.position.set(Math.sin(t * 0.002 + seed) * (3 + i * 0.5), 1.9 + Math.sin(t * 0.003 + seed * 2) * 0.8, -10 - i * 2)
         a.rotation.y = t * 0.004 + seed
         a.rotation.x = t * 0.003
       })
@@ -312,8 +312,8 @@ export function buildEnvirons(scene, alley) {
       const active = k >= 0 && k < 1
       comet.setEnabled(active)
       if (active) {
-        comet.position.set(-14 + k * 28, 9 + Math.sin(k * Math.PI) * 2.5, -20)
-        comet.rotation.z = -0.18
+        comet.position.set(-7 + k * 14, 3.1 + Math.sin(k * Math.PI) * 0.9, -16)
+        comet.rotation.z = -0.12
         comet.visibility = Math.min(1, 4 * Math.min(k, 1 - k))
       }
       if (k >= 1) cometAt = t + 1100 + Math.random() * 1000

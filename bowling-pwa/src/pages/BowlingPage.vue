@@ -182,7 +182,6 @@ let bannerUntil = 0
 let thrown = false
 let throwTick = 0
 let gutterBall = false
-let standingBefore = 10
 let sweepAt = 0
 let gutterQuipped = false
 let strikesThisGame = 0
@@ -357,7 +356,6 @@ function placeBallForThrow(x) {
 function rackPins() {
   for (const p of pins) p.dispose()
   pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors))
-  standingBefore = 10
   refreshMirror()
 }
 // keep the lane's mirror reflecting the things that matter (and only those)
@@ -381,7 +379,6 @@ function clearDeadwood() {
     }
   }
   pins = keep
-  standingBefore = pins.length
 }
 
 function selectBall(id) {
@@ -596,11 +593,34 @@ function tick(dt = 1 / 60) {
     }
   } else if (state.value === 'sweep') {
     cam.target.z += (-3.5 - cam.target.z) * 0.04 // linger on the pin deck
-    if (tickN >= sweepAt) settleThrow()
+    // count only when every pin has stopped wobbling — a pin that falls late
+    // must fall BEFORE the count, not after (hard timeout keeps it moving)
+    if (tickN >= sweepAt && (!pins.some((p) => p.isMoving()) || tickN >= sweepAt + (settings.settings.snappySweep ? 100 : 180))) settleThrow()
   } else {
     // ease camera home
     cam.target.z += (2.4 - cam.target.z) * 0.06
     cam.radius += (7.6 - cam.radius) * 0.04
+    // late fallers: a pin counted standing that topples while you aim gets
+    // swept as deadwood and credited to the throw that felled it
+    if (state.value === 'aiming' && !gameOver.value && tickN % 10 === 0) {
+      const fallen = pins.filter((p) => !p.isStanding())
+      if (fallen.length) {
+        for (const p of fallen) {
+          p.freeze()
+          fading.push({ p, t: 18 })
+        }
+        pins = pins.filter((p) => p.isStanding())
+        const pos = rollPosition(rolls.value)
+        if (pos && pos.throw > 0) {
+          const r = [...rolls.value]
+          r[r.length - 1] += fallen.length
+          rolls.value = r
+          const next = rollPosition(rolls.value)
+          if (!next) return endGame()
+          if (next.standing === 10) rackPins() // the credit completed the rack
+        }
+      }
+    }
   }
 }
 
@@ -613,8 +633,10 @@ function settleThrow() {
     traceMesh.isPickable = false
   }
   const standingNow = pins.filter((p) => p.isStanding()).length
-  const knocked = Math.max(0, standingBefore - standingNow)
   const pos = rollPosition(rolls.value)
+  // measured against the rack the scorecard expects, so a pin that toppled
+  // between throws can never come back as a phantom
+  const knocked = Math.max(0, Math.min(pos.standing, pos.standing - standingNow))
   rolls.value = [...rolls.value, knocked]
 
   // celebrate — a 10 off a fresh rack is a strike even on the tenth's bonus balls

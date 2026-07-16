@@ -248,17 +248,24 @@ export function makePin(scene, shadow, x, z, colors) {
   const { body, stripes, mats } = makePinMesh(scene, colors)
   body.position.set(x, 0.001, z)
   shadow.addShadowCaster(body)
-  const agg0 = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
-  let agg = agg0
+  let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
   agg.body.setLinearDamping(0.1)
   agg.body.setAngularDamping(0.2)
   return {
     body,
     home: { x, z },
-    // standing = still mostly upright, on the deck, not down in the pit
+    // standing = still mostly upright, on the deck, not down in the pit, and
+    // not leaning off the lane edge (a pin propped on the gutter lip is down)
     isStanding() {
       const up = Vector3.TransformNormal(Vector3.Up(), body.getWorldMatrix())
-      return up.y > 0.8 && body.position.y > -0.4 && body.position.z > PIT_Z
+      return up.y > 0.8 && body.position.y > -0.4 && body.position.z > PIT_Z && Math.abs(body.position.x) < LANE_W / 2
+    },
+    // still wobbling/sliding? the count waits for quiet pins
+    isMoving() {
+      if (!agg) return false
+      const v = agg.body.getLinearVelocity()
+      const w = agg.body.getAngularVelocity()
+      return Math.hypot(v.x, v.y, v.z) > 0.25 || Math.hypot(w.x, w.y, w.z) > 0.6
     },
     // drop the collider now (deadwood must stop interacting) but keep the mesh
     // so the page can fade it out
