@@ -475,8 +475,9 @@ function spawnHazards() {
   const dv = devParam('hazards')
   const level = dv === '1' ? 'wild' : dv || settings.settings.hazardLevel
   const ids = pickHazards(alley, level, devParam('hazard'))
-  for (const id of ids) {
-    const h = spawnHazard(scene, id)
+  const at = devParam('hazat') // DEV: pin the forced hazard close to camera for asset QA
+  for (const [i, id] of ids.entries()) {
+    const h = spawnHazard(scene, id, at && i === 0 ? { x: 0, z: parseFloat(at) } : {})
     if (!h) continue
     for (const m of h.meshes) if (m.isVisible !== false) shadowGen.addShadowCaster(m)
     hazards.push(h)

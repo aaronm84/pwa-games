@@ -18,6 +18,7 @@ import '@babylonjs/core/Meshes/Builders/polygonBuilder' // CreatePolygon (uses e
 import '@babylonjs/core/Meshes/Builders/torusBuilder'
 import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc
 import '@babylonjs/core/Meshes/Builders/latheBuilder' // CreateLathe (bowling pins)
+import '@babylonjs/core/Meshes/Builders/capsuleBuilder' // CreateCapsule (hazard props: limbs, soles)
 import '@babylonjs/core/Meshes/Builders/linesBuilder' // CreateLines (path traces)
 import '@babylonjs/core/Layers/effectLayerSceneComponent' // GlowLayer hooks
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // shadows hook into scene render
