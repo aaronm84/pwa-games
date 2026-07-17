@@ -24,6 +24,8 @@ export const useSettingsStore = defineStore('settings', () => {
     customBall: { mass: 6.5, power: 1.0, hook: 1.2, color: '#7b2ff0' }, // the pro-shop build
     reflections: true, // mirror-polished lane
     glowFx: true, // neon bloom
+    instantReplay: true, // pin-cam replay on strikes
+    ghostRace: true, // race your best game's scorecard in solo play
     showTrace: true, // draw the last ball's path
     snappySweep: false, // shorter pinsetter pause (quick sessions)
     hookSens: 1, // hook sensitivity multiplier

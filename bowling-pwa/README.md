@@ -35,6 +35,15 @@ Havok, carried over from Mini Golf 3D). See `docs/ENGINE.md` at the repo root.
   weight swap in on their turn — Rexxie hurls a 9-pound Meteor, Rollo lobs the
   5-pound Snoozer). **Tournament** runs the three toughest rivals as a ladder:
   win to advance, lose and it resets, survive Granny Lois to take the title.
+- **Instant replay** — strikes get the broadcast treatment: the whole throw is
+  recorded body-by-body, and the pins scatter again in half-speed slow motion
+  from a low pin-cam beside the deck, letterboxed with a blinking ● INSTANT
+  REPLAY. Tap to skip; toggle in Settings.
+- **Ghost race** — solo games race the roll-by-roll tape of your **best game**:
+  its cumulative score runs as a faint second line under your marks strip, a
+  👻 pace chip shows what the ghost had at this point, your per-frame score
+  turns green/red as you pull ahead or fall behind, and the endgame verdict
+  says whether the ghost still holds it. Toggle in Settings.
 - **Lane hazards (leveled)** — a Settings level (Off / Light / Wild) scatters
   junk on the boards to bowl around. Every alley has its own catalog —
   platform disco shoes and rogue mirror balls; **encroaching lava** that

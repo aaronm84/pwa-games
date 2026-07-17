@@ -9,6 +9,7 @@ export const useProgressStore = defineStore('progress', () => {
   const bowling = ref({
     games: 0,
     bestScore: null,
+    bestRolls: [], // the roll-by-roll tape of the best game — the ghost
     totalStrikes: 0,
     perfectGames: 0,
     rivalWins: 0,
@@ -17,13 +18,16 @@ export const useProgressStore = defineStore('progress', () => {
   })
 
   // Called once when a full ten-frame game finishes. Returns { newBest }.
-  function recordGame(total, strikes) {
+  function recordGame(total, strikes, gameRolls = null) {
     const g = bowling.value
     g.games++
     g.totalStrikes += strikes
     if (total === 300) g.perfectGames++
     const newBest = g.bestScore === null || total > g.bestScore
-    if (newBest) g.bestScore = total
+    if (newBest) {
+      g.bestScore = total
+      if (gameRolls) g.bestRolls = [...gameRolls]
+    }
     saveToStorage()
     return { newBest }
   }
@@ -70,7 +74,7 @@ export const useProgressStore = defineStore('progress', () => {
   }
 
   async function resetProgress() {
-    bowling.value = { games: 0, bestScore: null, totalStrikes: 0, perfectGames: 0, rivalWins: 0, tournamentStage: 0, tournamentsWon: 0 }
+    bowling.value = { games: 0, bestScore: null, bestRolls: [], totalStrikes: 0, perfectGames: 0, rivalWins: 0, tournamentStage: 0, tournamentsWon: 0 }
     await saveToStorage()
   }
 

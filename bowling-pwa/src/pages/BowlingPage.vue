@@ -8,6 +8,7 @@
         <div class="chip"><span>Frame</span><b>{{ frameNum }}/10</b></div>
         <div class="chip"><span>Throw</span><b>{{ throwNum }}</b></div>
         <div class="chip"><span>Score</span><b>{{ runningTotal ?? '–' }}</b></div>
+        <div v-if="ghostActive" class="chip chip-ghost"><span>👻 pace</span><b>{{ ghostPace }}</b></div>
       </div>
       <div class="chips" v-else>
         <div class="chip" :class="{ turn: bowler === 'me' }"><span>You</span><b>{{ myTotal }}</b></div>
@@ -17,11 +18,12 @@
       <div class="chip mode">{{ backend }}</div>
     </div>
 
-    <!-- mini per-frame marks strip -->
+    <!-- mini per-frame marks strip (with the ghost's line under yours) -->
     <div class="marks">
       <div v-for="(f, i) in framesView" :key="i" class="mark-cell" :class="{ cur: i === curFrame && !gameOver }">
         <span class="m-rolls">{{ f.marks }}</span>
-        <span class="m-cum">{{ f.cumulative ?? '' }}</span>
+        <span class="m-cum" :class="f.vs">{{ f.cumulative ?? '' }}</span>
+        <span v-if="ghostActive" class="m-ghost">{{ f.ghost ?? '·' }}</span>
       </div>
     </div>
 
@@ -36,6 +38,14 @@
       Slide sideways to line up · drag down to wind up, snap forward to bowl
     </div>
     <div class="hud-hint" v-if="state === 'rolling'">⏩ hold to fast-forward</div>
+
+    <!-- the broadcast moment: letterboxed pin-cam replay, tap to skip -->
+    <transition name="fade">
+      <div v-if="showReplay" class="replay-ui" @click="endReplay">
+        <div class="rp-bar rp-top"><span class="rp-dot">●</span> INSTANT REPLAY</div>
+        <div class="rp-bar rp-bottom">tap to skip</div>
+      </div>
+    </transition>
 
     <!-- ball rack -->
     <button v-if="state === 'aiming' || state === 'rolling'" class="bag-btn" @click="showRack = true" aria-label="Open ball rack">
@@ -206,11 +216,29 @@ const activeRolls = computed(() => (bowler.value === 'ai' ? rollsAI.value : roll
 const score = computed(() => scoreGame(activeRolls.value))
 const myTotal = computed(() => { let t = 0; for (const f of scoreGame(rolls.value).frames) if (f.cumulative != null) t = f.cumulative; return t })
 const aiTotal = computed(() => { let t = 0; for (const f of scoreGame(rollsAI.value).frames) if (f.cumulative != null) t = f.cumulative; return t })
+// the ghost: your best game's tape, raced frame-by-frame in solo play
+const ghostRolls = computed(() => (!vsRival && settings.settings.ghostRace !== false ? progress.bowling.bestRolls || [] : []))
+const ghostActive = computed(() => ghostRolls.value.length > 0 && !gameOver.value)
+const ghostFrames = computed(() => scoreGame(ghostRolls.value).frames)
+const ghostPace = computed(() => {
+  // what the ghost had on the board at this point of the game
+  let last = null
+  for (let i = 0; i <= Math.min(curFrame.value, 9); i++) {
+    if (ghostFrames.value[i]?.cumulative != null) last = ghostFrames.value[i].cumulative
+  }
+  return last ?? 0
+})
 const framesView = computed(() =>
-  score.value.frames.map((f) => ({
-    marks: f.rolls.map((r, i) => (r === 10 && (i === 0 || f.rolls[i - 1] === 10 || f.rolls.length === 3) ? 'X' : i > 0 && f.rolls[i - 1] + r === 10 && f.rolls[i - 1] !== 10 ? '/' : r === 0 ? '-' : r)).join(' '),
-    cumulative: f.cumulative,
-  })),
+  score.value.frames.map((f, i) => {
+    const gc = ghostRolls.value.length ? ghostFrames.value[i]?.cumulative ?? null : null
+    return {
+      marks: f.rolls.map((r, k) => (r === 10 && (k === 0 || f.rolls[k - 1] === 10 || f.rolls.length === 3) ? 'X' : k > 0 && f.rolls[k - 1] + r === 10 && f.rolls[k - 1] !== 10 ? '/' : r === 0 ? '-' : r)).join(' '),
+      cumulative: f.cumulative,
+      ghost: gc,
+      // ahead/behind read at a glance once both numbers exist
+      vs: f.cumulative != null && gc != null ? (f.cumulative >= gc ? 'up' : 'down') : '',
+    }
+  }),
 )
 const curFrame = computed(() => rollPosition(activeRolls.value)?.frame ?? 9)
 const frameNum = computed(() => curFrame.value + 1)
@@ -267,6 +295,12 @@ let gutterQuipped = false
 let patchSizzled = false // the lava patch only quips once per throw
 let strikesThisGame = 0
 let aiActAt = -1 // when the rival takes their next throw
+// instant replay: every throw records ball+pin transforms; strikes play back
+let replayBuf = []
+let replayIdx = 0
+let replayEnd = 0
+let replayCont = null
+const showReplay = ref(false)
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
@@ -391,6 +425,13 @@ async function boot() {
       vs: vsRival?.id ?? null,
       hazardCount: hazards.length,
       hazardIds: hazards.map((h) => h.id),
+      replayOn: showReplay.value,
+      replayBufLen: replayBuf.length,
+      ghost: ghostActive.value ? { pace: ghostPace.value, best: progress.bowling.bestScore } : null,
+      devSetBest: (r) => {
+        progress.bowling.bestRolls = [...r]
+        progress.bowling.bestScore = scoreGame(r).total ?? 0
+      },
       aimX,
       lastLaunch,
       selectBall,
@@ -652,6 +693,7 @@ function launch(speed, spin, vx0 = 0) {
   gutterBall = false
   gutterQuipped = false
   patchSizzled = false
+  replayBuf = []
   state.value = 'rolling'
   ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), BALL_R, START_Z)
   ballAgg.body.disablePreStep = false
@@ -725,6 +767,18 @@ function tick(dt = 1 / 60) {
     if (f.t <= 0) { f.p.dispose(); fading.splice(i, 1) }
   }
 
+  // the broadcast tape: while a throw is live, record every body's transform
+  if (settings.settings.instantReplay !== false && ((state.value === 'rolling' && thrown) || state.value === 'sweep') && replayBuf.length < 700) {
+    const q = ball.rotationQuaternion
+    replayBuf.push({
+      b: [ball.position.x, ball.position.y, ball.position.z, q?.x ?? 0, q?.y ?? 0, q?.z ?? 0, q?.w ?? 1],
+      p: pins.map((p) => {
+        const pq = p.body.rotationQuaternion
+        return [p.body.position.x, p.body.position.y, p.body.position.z, pq?.x ?? 0, pq?.y ?? 0, pq?.z ?? 0, pq?.w ?? 1]
+      }),
+    })
+  }
+
   if (state.value === 'rolling' && thrown) {
     if (settings.settings.showTrace !== false && tickN % 3 === 0 && tracePts.length < 220 && ball.position.y > -0.3) {
       tracePts.push(ball.position.clone().add(new Vector3(0, 0.02 - BALL_R + 0.03, 0)))
@@ -781,6 +835,27 @@ function tick(dt = 1 / 60) {
     // count only when every pin has stopped wobbling — a pin that falls late
     // must fall BEFORE the count, not after (hard timeout keeps it moving)
     if (tickN >= sweepAt && (!pins.some((p) => p.isMoving()) || tickN >= sweepAt + (settings.settings.snappySweep ? 100 : 180))) settleThrow()
+  } else if (state.value === 'replay') {
+    // scrub the tape at half speed from the deck-side broadcast camera
+    const s = replayBuf[Math.floor(replayIdx)]
+    if (s) {
+      ball.position.set(s.b[0], s.b[1], s.b[2])
+      if (ball.rotationQuaternion) ball.rotationQuaternion.set(s.b[3], s.b[4], s.b[5], s.b[6])
+      ballAgg.body.setLinearVelocity(Vector3.Zero())
+      ballAgg.body.setAngularVelocity(Vector3.Zero())
+      s.p.forEach((a, i) => {
+        const pin = pins[i]
+        if (!pin) return
+        pin.body.position.set(a[0], a[1], a[2])
+        if (pin.body.rotationQuaternion) pin.body.rotationQuaternion.set(a[3], a[4], a[5], a[6])
+      })
+    }
+    cam.alpha = Math.PI / 2 - 0.78 + Math.sin(tickN * 0.004) * 0.04
+    cam.beta = 1.32
+    cam.radius = 3.4
+    cam.target.set(0, 0.5, PIN_Z - 0.4)
+    replayIdx += 0.5
+    if (replayIdx >= replayEnd) endReplay()
   } else {
     // ease camera home
     cam.target.z += (2.4 - cam.target.z) * 0.06
@@ -825,6 +900,14 @@ function settleThrow() {
   // measured against the rack the scorecard expects, so a pin that toppled
   // between throws can never come back as a phantom
   const knocked = Math.max(0, Math.min(pos.standing, pos.standing - standingNow))
+  // a strike earns the broadcast treatment: play the pin-cam replay first,
+  // then run the scoring/celebration exactly as it would have
+  if (knocked === 10 && pos.standing === 10 && settings.settings.instantReplay !== false && replayBuf.length > 30) {
+    if (startReplay(() => settleThrow2(mine, cur, pos, knocked))) return
+  }
+  settleThrow2(mine, cur, pos, knocked)
+}
+function settleThrow2(mine, cur, pos, knocked) {
   const preFrame = pos.frame
   cur.value = [...cur.value, knocked]
 
@@ -889,6 +972,40 @@ function settleThrow() {
   state.value = 'aiming'
 }
 
+// ---- instant replay ----
+// Freeze the settled deck, rewind the tape to just before impact, and let the
+// tick's 'replay' branch scrub it from the pin-cam. Returns false when there's
+// no usable impact on tape (caller settles normally).
+function startReplay(cont) {
+  const impact = replayBuf.findIndex((s) => s.b[2] <= PIN_Z + 1.0)
+  if (impact < 0) return false
+  replayIdx = Math.max(0, impact - 50)
+  replayEnd = Math.min(replayBuf.length - 1, impact + 135) // ~3s of scatter, tops
+  replayCont = cont
+  for (const p of pins) p.freeze() // colliders off — the tape drives the meshes
+  ballAgg.body.setLinearVelocity(Vector3.Zero())
+  ballAgg.body.setAngularVelocity(Vector3.Zero())
+  ballAgg.body.disablePreStep = false
+  showReplay.value = true
+  state.value = 'replay'
+  haptics.light()
+  return true
+}
+function endReplay() {
+  if (state.value !== 'replay') return
+  showReplay.value = false
+  ballAgg.body.disablePreStep = true
+  // camera back to the house view; the aiming ease takes it from here
+  cam.alpha = Math.PI / 2
+  cam.beta = 1.17
+  cam.radius = 7.6
+  cam.target.set(0, 0.2, 2.4)
+  const cont = replayCont
+  replayCont = null
+  state.value = 'sweep' // momentary — the continuation racks and re-aims
+  cont?.()
+}
+
 // the rival's turn: plan a throw at the pocket (or what's left) and bowl it
 function aiThrow() {
   const standingXs = pins.filter((p) => p.isStanding()).map((p) => p.body.position.x)
@@ -923,7 +1040,7 @@ function endGame() {
     const won = me > them
     finalTotal.value = `${me} — ${them}`
     finalLabel.value = won ? 'You Win!' : me === them ? 'Dead Even' : `${vsRival.name} Wins`
-    const rec = progress.recordGame(me, strikesThisGame)
+    const rec = progress.recordGame(me, strikesThisGame, rolls.value)
     const outcome = progress.recordMatch(won, inTournament)
     statLine.value =
       outcome === 'champion' ? '🏆 TOURNAMENT CHAMPION!' :
@@ -938,8 +1055,15 @@ function endGame() {
   const total = score.value.total ?? 0
   finalTotal.value = total
   finalLabel.value = total === 300 ? 'PERFECT GAME!' : total >= 200 ? 'On Fire!' : total >= 150 ? 'Great Game' : total >= 100 ? 'Solid Game' : 'Game Over'
-  const rec = progress.recordGame(total, strikesThisGame)
-  statLine.value = rec.newBest ? `🏆 New best game: ${total}` : null
+  const prevBest = progress.bowling.bestScore
+  const hadGhost = (progress.bowling.bestRolls || []).length > 0 && settings.settings.ghostRace !== false
+  const rec = progress.recordGame(total, strikesThisGame, rolls.value)
+  // the ghost race verdict: beat your tape or lose to yourself
+  statLine.value = rec.newBest
+    ? `🏆 New best game: ${total}` + (hadGhost && prevBest != null ? ` — ghost beaten by +${total - prevBest}` : '')
+    : hadGhost
+      ? `👻 The ghost holds it: ${prevBest} — you bowled ${total}`
+      : null
   gameOver.value = true
   state.value = 'over'
   haptics.success()
@@ -977,6 +1101,18 @@ function goBack() { router.push({ name: 'menu' }) }
 .chip.turn { outline: 2px solid rgba(110,224,122,0.8); }
 .chip-rival { gap: 1px; }
 .chip-rival .rival-avatar { margin-top: 1px; }
+.chip-ghost { background: rgba(60, 40, 90, 0.5); }
+.m-cum.up { color: #7de88a; }
+.m-cum.down { color: #ff8a8a; }
+.m-ghost { font-size: 0.58rem; opacity: 0.55; line-height: 1; }
+
+/* the broadcast letterbox */
+.replay-ui { position: absolute; inset: 0; z-index: 6; cursor: pointer; }
+.rp-bar { position: absolute; left: 0; right: 0; height: 74px; background: rgba(2, 2, 6, 0.92); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; letter-spacing: 0.14em; font-size: 0.85rem; }
+.rp-top { top: 0; padding-top: env(safe-area-inset-top); }
+.rp-bottom { bottom: 0; font-weight: 400; font-size: 0.7rem; opacity: 0.85; letter-spacing: 0.08em; padding-bottom: env(safe-area-inset-bottom); }
+.rp-dot { color: #ff4a4a; margin-right: 8px; animation: rpblink 1s steps(1) infinite; }
+@keyframes rpblink { 50% { opacity: 0.15; } }
 .marks { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 3; }
 .mark-cell { display: flex; flex-direction: column; align-items: center; min-width: 26px; padding: 2px 3px; border-radius: 6px; background: rgba(0,0,0,0.3); color: #fff; }
 .mark-cell.cur { outline: 1px solid rgba(255,255,255,0.55); }
