@@ -454,25 +454,31 @@ const CATALOG = {
       const mat = lit(pbr(scene, { color: '#d8a12f', rough: 0.85, name: 'hzPineMat' }))
       fruit.material = mat
       const leafMat = lit(pbr(scene, { color: '#3aa060', rough: 0.7, name: 'hzLeafMat' }))
-      const meshes = [fruit]
-      // a real crown: a center spike plus two generous rings of long blades
-      const spike = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.02, height: 0.3, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
-      spike.scaling.z = 3
-      spike.position.y = 0.3
-      spike.material = leafMat
-      spike.parent = fruit
-      meshes.push(spike)
-      for (let i = 0; i < 10; i++) {
-        const inner = i < 4
-        const leaf = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.021, height: inner ? 0.28 : 0.34, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
-        leaf.scaling.z = 3 // flatten into a blade
-        leaf.position.y = inner ? 0.3 : 0.26
-        leaf.rotation.y = (i / (inner ? 4 : 6)) * Math.PI * 2 + (inner ? 0.4 : 0)
-        leaf.rotation.x = inner ? 0.3 : 0.7
-        leaf.material = leafMat
-        leaf.parent = fruit
-        meshes.push(leaf)
+      // a FULL crown, nearly as tall as the fruit (see the reference photo):
+      // a center spike and three tiers of blades — steep inner, fanning mid,
+      // drooping outer — all merged into a single mesh
+      const CROWN_BASE = 0.19 // just inside the fruit's top
+      const blades = []
+      const blade = (L, tilt, yaw) => {
+        const b = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.02, height: L, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
+        b.scaling.z = 3 // flatten into a blade
+        // pivot at the crown base: rotation (tilt,yaw) sends local +y toward
+        // dir, so the capsule's center sits half a length along it
+        const dir = { x: Math.sin(tilt) * Math.sin(yaw), y: Math.cos(tilt), z: Math.sin(tilt) * Math.cos(yaw) }
+        b.position.set(dir.x * L * 0.5, CROWN_BASE + dir.y * L * 0.5, dir.z * L * 0.5)
+        b.rotation.x = tilt
+        b.rotation.y = yaw
+        blades.push(b)
       }
+      blade(0.44, 0, 0) // the spike
+      for (let i = 0; i < 5; i++) blade(0.4, 0.22, (i / 5) * Math.PI * 2 + 0.3)
+      for (let i = 0; i < 7; i++) blade(0.34, 0.5, (i / 7) * Math.PI * 2 + 1.1)
+      for (let i = 0; i < 8; i++) blade(0.27, 0.88, (i / 8) * Math.PI * 2)
+      const crown = Mesh.MergeMeshes(blades, true, true)
+      crown.material = leafMat
+      crown.isPickable = false
+      crown.parent = fruit
+      const meshes = [fruit, crown]
       return { root: fruit, meshes, mats: [mat, leafMat], restY: 0.21, phys: { shape: PhysicsShapeType.BOX, mass: 2, restitution: 0.2, friction: 0.8 } }
     },
   },
