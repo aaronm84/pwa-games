@@ -460,20 +460,21 @@ const CATALOG = {
       const CROWN_BASE = 0.19 // just inside the fruit's top
       const blades = []
       const blade = (L, tilt, yaw) => {
-        const b = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.02, height: L, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
-        b.scaling.z = 3 // flatten into a blade
+        // a long TAPERED spike (cone flattened into a blade), not a rounded bar
+        const b = MeshBuilder.CreateCylinder('hzLeafC', { diameterTop: 0, diameterBottom: 0.06, height: L, tessellation: 8 }, scene)
+        b.scaling.z = 0.42 // flatten into a blade
         // pivot at the crown base: rotation (tilt,yaw) sends local +y toward
-        // dir, so the capsule's center sits half a length along it
+        // dir, so the spike's center sits half a length along it
         const dir = { x: Math.sin(tilt) * Math.sin(yaw), y: Math.cos(tilt), z: Math.sin(tilt) * Math.cos(yaw) }
         b.position.set(dir.x * L * 0.5, CROWN_BASE + dir.y * L * 0.5, dir.z * L * 0.5)
         b.rotation.x = tilt
         b.rotation.y = yaw
         blades.push(b)
       }
-      blade(0.44, 0, 0) // the spike
-      for (let i = 0; i < 5; i++) blade(0.4, 0.22, (i / 5) * Math.PI * 2 + 0.3)
-      for (let i = 0; i < 7; i++) blade(0.34, 0.5, (i / 7) * Math.PI * 2 + 1.1)
-      for (let i = 0; i < 8; i++) blade(0.27, 0.88, (i / 8) * Math.PI * 2)
+      blade(0.52, 0, 0) // the spike
+      for (let i = 0; i < 4; i++) blade(0.46, 0.26, (i / 4) * Math.PI * 2 + 0.5)
+      for (let i = 0; i < 5; i++) blade(0.4, 0.58, (i / 5) * Math.PI * 2 + 1.2)
+      for (let i = 0; i < 4; i++) blade(0.3, 0.98, (i / 4) * Math.PI * 2)
       const crown = Mesh.MergeMeshes(blades, true, true)
       crown.material = leafMat
       crown.isPickable = false
