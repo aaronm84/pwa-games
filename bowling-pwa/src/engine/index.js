@@ -21,7 +21,9 @@ export { outdoorLight, pbr, orbitCamera } from './presets.js'
 export {
   MeshBuilder,
   Mesh,
+  VertexData,
   MirrorTexture,
+  Texture,
   Plane,
   Vector3,
   Quaternion,

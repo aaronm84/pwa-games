@@ -8,6 +8,7 @@ import {
   MeshBuilder,
   Mesh,
   Vector3,
+  VertexData,
   Color3,
   StandardMaterial,
   pbr,
@@ -15,6 +16,9 @@ import {
   PhysicsShapeType,
 } from 'src/engine'
 import { makePinMesh, LANE_W } from './lane3d'
+// the rental shoe is a real decimated 3D model (one shoe of the pair),
+// embedded as JSON with its photo atlas baked into vertex colors
+import shoeMesh from './shoe-mesh.json'
 
 function glowMat(scene, hex, scale = 1) {
   const m = new StandardMaterial('hzGlow', scene)
@@ -144,66 +148,60 @@ const CATALOG = {
   },
   shoe: {
     name: 'a lost rental shoe',
-    build(scene, { platform = false, body = '#ede4d4', panels = '#2a3550', saddle = '#a03028', laces = '#f2e8d8', soleColor = null } = {}) {
-      // the classic three-tone rental. ONE smooth low upper does the whole
-      // silhouette; the navy toe/heel and red saddle are tight overlays that
-      // sit millimetres proud (like stitched panels), and the sole is a thin
-      // slab under it — not a raft.
-      const soleH = platform ? 0.1 : 0.035
-      const H = 0.2 + soleH
-      const col = MeshBuilder.CreateBox('hzShoe', { width: 0.46, height: H, depth: 0.2 }, scene)
+    build(scene, { platform = false, tint = null } = {}) {
+      // the real deal: a decimated 3D shoe model (~7k tris) with its photo
+      // atlas baked into vertex colors at build time — no runtime texture.
+      // The disco variant rides a platform sole with a magenta tint.
+      const soleLift = platform ? 0.09 : 0
+      const H = 0.18 + soleLift
+      const col = MeshBuilder.CreateBox('hzShoe', { width: 0.46, height: H, depth: 0.18 }, scene)
       col.isVisible = false
       const meshes = [col]
-      const y0 = -H / 2 // the collider's floor
-      const soleMat = lit(pbr(scene, { color: soleColor || (platform ? '#e8c400' : '#c9b896'), rough: 0.7, name: 'hzSoleMat' }))
-      const sole = xCapsule(scene, 'hzSole', 0.09, 0.44, 18)
-      sole.scaling.y = soleH / 0.09 // flatten the capsule into a thin slab
-      sole.position.y = y0 + soleH / 2
-      sole.material = soleMat
-      sole.parent = col
-      meshes.push(sole)
-      const upY = y0 + soleH // top of the sole
-      const bodyMat = lit(pbr(scene, { color: body, rough: platform ? 0.3 : 0.55, name: 'hzBodyMat' }))
-      const panelMat = lit(pbr(scene, { color: panels, rough: platform ? 0.3 : 0.5, name: 'hzPanelMat' }))
-      const saddleMat = lit(pbr(scene, { color: saddle, rough: 0.55, name: 'hzSaddleMat' }))
-      // the upper: one smooth ellipsoid, half sunk into the sole so only its
-      // clean top half shows — no lumps
-      const upper = MeshBuilder.CreateSphere('hzUpper', { diameterX: 0.42, diameterY: 0.3, diameterZ: 0.185, segments: 24 }, scene)
-      upper.position.set(-0.01, upY + 0.02, 0)
-      upper.material = bodyMat
-      upper.parent = col
-      meshes.push(upper)
-      // toe cap: same curve family, a hair proud of the upper's nose
-      const toe = MeshBuilder.CreateSphere('hzToeCap', { diameterX: 0.2, diameterY: 0.2, diameterZ: 0.175, segments: 20 }, scene)
-      toe.position.set(0.105, upY + 0.008, 0)
-      toe.material = panelMat
-      toe.parent = col
-      meshes.push(toe)
-      // heel counter: a snug navy cup on the back
-      const heel = MeshBuilder.CreateSphere('hzHeel', { diameterX: 0.2, diameterY: 0.26, diameterZ: 0.175, segments: 20 }, scene)
-      heel.position.set(-0.135, upY + 0.03, 0)
-      heel.material = panelMat
-      heel.parent = col
-      meshes.push(heel)
-      // red saddle: two slim side patches at the waist
-      for (const s of [-1, 1]) {
-        const sad = MeshBuilder.CreateSphere('hzSaddle', { diameterX: 0.13, diameterY: 0.14, diameterZ: 0.05, segments: 16 }, scene)
-        sad.position.set(-0.02, upY + 0.05, s * 0.075)
-        sad.material = saddleMat
-        sad.parent = col
-        meshes.push(sad)
+      const mats = []
+      const y0 = -H / 2
+      const shoe = new Mesh('hzShoeMesh', scene)
+      const vd = new VertexData()
+      vd.positions = shoeMesh.positions
+      vd.indices = shoeMesh.indices
+      const cols = new Float32Array((shoeMesh.colors.length / 3) * 4)
+      for (let i = 0, j = 0; i < shoeMesh.colors.length; i += 3, j += 4) {
+        cols[j] = shoeMesh.colors[i] / 255
+        cols[j + 1] = shoeMesh.colors[i + 1] / 255
+        cols[j + 2] = shoeMesh.colors[i + 2] / 255
+        cols[j + 3] = 1
       }
-      // laces: three thin bars sloping down the instep
-      const laceMat = lit(pbr(scene, { color: laces, rough: 0.8, name: 'hzLaceMat' }))
-      for (let i = 0; i < 3; i++) {
-        const lace = MeshBuilder.CreateCapsule('hzLace', { radius: 0.009, height: 0.12, orientation: new Vector3(0, 0, 1), tessellation: 8, capSubdivisions: 4 }, scene)
-        lace.position.set(0.045 - i * 0.045, upY + 0.115 + i * 0.014, 0)
-        lace.rotation.z = -0.22
-        lace.material = laceMat
-        lace.parent = col
-        meshes.push(lace)
+      vd.colors = cols
+      const normals = []
+      VertexData.ComputeNormals(shoeMesh.positions, shoeMesh.indices, normals)
+      vd.normals = normals
+      vd.applyToMesh(shoe)
+      const mat = new StandardMaterial('hzShoeMat', scene)
+      mat.diffuseColor = Color3.White() // the baked vertex colors carry the leather
+      mat.specularColor = new Color3(0.14, 0.14, 0.14)
+      mat.maxSimultaneousLights = 6
+      mat.emissiveColor = new Color3(0.08, 0.08, 0.08) // readable on the dark lanes
+      if (tint) {
+        mat.diffuseColor = Color3.FromHexString(tint)
+        mat.emissiveColor = Color3.FromHexString(tint).scale(0.12)
       }
-      return { root: col, meshes, mats: [soleMat, bodyMat, panelMat, saddleMat, laceMat], restY: H / 2 + 0.005, phys: { shape: PhysicsShapeType.BOX, mass: 1.1, restitution: 0.3, friction: 0.6 } }
+      mats.push(mat)
+      shoe.material = mat
+      shoe.scaling.setAll(0.42) // model length 1 -> lane scale
+      shoe.position.y = y0 + soleLift + 0.002
+      shoe.parent = col
+      meshes.push(shoe)
+      if (platform) {
+        // the disco build: a chunky gold platform under the real shoe
+        const slab = xCapsule(scene, 'hzPlatform', 0.075, 0.4, 16)
+        slab.scaling.y = soleLift / 0.075
+        const slabMat = lit(pbr(scene, { color: '#e8c400', rough: 0.3, name: 'hzSlabMat' }))
+        slab.material = slabMat
+        slab.position.y = y0 + soleLift / 2
+        slab.parent = col
+        meshes.push(slab)
+        mats.push(slabMat)
+      }
+      return { root: col, meshes, mats, restY: H / 2 + 0.005, phys: { shape: PhysicsShapeType.BOX, mass: 1.1, restitution: 0.3, friction: 0.6 } }
     },
   },
 
@@ -222,7 +220,7 @@ const CATALOG = {
   discoshoe: {
     name: 'a platform disco shoe',
     build(scene) {
-      return CATALOG.shoe.build(scene, { platform: true, body: '#ff3df0', panels: '#b13df0', saddle: '#28d7fe', laces: '#f4f0ff' })
+      return CATALOG.shoe.build(scene, { platform: true, tint: '#ff5ae8' })
     },
   },
 
