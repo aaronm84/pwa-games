@@ -230,7 +230,8 @@ const CATALOG = {
     build(scene) {
       // a molten tongue creeping in from the gutter — no collider; the ball
       // that crosses it sizzles and slows (the page applies the drag).
-      // Two overlapping blobs so the edge reads irregular, not stamped.
+      // It FLOWS: the tongue breathes forward and back, the melt core pulses,
+      // and sparks pop off the surface.
       const blob = MeshBuilder.CreateSphere('hzLava', { diameterX: 1.0, diameterY: 0.07, diameterZ: 0.72, segments: 20 }, scene)
       const mat = glowMat(scene, '#ff6a1f', 1.15)
       blob.material = mat
@@ -247,7 +248,33 @@ const CATALOG = {
       crust.material = crustMat
       crust.scaling.z = 0.75
       crust.parent = blob
-      return { root: blob, meshes: [blob, lobe, core, crust], mats: [mat, coreMat, crustMat], restY: 0.02, patch: 0.48, edge: true }
+      const meshes = [blob, lobe, core, crust]
+      // sparks: three glowing motes popping off the melt
+      const sparkMat = glowMat(scene, '#ffb52f', 1.3)
+      const sparks = []
+      for (let i = 0; i < 3; i++) {
+        const sp = MeshBuilder.CreatePlane('hzSpark', { size: 0.05 }, scene)
+        sp.billboardMode = 7
+        sp.material = sparkMat
+        sp.isPickable = false
+        sp.parent = blob
+        sparks.push({ sp, seed: i * 2.3 })
+        meshes.push(sp)
+      }
+      const update = (t) => {
+        // the tongue creeps: slow surge lane-ward with a shimmer on the melt
+        const surge = 1 + Math.sin(t * 0.011) * 0.09 + Math.sin(t * 0.031) * 0.03
+        blob.scaling.x = surge
+        blob.scaling.z = 1 + Math.sin(t * 0.014 + 1.7) * 0.06
+        coreMat.emissiveColor = Color3.FromHexString('#ffd23f').scale(1.1 + Math.sin(t * 0.05) * 0.35)
+        mat.emissiveColor = Color3.FromHexString('#ff6a1f').scale(1.05 + Math.sin(t * 0.026 + 0.8) * 0.2)
+        for (const { sp, seed } of sparks) {
+          const phase = ((t * 0.014) + seed) % 2.2
+          sp.position.set(Math.sin(seed * 4) * 0.3, 0.03 + phase * 0.32, Math.cos(seed * 3) * 0.2)
+          sp.visibility = phase < 1.6 ? 1 - phase / 1.8 : 0
+        }
+      }
+      return { root: blob, meshes, mats: [mat, coreMat, crustMat, sparkMat], restY: 0.02, patch: 0.48, edge: true, update }
     },
   },
   boulder: {
@@ -421,24 +448,32 @@ const CATALOG = {
   pineapple: {
     name: 'a wayward pineapple',
     build(scene) {
+      // box collider so it SITS upright like a dropped pineapple instead of
+      // rolling crown-down and hiding its leaves
       const fruit = MeshBuilder.CreateSphere('hzPine', { diameterX: 0.32, diameterY: 0.42, diameterZ: 0.32, segments: 18 }, scene)
       const mat = lit(pbr(scene, { color: '#d8a12f', rough: 0.85, name: 'hzPineMat' }))
       fruit.material = mat
-      const leafMat = lit(pbr(scene, { color: '#2e8b57', rough: 0.8, name: 'hzLeafMat' }))
+      const leafMat = lit(pbr(scene, { color: '#3aa060', rough: 0.7, name: 'hzLeafMat' }))
       const meshes = [fruit]
-      // a proper crown: two rings of curved fronds
-      for (let i = 0; i < 7; i++) {
-        const inner = i < 3
-        const leaf = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.018, height: inner ? 0.2 : 0.24, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
-        leaf.scaling.z = 2.2 // flatten into a blade
-        leaf.position.y = 0.26
-        leaf.rotation.y = (i / (inner ? 3 : 4)) * Math.PI * 2
-        leaf.rotation.x = inner ? 0.18 : 0.55
+      // a real crown: a center spike plus two generous rings of long blades
+      const spike = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.02, height: 0.3, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
+      spike.scaling.z = 3
+      spike.position.y = 0.3
+      spike.material = leafMat
+      spike.parent = fruit
+      meshes.push(spike)
+      for (let i = 0; i < 10; i++) {
+        const inner = i < 4
+        const leaf = MeshBuilder.CreateCapsule('hzLeafC', { radius: 0.021, height: inner ? 0.28 : 0.34, orientation: new Vector3(0, 1, 0), tessellation: 8, capSubdivisions: 4 }, scene)
+        leaf.scaling.z = 3 // flatten into a blade
+        leaf.position.y = inner ? 0.3 : 0.26
+        leaf.rotation.y = (i / (inner ? 4 : 6)) * Math.PI * 2 + (inner ? 0.4 : 0)
+        leaf.rotation.x = inner ? 0.3 : 0.7
         leaf.material = leafMat
         leaf.parent = fruit
         meshes.push(leaf)
       }
-      return { root: fruit, meshes, mats: [mat, leafMat], restY: 0.21, phys: { shape: PhysicsShapeType.SPHERE, mass: 2, restitution: 0.3, friction: 0.7 } }
+      return { root: fruit, meshes, mats: [mat, leafMat], restY: 0.21, phys: { shape: PhysicsShapeType.BOX, mass: 2, restitution: 0.2, friction: 0.8 } }
     },
   },
   tikidrink: {
@@ -642,34 +677,47 @@ const CATALOG = {
   sunglasses: {
     name: 'somebody’s sunglasses',
     build(scene) {
-      const col = MeshBuilder.CreateBox('hzShades', { width: 0.46, height: 0.06, depth: 0.34 }, scene)
+      // dropped mid-wear: temples OPEN, splayed back from the hinges with
+      // little ear hooks — chunky enough to read from the bowler's view
+      const col = MeshBuilder.CreateBox('hzShades', { width: 0.5, height: 0.07, depth: 0.44 }, scene)
       col.isVisible = false
       const dark = lit(pbr(scene, { color: '#14181f', rough: 0.2, name: 'hzShadeMat' }))
-      const frameMat = lit(pbr(scene, { color: '#e8342f', rough: 0.4, name: 'hzFrameMat' }))
+      const frameMat = lit(pbr(scene, { color: '#ff4a3a', rough: 0.35, name: 'hzFrameMat' }))
+      frameMat.emissiveColor = Color3.FromHexString('#ff4a3a').scale(0.12)
       const meshes = [col]
       for (const s of [-1, 1]) {
-        const rim = MeshBuilder.CreateTorus('hzRim', { diameter: 0.19, thickness: 0.02, tessellation: 24 }, scene)
-        rim.position.set(s * 0.115, 0, 0.08)
+        const rim = MeshBuilder.CreateTorus('hzRim', { diameter: 0.19, thickness: 0.024, tessellation: 24 }, scene)
+        rim.position.set(s * 0.115, 0, 0.12)
         rim.material = frameMat
         rim.parent = col
         const lens = MeshBuilder.CreateCylinder('hzLens', { diameter: 0.18, height: 0.018, tessellation: 24 }, scene)
-        lens.position.set(s * 0.115, 0, 0.08)
+        lens.position.set(s * 0.115, 0, 0.12)
         lens.material = dark
         lens.parent = col
-        // temple arms folded back
-        const arm = xCapsule(scene, 'hzTArm', 0.011, 0.26, 8)
-        arm.position.set(s * 0.21, 0.005, -0.06)
-        arm.rotation.y = Math.PI / 2
+        // open temple arm: hinged at the rim's outer edge, splaying backward.
+        // A capsule along +x rotated by yaw θ extends toward (cosθ, 0, -sinθ).
+        const yaw = Math.PI / 2 - s * 0.3 // -z with an outward drift per side
+        const dir = { x: Math.cos(yaw), z: -Math.sin(yaw) }
+        const hinge = { x: s * 0.215, z: 0.1 }
+        const armLen = 0.3
+        const arm = xCapsule(scene, 'hzTArm', 0.017, armLen, 10)
+        arm.position.set(hinge.x + dir.x * armLen * 0.5, 0.005, hinge.z + dir.z * armLen * 0.5)
+        arm.rotation.y = yaw
         arm.material = frameMat
         arm.parent = col
-        meshes.push(rim, lens, arm)
+        // ear hook: a bead at the temple tip
+        const tip = MeshBuilder.CreateSphere('hzTTip', { diameter: 0.035, segments: 10 }, scene)
+        tip.position.set(hinge.x + dir.x * (armLen + 0.02), 0.005, hinge.z + dir.z * (armLen + 0.02))
+        tip.material = frameMat
+        tip.parent = col
+        meshes.push(rim, lens, arm, tip)
       }
-      const bridge = MeshBuilder.CreateCapsule('hzBridge', { radius: 0.012, height: 0.08, orientation: new Vector3(1, 0, 0), tessellation: 8, capSubdivisions: 4 }, scene)
-      bridge.position.set(0, 0.008, 0.08)
+      const bridge = MeshBuilder.CreateCapsule('hzBridge', { radius: 0.014, height: 0.08, orientation: new Vector3(1, 0, 0), tessellation: 8, capSubdivisions: 4 }, scene)
+      bridge.position.set(0, 0.01, 0.12)
       bridge.material = frameMat
       bridge.parent = col
       meshes.push(bridge)
-      return { root: col, meshes, mats: [dark, frameMat], restY: 0.035, phys: { shape: PhysicsShapeType.BOX, mass: 0.4, restitution: 0.3, friction: 0.6 } }
+      return { root: col, meshes, mats: [dark, frameMat], restY: 0.04, phys: { shape: PhysicsShapeType.BOX, mass: 0.4, restitution: 0.3, friction: 0.6 } }
     },
   },
   towel: {
@@ -775,8 +823,8 @@ export function spawnHazard(scene, id, { x = null, z = null } = {}) {
   let agg = null
   if (built.phys) {
     agg = makeDynamic(built.root, { ...built.phys, linearDamping: 0.4, angularDamping: 0.4 })
-  } else {
-    built.root.freezeWorldMatrix()
+  } else if (!built.update) {
+    built.root.freezeWorldMatrix() // animated patches keep a live matrix
   }
   return {
     id,
@@ -785,6 +833,7 @@ export function spawnHazard(scene, id, { x = null, z = null } = {}) {
     meshes: built.meshes,
     mats: built.mats,
     agg,
+    update: built.update || null,
     patch: built.patch ? { x: px, z: pz, r: built.patch } : null,
     dispose() {
       agg?.dispose()

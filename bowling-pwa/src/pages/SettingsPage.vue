@@ -36,6 +36,7 @@
           <q-toggle v-model="settings.snappySweep" label="Snappy pinsetter (quicker frames)" @update:model-value="saveSettings" />
           <q-toggle v-model="settings.instantReplay" label="Instant replay on strikes (tap to skip)" @update:model-value="saveSettings" />
           <q-toggle v-model="settings.ghostRace" label="Ghost race — chase your best game" @update:model-value="saveSettings" />
+          <q-toggle v-model="settings.sharpRender" label="Sharp rendering (high-res + smoothing)" @update:model-value="saveSettings" />
 
           <div class="text-caption text-white q-mt-md" style="opacity: 0.8;">Lane hazards — stuff lands on the boards and you bowl around it</div>
           <q-btn-toggle

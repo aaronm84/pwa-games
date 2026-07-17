@@ -35,6 +35,7 @@ export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight'
 export { PointLight } from '@babylonjs/core/Lights/pointLight'
 export { SpotLight } from '@babylonjs/core/Lights/spotLight'
 export { GlowLayer } from '@babylonjs/core/Layers/glowLayer'
+export { FxaaPostProcess } from '@babylonjs/core/PostProcesses/fxaaPostProcess' // edge smoothing for sharp mode
 export { DirectionalLight } from '@babylonjs/core/Lights/directionalLight'
 export { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator'
 export { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'

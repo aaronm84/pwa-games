@@ -30,6 +30,7 @@ export {
   PointLight,
   SpotLight,
   GlowLayer,
+  FxaaPostProcess,
   Color3,
   Color4,
   StandardMaterial,

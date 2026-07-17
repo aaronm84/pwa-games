@@ -215,7 +215,8 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   // the grove, stacked lasers in Zero-G, a lava-dripping basalt bar, a
   // button-tufted leather bumper at the casino, a pool noodle at Poolside.
   // The root is an invisible carrier the page animates; the dressing rides it.
-  const sweep = buildSweep(scene, colors, opts.sweepStyle || 'bar', track, meshesOwnMats)
+  const sweepKit = buildSweep(scene, colors, opts.sweepStyle || 'bar', track, meshesOwnMats)
+  const sweep = sweepKit.root
 
   // gutter floor color pulse handle (lava alley)
   const gutterGlow = colors.gutterGlow ? gutterMat : null
@@ -225,6 +226,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     gutterMat: gutterGlow,
     mirror,
     sweep,
+    sweepUpdate: sweepKit.update,
     sweepDownY: 0.42,
     sweepUpY: 3.6,
     dispose() {
@@ -247,6 +249,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
 // sweepUpY; every style hangs world-aligned children off it.
 function buildSweep(scene, colors, style, track, mats) {
   const W = LANE_W + 0.7
+  let update = null // styles with living parts (lava drips) fill this in
   const root = MeshBuilder.CreateBox('sweep', { width: W, height: 0.3, depth: 0.16 }, scene)
   root.isVisible = false
   root.position.set(0, 3.6, PIN_Z + 1.05)
@@ -329,7 +332,8 @@ function buildSweep(scene, colors, style, track, mats) {
       add(lens, s * (W / 2 - 0.07), 0.24)
     }
   } else if (style === 'drip') {
-    // Lava: a basalt bar shedding glowing drips in red, orange and yellow
+    // Lava: a basalt bar shedding glowing drips — each drip stretches, lets a
+    // molten bead go, and reforms on its own clock
     const bar = MeshBuilder.CreateBox('swBar', { width: W, height: 0.24, depth: 0.14 }, scene)
     bar.material = litM('#241a14', 0.95)
     add(bar, 0, 0.05)
@@ -337,14 +341,37 @@ function buildSweep(scene, colors, style, track, mats) {
     seam.material = glowM('#ff6a1f', 1.15)
     add(seam, 0, -0.09)
     const dripCols = ['#e8481c', '#ff6a1f', '#ffb52f']
+    const drips = []
     for (let i = 0; i < 6; i++) {
       const len = 0.12 + ((i * 2.7) % 3) * 0.07
+      const x = -W / 2 + 0.3 + i * (W - 0.6) / 5
       const drip = MeshBuilder.CreateCylinder('swDrip', { diameterTop: 0.05, diameterBottom: 0.008, height: len, tessellation: 10 }, scene)
       drip.material = glowM(dripCols[i % 3], 1.1)
-      add(drip, -W / 2 + 0.3 + i * (W - 0.6) / 5, -0.12 - len / 2)
+      add(drip, x, -0.12 - len / 2)
       const bead = MeshBuilder.CreateSphere('swBead', { diameter: 0.035, segments: 8 }, scene)
       bead.material = glowM('#ffd23f', 1.3)
-      add(bead, -W / 2 + 0.3 + i * (W - 0.6) / 5, -0.12 - len)
+      add(bead, x, -0.12 - len)
+      drips.push({ drip, bead, len, x, cycle: 130 + i * 29, seed: i * 47 })
+    }
+    update = (t) => {
+      for (const d of drips) {
+        const k = ((t + d.seed) % d.cycle) / d.cycle
+        if (k < 0.55) {
+          // the drip stretches as it gathers, the bead riding its tip
+          const grow = 0.55 + (k / 0.55) * 0.6
+          d.drip.scaling.y = grow
+          d.drip.position.y = -0.12 - (d.len * grow) / 2
+          d.bead.position.y = -0.12 - d.len * grow
+          d.bead.visibility = 1
+        } else {
+          // released: the bead falls away and fades; the drip snaps back
+          const f = (k - 0.55) / 0.45
+          d.drip.scaling.y = 0.55
+          d.drip.position.y = -0.12 - (d.len * 0.55) / 2
+          d.bead.position.y = -0.12 - d.len - f * f * 1.6
+          d.bead.visibility = Math.max(0, 1 - f * 1.15)
+        }
+      }
     }
   } else if (style === 'plush') {
     // High Roller: a button-tufted leather bumper with gold hardware
@@ -384,7 +411,7 @@ function buildSweep(scene, colors, style, track, mats) {
     strip.material = glowM(colors.sweepGlow || colors.arrow)
     add(strip, 0, -0.22)
   }
-  return root
+  return { root, update }
 }
 
 // ---- per-alley backers ------------------------------------------------------

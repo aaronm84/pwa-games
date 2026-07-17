@@ -145,7 +145,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer } from 'src/engine'
+import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer, FxaaPostProcess } from 'src/engine'
 import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
 import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
@@ -325,7 +325,10 @@ onBeforeUnmount(() => {
 })
 
 async function boot() {
-  stage = new Stage(canvasEl.value, { clear: hexToRgba(alley.colors.clear), webgpu: false })
+  // sharp mode renders at full retina density (the Stage still adapts down if
+  // the device can't hold frame rate) and smooths edges with FXAA
+  const sharp = settings.settings.sharpRender !== false
+  stage = new Stage(canvasEl.value, { clear: hexToRgba(alley.colors.clear), webgpu: false, maxDpr: sharp ? 3 : 2 })
   await stage.init()
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
@@ -354,6 +357,7 @@ async function boot() {
   // flat enough that the ball at the bowler's feet is in frame, high enough to
   // read the whole lane
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
+  if (sharp) new FxaaPostProcess('fxaa', 1.0, cam)
 
   await initPhysics(scene, { gravity: alley.gravity })
   laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit, sweepStyle: alley.sweepStyle })
@@ -753,6 +757,8 @@ function tick(dt = 1 / 60) {
   disco?.update(tickN)
   ufo?.update()
   environs?.update(tickN)
+  laneKit?.sweepUpdate?.(tickN) // living sweep arms (the lava drips)
+  for (const h of hazards) h.update?.(tickN) // living hazards (flowing lava)
   // hold-to-fast-forward: double the physics clock while the finger is down
   const pe = scene?.getPhysicsEngine?.()
   if (pe) pe.setTimeStep(ffHold && state.value === 'rolling' ? 1 / 30 : 1 / 60)

@@ -25,6 +25,7 @@ export const useSettingsStore = defineStore('settings', () => {
     reflections: true, // mirror-polished lane
     glowFx: true, // neon bloom
     instantReplay: true, // pin-cam replay on strikes
+    sharpRender: true, // full-retina resolution + FXAA edge smoothing
     ghostRace: true, // race your best game's scorecard in solo play
     showTrace: true, // draw the last ball's path
     snappySweep: false, // shorter pinsetter pause (quick sessions)
