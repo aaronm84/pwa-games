@@ -391,6 +391,17 @@ async function boot() {
         placeBallForThrow(x ?? 0)
         launch(speed ?? 13, spin ?? 0)
       },
+      // jump the scorecard to any position (e.g. the tenth frame) for tests
+      devSetRolls: (mine, ai) => {
+        rolls.value = [...mine]
+        if (ai) rollsAI.value = [...ai]
+        bowler.value = 'me'
+        gameOver.value = false
+        statLine.value = null
+        rackPins()
+        parkBall()
+        state.value = 'aiming'
+      },
     })
   }
 }
@@ -851,7 +862,10 @@ function settleThrow() {
       }
       return
     }
-    clearDeadwood()
+    // same frame continues — but a tenth-frame strike/spare earns a fresh
+    // rack for the bonus ball (next.standing says so), exactly like solo play
+    if (next.standing === 10) rackPins()
+    else clearDeadwood()
     parkBall()
     state.value = 'aiming'
     if (bowler.value === 'ai') aiActAt = tickN + 90
