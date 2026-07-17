@@ -12,32 +12,93 @@ function flat(scene, hex, { alpha = 1, emissive } = {}) {
 }
 
 // A mirror ball hanging over the pin deck. Spins forever; flashes on demand.
-export function makeDiscoBall(scene, x, y, z) {
+// Options: cableTop hangs it from a long cable (for the open-backer pit);
+// sparkle orbits little light glints around it so it visibly throws light.
+export function makeDiscoBall(scene, x, y, z, { cableTop = null, sparkle = false } = {}) {
   const ball = MeshBuilder.CreateSphere('disco', { diameter: 1.1, segments: 32 }, scene)
+  ball.convertToFlatShadedMesh() // faceted — each flat tile catches the light on its own
   const mat = new StandardMaterial('discoMat', scene)
-  mat.diffuseColor = Color3.FromHexString('#cfd6e4')
-  mat.specularColor = new Color3(1, 1, 1)
-  mat.specularPower = 8
-  mat.emissiveColor = new Color3(0.12, 0.12, 0.16)
+  mat.diffuseColor = Color3.FromHexString('#6f7c92') // dark tiles; the SPECULAR is the show
+  mat.specularColor = new Color3(1.6, 1.7, 1.9)
+  mat.specularPower = 6 // broad hot highlights — whole tiles flash as the ball turns
+  mat.emissiveColor = new Color3(0.1, 0.11, 0.15)
   ball.material = mat
   ball.position.set(x, y, z)
-  const rod = MeshBuilder.CreateCylinder('discoRod', { diameter: 0.04, height: 1.6, tessellation: 6 }, scene)
+  const rodH = cableTop ? Math.max(0.6, cableTop - y) : 1.6
+  const rod = MeshBuilder.CreateCylinder('discoRod', { diameter: 0.04, height: rodH, tessellation: 6 }, scene)
   rod.material = flat(scene, '#444a55')
-  rod.position.set(x, y + 1.3, z)
+  rod.position.set(x, y + 0.55 + rodH / 2, z)
+  // glints: tiny bright squares wheeling around the ball, like the spots a
+  // mirror ball throws on the walls — plus faint rays radiating off the ball
+  const glints = []
+  const beams = []
+  let glintMat = null
+  let beamMat = null
+  if (sparkle) {
+    glintMat = new StandardMaterial('discoGlint', scene)
+    glintMat.emissiveColor = Color3.FromHexString('#e8f0ff')
+    glintMat.disableLighting = true
+    for (let i = 0; i < 10; i++) {
+      const g = MeshBuilder.CreatePlane('glint', { size: 0.09 + (i % 3) * 0.04 }, scene)
+      g.billboardMode = 7
+      g.material = glintMat
+      g.isPickable = false
+      glints.push({ g, seed: i * 1.7, r: 1.0 + (i % 4) * 0.35 })
+    }
+    // light rays: thin translucent spokes fanning out of the ball in the
+    // camera-facing plane, twinkling independently
+    beamMat = new StandardMaterial('discoBeam', scene)
+    beamMat.emissiveColor = Color3.FromHexString('#cfe0ff')
+    beamMat.disableLighting = true
+    beamMat.alpha = 0.16
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.35
+      const len = 1.7 + (i % 3) * 0.8
+      const beam = MeshBuilder.CreateBox('discoRay', { width: 0.045, height: len, depth: 0.01 }, scene)
+      beam.position.set(x + Math.cos(a + Math.PI / 2) * (0.62 + len / 2), y + Math.sin(a + Math.PI / 2) * (0.62 + len / 2), z)
+      beam.rotation.z = a
+      beam.material = beamMat
+      beam.isPickable = false
+      beam.freezeWorldMatrix()
+      beams.push({ beam, seed: i * 2.3 })
+    }
+  }
   let flash = 0
   return {
+    ball,
     flash() { flash = 90 },
     update(t) {
       ball.rotation.y = t * 0.01
+      for (const { g, seed, r } of glints) {
+        const a = t * 0.012 + seed * 2.4
+        g.position.set(
+          x + Math.cos(a) * r,
+          y + Math.sin(t * 0.017 + seed * 3) * 0.7,
+          z + Math.sin(a) * r,
+        )
+        g.visibility = 0.35 + Math.max(0, Math.sin(t * 0.11 + seed * 5)) * 0.65
+      }
+      // each ray breathes on its own; the whole fan surges during a flash
+      for (const { beam, seed } of beams) {
+        beam.visibility = 0.35 + Math.sin(t * 0.035 + seed * 4) * 0.3 + (flash > 0 ? 0.35 : 0)
+      }
       if (flash > 0) {
         flash--
         const hue = (t * 9) % 360
         mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.9)
       } else {
-        mat.emissiveColor = new Color3(0.12, 0.12, 0.16)
+        mat.emissiveColor = new Color3(0.1, 0.11, 0.15)
       }
     },
-    dispose() { ball.dispose(); rod.dispose(); mat.dispose() },
+    dispose() {
+      ball.dispose()
+      rod.dispose()
+      mat.dispose()
+      for (const { g } of glints) g.dispose()
+      for (const { beam } of beams) beam.dispose()
+      glintMat?.dispose()
+      beamMat?.dispose()
+    },
   }
 }
 

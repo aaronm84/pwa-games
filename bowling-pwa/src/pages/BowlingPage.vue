@@ -346,7 +346,15 @@ async function boot() {
   aimArrow.material = am
   aimArrow.isVisible = false
 
-  if (alley.fx === 'discoball') disco = makeDiscoBall(scene, 0, 4.6, -3)
+  if (alley.fx === 'discoball') {
+    // the ball hangs where the backer used to be, throwing light over the deck
+    disco = makeDiscoBall(scene, 0, 2.3, -8.6, { cableTop: 7.5, sparkle: true })
+    // in front of and above the ball, so the camera-facing tiles catch fire
+    const discoPt = new PointLight('discoPt', new Vector3(0.6, 3.4, -5.6), scene)
+    discoPt.intensity = 0.5
+    discoPt.range = 11
+    discoPt.diffuse = Color3.FromHexString('#dfe8ff')
+  }
   if (alley.fx === 'ufo') ufo = makeUfo(scene)
 
   gestures = new Gestures(canvasEl.value, {

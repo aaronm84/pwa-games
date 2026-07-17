@@ -3,6 +3,7 @@
 // the bowler stands at +z, the pins live near z = PIN_Z (negative, far end).
 import {
   MeshBuilder,
+  Mesh,
   MirrorTexture,
   Plane,
   Vector3,
@@ -100,14 +101,19 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     track(freeze(rail))
   }
 
-  // the pit. Two styles:
-  //  - 'void' (default): everything past the deck reads as an open hole —
-  //    flat-black unlit surfaces with a masking hood, TRIMMED in the alley's
-  //    neon so the machinery belongs to the room instead of floating in it.
-  //  - 'water' (Poolside): no hood, no curtain — the deck simply ends over
-  //    open pool water and the ball drops in. Colliders stay (invisible)
-  //    so physics still swallows everything.
-  const waterPit = opts.pit === 'water'
+  // the pit + the backer. Every alley treats the end of the lane its own way:
+  //  - 'void' (fallback): the classic black hole with a masking hood
+  //  - 'open' (Zero-G, Disco): NO backer — the room shows through; just the
+  //    neon lintel floats above the deck (Disco hangs its mirror ball here)
+  //  - 'masks' (Tiki): a bamboo pole with a row of glowing-eyed tiki masks
+  //  - 'volcano' (Lava): the lane dead-ends into a volcano, crater aglow,
+  //    lava streaks running down toward the pit
+  //  - 'slot' (High Roller): the backer IS a slot machine — the pit is the
+  //    payout tray
+  //  - 'water' (Poolside): nothing at all — open water behind the deck
+  // Colliders are identical in all styles; only the dressing changes.
+  const style = opts.pit || 'void'
+  const waterPit = style === 'water'
   const voidMat = new StandardMaterial('voidMat', scene)
   voidMat.diffuseColor = new Color3(0, 0, 0)
   voidMat.specularColor = new Color3(0, 0, 0)
@@ -120,39 +126,52 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   pit.isVisible = !waterPit // under water level — the environs' pool shows instead
   aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
   track(freeze(pit))
-  if (!waterPit) {
+  if (style === 'void') {
     // masking hood above the opening (the "mouth" of the void)
     const hood = MeshBuilder.CreateBox('hood', { width: totalW, height: 1.8, depth: 0.12 }, scene)
     hood.position.set(0, 2.0, DECK_END - 0.15)
     hood.material = voidMat
     track(freeze(hood))
-    // side cheeks inside the pit so no lit surface shows through the opening
+  }
+  if (!waterPit) {
+    // side cheeks inside the pit so no lit surface shows through the hole —
+    // full height behind the hood, below deck level on the open styles
+    const cheekH = style === 'void' ? 2.4 : 1.0
+    const cheekY = style === 'void' ? -0.3 : -0.55
     for (const side of [-1, 1]) {
-      const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: 2.4, depth: 2.8 }, scene)
-      cheek.position.set(side * (totalW / 2 - 0.06), -0.3, DECK_END - 1.4)
+      const cheek = MeshBuilder.CreateBox('cheek', { width: 0.12, height: cheekH, depth: 2.8 }, scene)
+      cheek.position.set(side * (totalW / 2 - 0.06), cheekY, DECK_END - 1.4)
       cheek.material = voidMat
       track(freeze(cheek))
     }
-    // tie the machinery into the room: a neon trim strip along the mouth of
-    // the pit and down both corners, in the lane's own edge colors
+  }
+  // neon trim: the lintel over the pit mouth (and corner posts where the
+  // machinery wants grounding) in the lane's own edge colors
+  if (style === 'void' || style === 'open' || style === 'volcano') {
     const trimA = new StandardMaterial('pitTrimA', scene)
     trimA.emissiveColor = Color3.FromHexString(colors.laneEdgeA).scale(0.75)
     trimA.disableLighting = true
-    const trimB = new StandardMaterial('pitTrimB', scene)
-    trimB.emissiveColor = Color3.FromHexString(colors.laneEdgeB).scale(0.75)
-    trimB.disableLighting = true
-    meshesOwnMats.push(trimA, trimB)
+    meshesOwnMats.push(trimA)
     const lintel = MeshBuilder.CreateBox('pitTrim', { width: totalW, height: 0.055, depth: 0.14 }, scene)
     lintel.position.set(0, 1.12, DECK_END - 0.14)
     lintel.material = trimA
     track(freeze(lintel))
-    for (const side of [-1, 1]) {
-      const post = MeshBuilder.CreateBox('pitPost', { width: 0.055, height: 1.12, depth: 0.14 }, scene)
-      post.position.set(side * (totalW / 2 - 0.03), 0.56, DECK_END - 0.14)
-      post.material = trimB
-      track(freeze(post))
+    if (style !== 'open') {
+      const trimB = new StandardMaterial('pitTrimB', scene)
+      trimB.emissiveColor = Color3.FromHexString(colors.laneEdgeB).scale(0.75)
+      trimB.disableLighting = true
+      meshesOwnMats.push(trimB)
+      for (const side of [-1, 1]) {
+        const post = MeshBuilder.CreateBox('pitPost', { width: 0.055, height: 1.12, depth: 0.14 }, scene)
+        post.position.set(side * (totalW / 2 - 0.03), 0.56, DECK_END - 0.14)
+        post.material = trimB
+        track(freeze(post))
+      }
     }
   }
+  if (style === 'masks') buildMaskWall(scene, totalW, track, freeze, meshesOwnMats)
+  if (style === 'volcano') buildVolcanoBacker(scene, track, freeze, meshesOwnMats)
+  if (style === 'slot') buildSlotBacker(scene, totalW, track, freeze, meshesOwnMats)
 
   // neon edge strips (visual) — the page color-cycles their emissive
   const edges = []
@@ -234,6 +253,266 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
       for (const e of edges) e.mat.dispose()
     },
   }
+}
+
+// ---- per-alley backers ------------------------------------------------------
+
+// Tiki Grove: a bamboo pole strung above the pit with a row of carved masks —
+// glowing eyes, dark mouths, little frond toppers. Merged per material.
+function buildMaskWall(scene, totalW, track, freeze, mats) {
+  const wood = [[], []] // two alternating carve tones
+  const dark = []
+  const teeth = []
+  const fronds = []
+  const eyes = []
+  const bambooMat = new StandardMaterial('bambooMat', scene)
+  bambooMat.diffuseColor = Color3.FromHexString('#a8834a')
+  bambooMat.specularColor = new Color3(0.08, 0.08, 0.06)
+  mats.push(bambooMat)
+  const pole = MeshBuilder.CreateCylinder('maskPole', { diameter: 0.09, height: totalW, tessellation: 12 }, scene)
+  pole.rotation.z = Math.PI / 2
+  pole.position.set(0, 2.1, DECK_END - 0.2)
+  pole.material = bambooMat
+  track(freeze(pole))
+  const xs = [-1.5, -0.5, 0.5, 1.5]
+  xs.forEach((mx, i) => {
+    const my = 1.35
+    const mz = DECK_END - 0.22
+    // rope from the pole down to the mask
+    const rope = MeshBuilder.CreateCylinder('maskRope', { diameter: 0.025, height: 0.32, tessellation: 6 }, scene)
+    rope.position.set(mx, 1.93, mz)
+    wood[1].push(rope)
+    // the face: a tall carved oval with a heavy brow and a long nose
+    const face = MeshBuilder.CreateSphere('maskFace', { diameterX: 0.56, diameterY: 0.88, diameterZ: 0.2, segments: 18 }, scene)
+    face.position.set(mx, my, mz)
+    wood[i % 2].push(face)
+    const brow = MeshBuilder.CreateBox('maskBrow', { width: 0.5, height: 0.09, depth: 0.08 }, scene)
+    brow.position.set(mx, my + 0.2, mz + 0.06)
+    wood[(i + 1) % 2].push(brow)
+    const nose = MeshBuilder.CreateBox('maskNose', { width: 0.09, height: 0.26, depth: 0.09 }, scene)
+    nose.position.set(mx, my + 0.02, mz + 0.08)
+    wood[(i + 1) % 2].push(nose)
+    // glowing eyes
+    for (const s of [-1, 1]) {
+      const eye = MeshBuilder.CreateSphere('maskEye', { diameterX: 0.11, diameterY: 0.09, diameterZ: 0.05, segments: 10 }, scene)
+      eye.position.set(mx + s * 0.14, my + 0.11, mz + 0.09)
+      eyes.push(eye)
+    }
+    // mouth: a dark slot, some with teeth
+    const mouth = MeshBuilder.CreateBox('maskMouth', { width: 0.3, height: i % 2 ? 0.16 : 0.1, depth: 0.06 }, scene)
+    mouth.position.set(mx, my - 0.24, mz + 0.08)
+    dark.push(mouth)
+    if (i % 2) {
+      // carved fangs: little wooden pyramids hanging from the mouth's top lip
+      for (const tx of [-0.09, 0, 0.09]) {
+        const tooth = MeshBuilder.CreateCylinder('maskTooth', { diameterTop: 0.055, diameterBottom: 0, height: 0.08, tessellation: 4 }, scene)
+        tooth.position.set(mx + tx, my - 0.2, mz + 0.085)
+        teeth.push(tooth)
+      }
+    }
+    // frond topper
+    for (let f = -1; f <= 1; f++) {
+      const frond = MeshBuilder.CreateBox('maskFrond', { width: 0.06, height: 0.24, depth: 0.03 }, scene)
+      frond.position.set(mx + f * 0.1, my + 0.52, mz)
+      frond.rotation.z = f * 0.45
+      fronds.push(frond)
+    }
+  })
+  const bake = (bits, hex, { emissive = false, scale = 1 } = {}) => {
+    if (!bits.length) return
+    const merged = Mesh.MergeMeshes(bits, true, true)
+    let m
+    if (emissive) {
+      m = new StandardMaterial('maskGlow', scene)
+      m.emissiveColor = Color3.FromHexString(hex).scale(scale)
+      m.disableLighting = true
+    } else {
+      m = new StandardMaterial('maskMat', scene)
+      m.diffuseColor = Color3.FromHexString(hex)
+      m.specularColor = new Color3(0.05, 0.05, 0.04)
+    }
+    mats.push(m)
+    merged.material = m
+    merged.isPickable = false
+    track(freeze(merged))
+  }
+  bake(wood[0], '#8a5a2a')
+  bake(wood[1], '#5f3d1c')
+  bake(dark, '#1a0f06')
+  bake(teeth, '#b98d54')
+  bake(fronds, '#2e6b34')
+  bake(eyes, '#ffab3a', { emissive: true, scale: 1.1 })
+}
+
+// Lava Lanes: the lane dead-ends into a volcano. Dark cone, glowing crater,
+// lava streaks running down the face toward the pit.
+function buildVolcanoBacker(scene, track, freeze, mats) {
+  const rockMat = new StandardMaterial('vRock', scene)
+  rockMat.diffuseColor = Color3.FromHexString('#241a14')
+  rockMat.specularColor = new Color3(0.03, 0.03, 0.03)
+  mats.push(rockMat)
+  // squat and wide: the portrait camera's ceiling at this depth is ~y 2.5
+  // (less HUD), so the crater must sit low to actually be seen
+  const cone = MeshBuilder.CreateCylinder('backVolcano', { diameterTop: 1.4, diameterBottom: 7.8, height: 1.55, tessellation: 30 }, scene)
+  cone.position.set(0, 0.775, DECK_END - 4.3)
+  cone.material = rockMat
+  track(freeze(cone))
+  // a shoulder vent so the silhouette isn't a perfect cone
+  const shoulder = MeshBuilder.CreateCylinder('vShoulder', { diameterTop: 0.8, diameterBottom: 3.2, height: 1.0, tessellation: 20 }, scene)
+  shoulder.position.set(2.2, 0.5, DECK_END - 3.6)
+  shoulder.material = rockMat
+  track(freeze(shoulder))
+  const glow = new StandardMaterial('vGlow', scene)
+  glow.emissiveColor = Color3.FromHexString('#ff6a1f').scale(1.2)
+  glow.disableLighting = true
+  mats.push(glow)
+  const crater = MeshBuilder.CreateTorus('vCrater', { diameter: 1.65, thickness: 0.28, tessellation: 26 }, scene)
+  crater.position.set(0, 1.58, DECK_END - 4.3)
+  crater.material = glow
+  track(freeze(crater))
+  const hot = new StandardMaterial('vHot', scene)
+  hot.emissiveColor = Color3.FromHexString('#ffd23f').scale(1.25)
+  hot.disableLighting = true
+  mats.push(hot)
+  const throat = MeshBuilder.CreateCylinder('vThroat', { diameter: 1.4, height: 0.06, tessellation: 20 }, scene)
+  throat.position.set(0, 1.56, DECK_END - 4.3)
+  throat.material = hot
+  track(freeze(throat))
+  // lava streaks: bright runs from the crater lip down the near face toward
+  // the pit (top ≈ y2.1 @ z-12.9, base ≈ y0.2 @ z-10.2)
+  const streaks = []
+  for (const [sx, yaw, len] of [[-0.95, 0.2, 2.6], [0.1, -0.05, 3.1], [1.1, -0.26, 2.4]]) {
+    const s = MeshBuilder.CreateBox('vStreak', { width: 0.18, height: 0.07, depth: len }, scene)
+    s.position.set(sx, 0.85, DECK_END - 2.4 - len / 2 + 0.2)
+    s.rotation.x = -0.42 // the cone's slope
+    s.rotation.y = yaw
+    streaks.push(s)
+  }
+  const run = Mesh.MergeMeshes(streaks, true, true)
+  run.material = glow
+  run.isPickable = false
+  track(freeze(run))
+}
+
+// High Roller: the backer IS a slot machine — cabinet, three reels showing
+// cherry/BAR/seven, a light row across the top, and the lever arm. The pit
+// below is the payout tray.
+function buildSlotBacker(scene, totalW, track, freeze, mats) {
+  const cab = new StandardMaterial('slotCab', scene)
+  cab.diffuseColor = Color3.FromHexString('#4a1626')
+  cab.specularColor = new Color3(0.12, 0.08, 0.1)
+  mats.push(cab)
+  const body = MeshBuilder.CreateBox('slotBody', { width: totalW, height: 2.5, depth: 0.3 }, scene)
+  body.position.set(0, 1.25, DECK_END - 0.45)
+  body.material = cab
+  track(freeze(body))
+  // crown: a rounded topper with the house's gold trim
+  const crown = MeshBuilder.CreateCylinder('slotCrown', { diameter: 0.5, height: totalW, tessellation: 18 }, scene)
+  crown.rotation.z = Math.PI / 2
+  crown.position.set(0, 2.5, DECK_END - 0.45)
+  crown.material = cab
+  track(freeze(crown))
+  const gold = new StandardMaterial('slotGold', scene)
+  gold.emissiveColor = Color3.FromHexString('#ffd23f').scale(0.75)
+  gold.disableLighting = true
+  mats.push(gold)
+  // reel window: cream panel + gold frame
+  const face = new StandardMaterial('slotFace', scene)
+  face.diffuseColor = Color3.FromHexString('#f2ede4')
+  face.specularColor = new Color3(0.1, 0.1, 0.1)
+  mats.push(face)
+  const win = MeshBuilder.CreateBox('slotWin', { width: 2.9, height: 1.05, depth: 0.06 }, scene)
+  win.position.set(0, 1.5, DECK_END - 0.28)
+  win.material = face
+  track(freeze(win))
+  const frameBits = []
+  for (const [w, h, fx, fy] of [[3.0, 0.07, 0, 2.06], [3.0, 0.07, 0, 0.94], [0.07, 1.19, -1.5, 1.5], [0.07, 1.19, 1.5, 1.5]]) {
+    const bar = MeshBuilder.CreateBox('slotFrame', { width: w, height: h, depth: 0.07 }, scene)
+    bar.position.set(fx, fy, DECK_END - 0.26)
+    frameBits.push(bar)
+  }
+  // reel dividers
+  for (const dx of [-0.475, 0.475]) {
+    const div = MeshBuilder.CreateBox('slotDiv', { width: 0.05, height: 1.05, depth: 0.065 }, scene)
+    div.position.set(dx, 1.5, DECK_END - 0.27)
+    frameBits.push(div)
+  }
+  const frame = Mesh.MergeMeshes(frameBits, true, true)
+  frame.material = gold
+  frame.isPickable = false
+  track(freeze(frame))
+  // the symbols: 🍒 (red discs + stem), BAR (gold slab), 7 (magenta diamond)
+  const zSym = DECK_END - 0.235
+  const cherryMat = new StandardMaterial('slotCherry', scene)
+  cherryMat.emissiveColor = Color3.FromHexString('#ff4a6a').scale(0.9)
+  cherryMat.disableLighting = true
+  mats.push(cherryMat)
+  const cherryBits = []
+  for (const cx of [-1.07, -0.83]) {
+    const c = MeshBuilder.CreateSphere('slotC', { diameterX: 0.24, diameterY: 0.24, diameterZ: 0.05, segments: 14 }, scene)
+    c.position.set(cx, 1.38, zSym)
+    cherryBits.push(c)
+  }
+  const stem = MeshBuilder.CreateBox('slotStem', { width: 0.05, height: 0.3, depth: 0.04 }, scene)
+  stem.position.set(-0.95, 1.62, zSym)
+  stem.rotation.z = 0.2
+  cherryBits.push(stem)
+  const cherry = Mesh.MergeMeshes(cherryBits, true, true)
+  cherry.material = cherryMat
+  cherry.isPickable = false
+  track(freeze(cherry))
+  const bar = MeshBuilder.CreateBox('slotBar', { width: 0.6, height: 0.22, depth: 0.05 }, scene)
+  bar.position.set(0, 1.5, zSym)
+  bar.material = gold
+  track(freeze(bar))
+  const sevenMat = new StandardMaterial('slotSeven', scene)
+  sevenMat.emissiveColor = Color3.FromHexString('#ff3df0').scale(0.9)
+  sevenMat.disableLighting = true
+  mats.push(sevenMat)
+  const seven = MeshBuilder.CreateBox('slotSevenD', { width: 0.34, height: 0.34, depth: 0.05 }, scene)
+  seven.position.set(0.95, 1.5, zSym)
+  seven.rotation.z = Math.PI / 4
+  seven.material = sevenMat
+  track(freeze(seven))
+  // blinking-style light row across the crown (two alternating colors)
+  const lightA = new StandardMaterial('slotLightA', scene)
+  lightA.emissiveColor = Color3.FromHexString('#ffd23f')
+  lightA.disableLighting = true
+  const lightB = new StandardMaterial('slotLightB', scene)
+  lightB.emissiveColor = Color3.FromHexString('#ff4a6a')
+  lightB.disableLighting = true
+  mats.push(lightA, lightB)
+  const dotsA = []
+  const dotsB = []
+  for (let i = 0; i < 7; i++) {
+    const dot = MeshBuilder.CreateSphere('slotDot', { diameter: 0.11, segments: 10 }, scene)
+    dot.position.set(-1.8 + i * 0.6, 2.62, DECK_END - 0.42)
+    ;(i % 2 ? dotsB : dotsA).push(dot)
+  }
+  for (const [bits, m] of [[dotsA, lightA], [dotsB, lightB]]) {
+    const merged = Mesh.MergeMeshes(bits, true, true)
+    merged.material = m
+    merged.isPickable = false
+    track(freeze(merged))
+  }
+  // the lever arm, cocked and ready
+  const chrome = new StandardMaterial('slotChrome', scene)
+  chrome.diffuseColor = Color3.FromHexString('#b9c2ce')
+  chrome.specularColor = new Color3(0.6, 0.6, 0.65)
+  mats.push(chrome)
+  const arm = MeshBuilder.CreateCylinder('slotArm', { diameter: 0.07, height: 1.0, tessellation: 12 }, scene)
+  arm.position.set(totalW / 2 + 0.18, 1.9, DECK_END - 0.45)
+  arm.rotation.z = -0.28
+  arm.material = chrome
+  track(freeze(arm))
+  const knobMat = new StandardMaterial('slotKnob', scene)
+  knobMat.diffuseColor = Color3.FromHexString('#e8342f')
+  knobMat.emissiveColor = Color3.FromHexString('#e8342f').scale(0.25)
+  mats.push(knobMat)
+  const knob = MeshBuilder.CreateSphere('slotKnob', { diameter: 0.2, segments: 14 }, scene)
+  knob.position.set(totalW / 2 + 0.32, 2.38, DECK_END - 0.45)
+  knob.material = knobMat
+  track(freeze(knob))
 }
 
 // The classic pin silhouette, lathe-turned: broad belly, slim neck, rounded
