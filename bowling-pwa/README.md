@@ -76,9 +76,12 @@ a faint line traces the path your ball took.
 Each alley has its own announcer lines for strikes, spares, gutters, and splits —
 and its own **pin livery**: every theme dresses the lathe-turned pins in its own
 body color and band set (the tiki pins are three-band carved totems). The
-machinery wears the house colors too: the **pinsetter sweep arm is themed per
-alley** — bamboo at the grove, gold-trimmed velvet at the casino, lifeguard
-white at the pool. And the black backer is gone everywhere: **every alley ends
+machinery wears the house colors too: the **pinsetter sweep arm is a themed
+prop per alley** — twin neon tubes strung with sparkle beads at Disco Nova, a
+knotted bamboo cane at the grove, stacked laser beams between emitter pods in
+Zero-G, a basalt bar shedding glowing lava drips, a button-tufted leather
+bumper with gold hardware at the casino, and a candy-striped foam pool noodle
+at Poolside. And the black backer is gone everywhere: **every alley ends
 its lane its own way** — deep space shows behind the Zero-G pins under a
 floating neon line, a faceted mirror ball hangs over the Disco Nova pit
 throwing rays and glints, Tiki Grove strings a bamboo pole of glowing-eyed

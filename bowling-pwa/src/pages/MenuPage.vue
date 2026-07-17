@@ -1,14 +1,15 @@
 <template>
   <q-page class="menu-page">
-    <!-- Dynamic Background Component -->
-    <DynamicBackground />
+    <!-- the house at night — custom CSS scene, not the template orbs -->
+    <AlleyBackdrop />
 
     <!-- Menu Content -->
     <div class="menu-content">
-      <!-- Title -->
+      <!-- Title: a buzzing neon sign -->
       <div class="title-section">
-        <h1 class="game-title">
-          <span class="title-emphasis">Alley Nights</span>
+        <h1 class="game-title neon-sign">
+          <span class="neon-word">ALLEY</span>
+          <span class="neon-word neon-word-alt">NIGHTS</span>
         </h1>
         <p class="game-subtitle">Cosmic ten-pin · real physics</p>
       </div>
@@ -142,7 +143,7 @@ import { useHaptics } from 'src/composables/useHaptics'
 import { ref, computed } from 'vue'
 import { alleys, alleyById } from 'src/game/alleys'
 import { rivals, rivalById, TOURNAMENT } from 'src/game/rivals'
-import DynamicBackground from 'src/components/DynamicBackground.vue'
+import AlleyBackdrop from 'src/components/AlleyBackdrop.vue'
 import RivalAvatar from 'src/components/RivalAvatar.vue'
 
 const router = useRouter()
@@ -224,16 +225,38 @@ function openSettings() {
 
 .game-title {
   font-family: 'Quicksand', sans-serif;
-  font-size: 4rem;
-  font-weight: 600;
+  font-size: 3.4rem;
+  font-weight: 700;
   margin: 0 0 8px 0;
-  color: white;
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  letter-spacing: -0.02em;
+  letter-spacing: 0.08em;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+}
 
-  .title-emphasis {
-    color: white;
-  }
+// the sign out front: two neon tubes, one of them slightly on the fritz
+.neon-word {
+  color: #ffe9fd;
+  text-shadow:
+    0 0 6px #ff3df0,
+    0 0 18px #ff3df0,
+    0 0 42px rgba(255, 61, 240, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+}
+.neon-word-alt {
+  color: #eafcff;
+  text-shadow:
+    0 0 6px #28d7fe,
+    0 0 18px #28d7fe,
+    0 0 42px rgba(40, 215, 254, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  animation: neonflicker 6.5s linear infinite;
+}
+@keyframes neonflicker {
+  0%, 41%, 44.5%, 100% { opacity: 1; }
+  41.5%, 42.4% { opacity: 0.35; }
+  42.5%, 43.4% { opacity: 0.85; }
+  43.5%, 44.4% { opacity: 0.45; }
 }
 
 .game-subtitle {

@@ -145,66 +145,65 @@ const CATALOG = {
   shoe: {
     name: 'a lost rental shoe',
     build(scene, { platform = false, body = '#ede4d4', panels = '#2a3550', saddle = '#a03028', laces = '#f2e8d8', soleColor = null } = {}) {
-      // the classic three-tone rental: cream body, navy toe cap and heel
-      // counter, red saddle panels, cream laces — rounded everywhere.
-      const soleH = platform ? 0.14 : 0.06
-      const col = MeshBuilder.CreateBox('hzShoe', { width: 0.52, height: 0.2 + soleH, depth: 0.22 }, scene)
+      // the classic three-tone rental. ONE smooth low upper does the whole
+      // silhouette; the navy toe/heel and red saddle are tight overlays that
+      // sit millimetres proud (like stitched panels), and the sole is a thin
+      // slab under it — not a raft.
+      const soleH = platform ? 0.1 : 0.035
+      const H = 0.2 + soleH
+      const col = MeshBuilder.CreateBox('hzShoe', { width: 0.46, height: H, depth: 0.2 }, scene)
       col.isVisible = false
       const meshes = [col]
+      const y0 = -H / 2 // the collider's floor
       const soleMat = lit(pbr(scene, { color: soleColor || (platform ? '#e8c400' : '#c9b896'), rough: 0.7, name: 'hzSoleMat' }))
-      const sole = xCapsule(scene, 'hzSole', 0.1, 0.5, 18)
-      sole.scaling.y = soleH / 0.1 // flatten the capsule into a sole slab
-      sole.position.y = -(0.2 + soleH) / 2 + soleH / 2
+      const sole = xCapsule(scene, 'hzSole', 0.09, 0.44, 18)
+      sole.scaling.y = soleH / 0.09 // flatten the capsule into a thin slab
+      sole.position.y = y0 + soleH / 2
       sole.material = soleMat
       sole.parent = col
       meshes.push(sole)
-      const upY = sole.position.y + soleH / 2
+      const upY = y0 + soleH // top of the sole
       const bodyMat = lit(pbr(scene, { color: body, rough: platform ? 0.3 : 0.55, name: 'hzBodyMat' }))
       const panelMat = lit(pbr(scene, { color: panels, rough: platform ? 0.3 : 0.5, name: 'hzPanelMat' }))
       const saddleMat = lit(pbr(scene, { color: saddle, rough: 0.55, name: 'hzSaddleMat' }))
-      // heel counter: the rounded back of the upper (navy)
-      const heel = MeshBuilder.CreateSphere('hzHeel', { diameterX: 0.26, diameterY: 0.22, diameterZ: 0.19, segments: 16 }, scene)
-      heel.position.set(-0.14, upY + 0.06, 0)
+      // the upper: one smooth ellipsoid, half sunk into the sole so only its
+      // clean top half shows — no lumps
+      const upper = MeshBuilder.CreateSphere('hzUpper', { diameterX: 0.42, diameterY: 0.3, diameterZ: 0.185, segments: 24 }, scene)
+      upper.position.set(-0.01, upY + 0.02, 0)
+      upper.material = bodyMat
+      upper.parent = col
+      meshes.push(upper)
+      // toe cap: same curve family, a hair proud of the upper's nose
+      const toe = MeshBuilder.CreateSphere('hzToeCap', { diameterX: 0.2, diameterY: 0.2, diameterZ: 0.175, segments: 20 }, scene)
+      toe.position.set(0.105, upY + 0.008, 0)
+      toe.material = panelMat
+      toe.parent = col
+      meshes.push(toe)
+      // heel counter: a snug navy cup on the back
+      const heel = MeshBuilder.CreateSphere('hzHeel', { diameterX: 0.2, diameterY: 0.26, diameterZ: 0.175, segments: 20 }, scene)
+      heel.position.set(-0.135, upY + 0.03, 0)
       heel.material = panelMat
       heel.parent = col
       meshes.push(heel)
-      // vamp: the cream mid-body
-      const vamp = MeshBuilder.CreateSphere('hzVamp', { diameterX: 0.36, diameterY: 0.17, diameterZ: 0.2, segments: 16 }, scene)
-      vamp.position.set(0.04, upY + 0.04, 0)
-      vamp.material = bodyMat
-      vamp.parent = col
-      meshes.push(vamp)
-      // red saddle: a flattened band over the instep between vamp and heel
+      // red saddle: two slim side patches at the waist
       for (const s of [-1, 1]) {
-        const sad = MeshBuilder.CreateSphere('hzSaddle', { diameterX: 0.16, diameterY: 0.15, diameterZ: 0.07, segments: 14 }, scene)
-        sad.position.set(-0.03, upY + 0.055, s * 0.075)
+        const sad = MeshBuilder.CreateSphere('hzSaddle', { diameterX: 0.13, diameterY: 0.14, diameterZ: 0.05, segments: 16 }, scene)
+        sad.position.set(-0.02, upY + 0.05, s * 0.075)
         sad.material = saddleMat
         sad.parent = col
         meshes.push(sad)
       }
-      // domed toe cap (navy)
-      const toe = MeshBuilder.CreateSphere('hzToeCap', { diameterX: 0.22, diameterY: 0.135, diameterZ: 0.19, segments: 16 }, scene)
-      toe.position.set(0.16, upY + 0.028, 0)
-      toe.material = panelMat
-      toe.parent = col
-      meshes.push(toe)
-      // ankle collar: a soft ring around the opening
+      // laces: three thin bars sloping down the instep
       const laceMat = lit(pbr(scene, { color: laces, rough: 0.8, name: 'hzLaceMat' }))
-      const collar = MeshBuilder.CreateTorus('hzCollar', { diameter: 0.15, thickness: 0.035, tessellation: 20 }, scene)
-      collar.position.set(-0.14, upY + 0.15, 0)
-      collar.material = bodyMat
-      collar.parent = col
-      meshes.push(collar)
-      // laces: three rounded bars criss-crossing the instep
       for (let i = 0; i < 3; i++) {
-        const lace = MeshBuilder.CreateCapsule('hzLace', { radius: 0.012, height: 0.15, orientation: new Vector3(0, 0, 1), tessellation: 8, capSubdivisions: 4 }, scene)
-        lace.position.set(0.04 - i * 0.055, upY + 0.095 + i * 0.012, 0)
-        lace.rotation.z = -0.25
+        const lace = MeshBuilder.CreateCapsule('hzLace', { radius: 0.009, height: 0.12, orientation: new Vector3(0, 0, 1), tessellation: 8, capSubdivisions: 4 }, scene)
+        lace.position.set(0.045 - i * 0.045, upY + 0.115 + i * 0.014, 0)
+        lace.rotation.z = -0.22
         lace.material = laceMat
         lace.parent = col
         meshes.push(lace)
       }
-      return { root: col, meshes, mats: [soleMat, bodyMat, panelMat, saddleMat, laceMat], restY: (0.2 + soleH) / 2 + 0.005, phys: { shape: PhysicsShapeType.BOX, mass: 1.1, restitution: 0.3, friction: 0.6 } }
+      return { root: col, meshes, mats: [soleMat, bodyMat, panelMat, saddleMat, laceMat], restY: H / 2 + 0.005, phys: { shape: PhysicsShapeType.BOX, mass: 1.1, restitution: 0.3, friction: 0.6 } }
     },
   },
 
@@ -594,24 +593,32 @@ const CATALOG = {
   beachball: {
     name: 'a beach ball',
     build(scene) {
-      const r = 0.3
-      const b = MeshBuilder.CreateSphere('hzBeach', { diameter: r * 2, segments: 28 }, scene)
-      const mat = lit(pbr(scene, { color: '#f4f0e8', rough: 0.4, name: 'hzBeachMat' }))
+      // a real beach ball is SMOOTH: six vertical gores (sphere wedges) that
+      // together form one perfect sphere — nothing protrudes. The root is the
+      // white base sphere (also the collider); colored wedges lie flush on it.
+      const b = MeshBuilder.CreateSphere('hzBeach', { diameter: 0.6, segments: 28 }, scene)
+      const mat = lit(pbr(scene, { color: '#f4f0e8', rough: 0.35, name: 'hzBeachMat' }))
       b.material = mat
       const meshes = [b]
       const stripeMats = []
-      // latitude bands sized to hug the sphere exactly
-      ;[['#ff5e5e', -0.16], ['#29b5d8', 0], ['#ffd23f', 0.16]].forEach(([c, y]) => {
-        const ringR = Math.sqrt(Math.max(0.01, r * r - y * y))
-        const s = MeshBuilder.CreateTorus('hzStripe', { diameter: ringR * 2, thickness: 0.055, tessellation: 30 }, scene)
-        const sm = lit(pbr(scene, { color: c, rough: 0.4, name: 'hzStripeMat' }))
-        s.material = sm
-        s.position.y = y
-        s.parent = b
-        meshes.push(s)
-        stripeMats.push(sm)
+      const cols = ['#ff5e5e', '#29b5d8', '#ffd23f'] // alternating with white
+      cols.forEach((c, i) => {
+        const gore = MeshBuilder.CreateSphere('hzGore', { diameter: 0.602, segments: 28, arc: 1 / 6 }, scene)
+        const gm = lit(pbr(scene, { color: c, rough: 0.35, name: 'hzGoreMat' }))
+        gore.material = gm
+        gore.rotation.y = i * (Math.PI * 2 / 3) // every second sixth is colored
+        gore.parent = b
+        meshes.push(gore)
+        stripeMats.push(gm)
       })
-      return { root: b, meshes, mats: [mat, ...stripeMats], restY: 0.3, phys: { shape: PhysicsShapeType.SPHERE, mass: 0.8, restitution: 0.6, friction: 0.4 } }
+      // the little white valve cap at the pole
+      const capMat = lit(pbr(scene, { color: '#dfd8ca', rough: 0.5, name: 'hzCapMat' }))
+      const cap = MeshBuilder.CreateCylinder('hzValve', { diameter: 0.07, height: 0.012, tessellation: 14 }, scene)
+      cap.position.y = 0.3
+      cap.material = capMat
+      cap.parent = b
+      meshes.push(cap)
+      return { root: b, meshes, mats: [mat, ...stripeMats, capMat], restY: 0.3, phys: { shape: PhysicsShapeType.SPHERE, mass: 0.8, restitution: 0.6, friction: 0.4 } }
     },
   },
   floaty: {

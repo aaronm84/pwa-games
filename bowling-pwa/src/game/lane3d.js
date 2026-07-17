@@ -211,22 +211,11 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   // the sweep: the pinsetter's bar that drops down while the deck is serviced.
   // Visual-only (deadwood colliders are already gone when it runs); the page
   // animates sweep.position.y between sweepDownY and sweepUpY.
-  // The arm wears the house colors — bamboo at the tiki grove, gold-trimmed
-  // velvet at the casino, lifeguard white at the pool.
-  const sweep = MeshBuilder.CreateBox('sweep', { width: LANE_W + 0.7, height: 0.46, depth: 0.16 }, scene)
-  const sweepMat = pbr(scene, { color: colors.sweep || '#22242c', rough: 0.5, name: 'sweepMat' })
-  sweepMat.maxSimultaneousLights = 6
-  sweep.material = sweepMat
-  sweep.position.set(0, 3.6, PIN_Z + 1.05)
-  const sweepGlow = MeshBuilder.CreateBox('sweepGlow', { width: LANE_W + 0.7, height: 0.05, depth: 0.17 }, scene)
-  const sweepGlowMat = new StandardMaterial('sweepGlowMat', scene)
-  sweepGlowMat.emissiveColor = Color3.FromHexString(colors.sweepGlow || colors.arrow)
-  sweepGlowMat.disableLighting = true
-  sweepGlow.material = sweepGlowMat
-  sweepGlow.parent = sweep
-  sweepGlow.position.y = -0.22
-  track(sweepGlow)
-  track(sweep)
+  // The pinsetter's sweep arm, in house style: neon tubes at Disco, bamboo at
+  // the grove, stacked lasers in Zero-G, a lava-dripping basalt bar, a
+  // button-tufted leather bumper at the casino, a pool noodle at Poolside.
+  // The root is an invisible carrier the page animates; the dressing rides it.
+  const sweep = buildSweep(scene, colors, opts.sweepStyle || 'bar', track, meshesOwnMats)
 
   // gutter floor color pulse handle (lava alley)
   const gutterGlow = colors.gutterGlow ? gutterMat : null
@@ -247,12 +236,155 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
       darkMat.dispose()
       arrowMat.dispose()
       voidMat.dispose()
-      sweepMat.dispose()
-      sweepGlowMat.dispose()
       for (const m of meshesOwnMats) m.dispose()
       for (const e of edges) e.mat.dispose()
     },
   }
+}
+
+// ---- the sweep arm, per alley ------------------------------------------------
+// Root is an invisible carrier box the page animates between sweepDownY and
+// sweepUpY; every style hangs world-aligned children off it.
+function buildSweep(scene, colors, style, track, mats) {
+  const W = LANE_W + 0.7
+  const root = MeshBuilder.CreateBox('sweep', { width: W, height: 0.3, depth: 0.16 }, scene)
+  root.isVisible = false
+  root.position.set(0, 3.6, PIN_Z + 1.05)
+  track(root)
+  const add = (mesh, x = 0, y = 0, z = 0) => {
+    mesh.parent = root
+    mesh.position.set(x, y, z)
+    mesh.isPickable = false
+    track(mesh)
+    return mesh
+  }
+  const glowM = (hex, scale = 1) => {
+    const m = new StandardMaterial('swGlow', scene)
+    m.emissiveColor = Color3.FromHexString(hex).scale(scale)
+    m.disableLighting = true
+    mats.push(m)
+    return m
+  }
+  const litM = (hex, rough = 0.6) => {
+    const m = pbr(scene, { color: hex, rough, name: 'swMat' })
+    m.maxSimultaneousLights = 6
+    mats.push(m)
+    return m
+  }
+
+  if (style === 'neon') {
+    // Disco: twin neon tubes with sparkle beads strung between them
+    const tubeA = MeshBuilder.CreateCylinder('swTubeA', { diameter: 0.075, height: W, tessellation: 16 }, scene)
+    tubeA.rotation.z = Math.PI / 2
+    tubeA.material = glowM(colors.laneEdgeA, 0.95)
+    add(tubeA, 0, 0.09)
+    const tubeB = MeshBuilder.CreateCylinder('swTubeB', { diameter: 0.075, height: W, tessellation: 16 }, scene)
+    tubeB.rotation.z = Math.PI / 2
+    tubeB.material = glowM(colors.laneEdgeB, 0.95)
+    add(tubeB, 0, -0.09)
+    const beadMat = glowM('#f4f0ff', 1.1)
+    for (let i = 0; i < 7; i++) {
+      const bead = MeshBuilder.CreateSphere('swBead', { diameter: 0.06, segments: 10 }, scene)
+      bead.material = beadMat
+      add(bead, -W / 2 + 0.25 + i * (W - 0.5) / 6, i % 2 ? 0.09 : -0.09, 0.05)
+    }
+  } else if (style === 'bamboo') {
+    // Tiki: a thick cane with raised nodes and rope lashings at the ends
+    const caneMat = litM('#c9a86a', 0.75)
+    const cane = MeshBuilder.CreateCylinder('swCane', { diameter: 0.17, height: W, tessellation: 18 }, scene)
+    cane.rotation.z = Math.PI / 2
+    cane.material = caneMat
+    add(cane)
+    const nodeMat = litM('#a8834a', 0.85)
+    for (let i = 0; i < 5; i++) {
+      const node = MeshBuilder.CreateCylinder('swNode', { diameter: 0.19, height: 0.045, tessellation: 18 }, scene)
+      node.rotation.z = Math.PI / 2
+      node.material = nodeMat
+      add(node, -W / 2 + 0.35 + i * (W - 0.7) / 4)
+    }
+    const ropeMat = litM('#8a5a2a', 0.95)
+    for (const s of [-1, 1]) {
+      const rope = MeshBuilder.CreateTorus('swRope', { diameter: 0.2, thickness: 0.035, tessellation: 16 }, scene)
+      rope.rotation.z = Math.PI / 2
+      rope.material = ropeMat
+      add(rope, s * (W / 2 - 0.12))
+    }
+  } else if (style === 'laser') {
+    // Zero-G: no bar at all — three stacked laser beams between emitter pods
+    const beamA = glowM(colors.laneEdgeA, 1.1)
+    const beamB = glowM(colors.laneEdgeB, 1.1)
+    ;[[0.12, beamA], [0, beamB], [-0.12, beamA]].forEach(([y, m]) => {
+      const beam = MeshBuilder.CreateBox('swBeam', { width: W - 0.3, height: 0.028, depth: 0.02 }, scene)
+      beam.material = m
+      add(beam, 0, y)
+    })
+    const podMat = litM('#9aa4b2', 0.35)
+    const lensMat = glowM('#f4f0ff', 1.2)
+    for (const s of [-1, 1]) {
+      const pod = MeshBuilder.CreateBox('swPod', { width: 0.14, height: 0.42, depth: 0.14 }, scene)
+      pod.material = podMat
+      add(pod, s * (W / 2 - 0.07))
+      const lens = MeshBuilder.CreateSphere('swLens', { diameter: 0.06, segments: 10 }, scene)
+      lens.material = lensMat
+      add(lens, s * (W / 2 - 0.07), 0.24)
+    }
+  } else if (style === 'drip') {
+    // Lava: a basalt bar shedding glowing drips in red, orange and yellow
+    const bar = MeshBuilder.CreateBox('swBar', { width: W, height: 0.24, depth: 0.14 }, scene)
+    bar.material = litM('#241a14', 0.95)
+    add(bar, 0, 0.05)
+    const seam = MeshBuilder.CreateBox('swSeam', { width: W, height: 0.045, depth: 0.15 }, scene)
+    seam.material = glowM('#ff6a1f', 1.15)
+    add(seam, 0, -0.09)
+    const dripCols = ['#e8481c', '#ff6a1f', '#ffb52f']
+    for (let i = 0; i < 6; i++) {
+      const len = 0.12 + ((i * 2.7) % 3) * 0.07
+      const drip = MeshBuilder.CreateCylinder('swDrip', { diameterTop: 0.05, diameterBottom: 0.008, height: len, tessellation: 10 }, scene)
+      drip.material = glowM(dripCols[i % 3], 1.1)
+      add(drip, -W / 2 + 0.3 + i * (W - 0.6) / 5, -0.12 - len / 2)
+      const bead = MeshBuilder.CreateSphere('swBead', { diameter: 0.035, segments: 8 }, scene)
+      bead.material = glowM('#ffd23f', 1.3)
+      add(bead, -W / 2 + 0.3 + i * (W - 0.6) / 5, -0.12 - len)
+    }
+  } else if (style === 'plush') {
+    // High Roller: a button-tufted leather bumper with gold hardware
+    const pad = MeshBuilder.CreateCapsule('swPad', { radius: 0.15, height: W, orientation: new Vector3(1, 0, 0), tessellation: 18, capSubdivisions: 6 }, scene)
+    pad.material = litM('#5a1428', 0.55)
+    add(pad)
+    const buttonMat = glowM('#ffd23f', 0.55)
+    for (let i = 0; i < 7; i++) {
+      const btn = MeshBuilder.CreateSphere('swBtn', { diameter: 0.045, segments: 10 }, scene)
+      btn.material = buttonMat
+      add(btn, -W / 2 + 0.3 + i * (W - 0.6) / 6, 0, 0.135)
+    }
+    const capMat = litM('#ffd23f', 0.3)
+    for (const s of [-1, 1]) {
+      const cap = MeshBuilder.CreateSphere('swCap', { diameter: 0.2, segments: 14 }, scene)
+      cap.material = capMat
+      add(cap, s * (W / 2 + 0.02))
+    }
+  } else if (style === 'noodle') {
+    // Poolside: a foam pool noodle with candy stripes
+    const foam = MeshBuilder.CreateCapsule('swNoodle', { radius: 0.13, height: W, orientation: new Vector3(1, 0, 0), tessellation: 18, capSubdivisions: 6 }, scene)
+    foam.material = litM('#ff5ea0', 0.9)
+    add(foam)
+    const stripeCols = ['#29b5d8', '#ffd23f']
+    for (let i = 0; i < 4; i++) {
+      const ring = MeshBuilder.CreateCylinder('swRing', { diameter: 0.272, height: 0.1, tessellation: 18 }, scene)
+      ring.rotation.z = Math.PI / 2
+      ring.material = litM(stripeCols[i % 2], 0.85)
+      add(ring, -W / 2 + 0.5 + i * (W - 1) / 3)
+    }
+  } else {
+    // fallback: the plain service bar with a glow strip
+    const bar = MeshBuilder.CreateBox('swPlain', { width: W, height: 0.46, depth: 0.16 }, scene)
+    bar.material = litM(colors.sweep || '#22242c', 0.5)
+    add(bar)
+    const strip = MeshBuilder.CreateBox('swStrip', { width: W, height: 0.05, depth: 0.17 }, scene)
+    strip.material = glowM(colors.sweepGlow || colors.arrow)
+    add(strip, 0, -0.22)
+  }
+  return root
 }
 
 // ---- per-alley backers ------------------------------------------------------

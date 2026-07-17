@@ -9,6 +9,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'discoball', // mirror ball drops the confetti on strikes
     pit: 'open', // no backer — the mirror ball hangs over the pit
+    sweepStyle: 'neon', // the arm is twin neon tubes with sparkle beads
     pin: { body: '#f4f0ff', bands: [{ y: 0.66, c: '#ff3df0' }, { y: 0.735, c: '#28d7fe' }] },
     hazards: ['mirrorball', 'discoshoe'],
     colors: {
@@ -41,6 +42,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'lava', // molten gutters pulse; gutter balls sizzle
     pit: 'volcano', // the lane dead-ends into a glowing volcano
+    sweepStyle: 'drip', // basalt bar shedding glowing lava drips
     pin: { body: '#fff3e6', bands: [{ y: 0.66, c: '#e8481c' }, { y: 0.735, c: '#ffb52f' }] },
     hazards: ['lavapatch', 'boulder'],
     colors: {
@@ -74,6 +76,7 @@ export const alleys = [
     gravity: -5.2, // floatier pin scatter — the signature gimmick
     fx: 'ufo', // a saucer buzzes the deck on strikes
     pit: 'open', // no backer — deep space behind the pins
+    sweepStyle: 'laser', // stacked laser beams between emitter pods
     pin: { body: '#eef4ff', bands: [{ y: 0.66, c: '#4dff9d' }, { y: 0.735, c: '#4d9dff' }] },
     hazards: ['saucer', 'alien'],
     colors: {
@@ -106,6 +109,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'tiki', // torchlight flickers; strikes flare the flames
     pit: 'masks', // a row of glowing-eyed tiki masks above the pit
+    sweepStyle: 'bamboo', // a thick cane with nodes and rope lashings
     pin: { body: '#c98d4e', bands: [{ y: 0.24, c: '#7a4a22' }, { y: 0.49, c: '#2e8b57' }, { y: 0.7, c: '#e8481c' }] },
     hazards: ['coconut', 'pineapple', 'tikidrink', 'fallentorch'],
     colors: {
@@ -138,6 +142,7 @@ export const alleys = [
     gravity: -9.81,
     fx: 'casino', // gold sparkle; strikes hit the jackpot
     pit: 'slot', // the backer is a slot machine; the pit is the payout tray
+    sweepStyle: 'plush', // button-tufted leather bumper, gold hardware
     pin: { body: '#e8c86a', bands: [{ y: 0.66, c: '#a01a2e' }, { y: 0.735, c: '#7a1522' }] },
     hazards: ['die', 'chipstack', 'cocktail'],
     colors: {
@@ -171,6 +176,7 @@ export const alleys = [
     fx: 'poolside', // sunny; strikes splash
     bright: true, // full daylight rig
     pit: 'water', // no dark backstop — the deck ends over open pool water
+    sweepStyle: 'noodle', // a candy-striped foam pool noodle
     pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
     hazards: ['beachball', 'floaty', 'sunglasses', 'towel', 'sandal'],
     colors: {

@@ -119,7 +119,16 @@
       </div>
     </transition>
 
-    <div v-if="booting" class="boot">Polishing the lane…</div>
+    <div v-if="booting" class="boot">
+      <div class="boot-scene">
+        <div class="boot-lane">
+          <span class="boot-ball" />
+          <span v-for="p in 3" :key="p" class="boot-pin" :style="{ animationDelay: 0.1 * p + 's' }" />
+        </div>
+        <div class="boot-name">{{ alley.icon }} {{ alley.name }}</div>
+        <div class="boot-sub">Polishing the lane…</div>
+      </div>
+    </div>
   </q-page>
 </template>
 
@@ -313,7 +322,7 @@ async function boot() {
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit, sweepStyle: alley.sweepStyle })
   environs = buildEnvirons(scene, alley)
 
   makeBall()
@@ -514,7 +523,7 @@ function refreshMirror() {
     ...hazards.flatMap((h) => h.meshes.filter((m) => m.isVisible !== false)),
     ...(ball ? [ball] : []),
     ...laneKit.edges.map((e) => e.mesh),
-    laneKit.sweep,
+    ...laneKit.sweep.getChildMeshes(), // the arm is an invisible carrier + dressing
   ]
 }
 // keep the standing pins where they are, clear the deadwood (with a shrink-out)
@@ -1013,5 +1022,49 @@ function goBack() { router.push({ name: 'menu' }) }
 .row-btns { display: flex; gap: 10px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.boot { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; z-index: 5; }
+/* the loading moment: a little ball rolls the strip and the pins hop */
+.boot { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; z-index: 5; background: rgba(6, 4, 14, 0.45); backdrop-filter: blur(3px); }
+.boot-scene { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.boot-lane {
+  position: relative;
+  width: 210px;
+  height: 44px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 22px -10px rgba(123, 47, 240, 0.8);
+  overflow: hidden;
+}
+.boot-ball {
+  position: absolute;
+  bottom: 2px;
+  left: -26px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #6f9fe0, #2a5db0 60%, #142c56);
+  animation: bootroll 1.5s cubic-bezier(0.35, 0, 0.7, 1) infinite;
+}
+@keyframes bootroll {
+  0% { transform: translateX(0) rotate(0); }
+  100% { transform: translateX(236px) rotate(540deg); }
+}
+.boot-pin {
+  position: absolute;
+  bottom: 2px;
+  width: 8px;
+  height: 22px;
+  border-radius: 4px 4px 3px 3px;
+  background: #f4f0ff;
+  box-shadow: 0 0 8px rgba(244, 240, 255, 0.7);
+  animation: boothop 1.5s ease-in-out infinite;
+}
+.boot-pin:nth-child(2) { right: 34px; }
+.boot-pin:nth-child(3) { right: 22px; }
+.boot-pin:nth-child(4) { right: 10px; }
+@keyframes boothop {
+  0%, 78%, 100% { transform: translateY(0) rotate(0); }
+  86% { transform: translateY(-14px) rotate(18deg); }
+  93% { transform: translateY(-4px) rotate(-8deg); }
+}
+.boot-name { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.04em; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
+.boot-sub { font-size: 0.8rem; opacity: 0.75; }
 </style>
