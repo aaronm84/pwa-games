@@ -179,7 +179,7 @@ export const alleys = [
     bright: true, // full daylight rig
     pit: 'water', // no dark backstop — the deck ends over open pool water
     sweepStyle: 'noodle', // a candy-striped foam pool noodle
-    wood: true, // grained boards on the lane floor
+    wood: 'soft', // sun-bleached boards, blended close in tone
     pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
     hazards: ['beachball', 'floaty', 'sunglasses', 'towel', 'sandal'],
     colors: {

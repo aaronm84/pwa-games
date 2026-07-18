@@ -734,14 +734,19 @@ function tick(dt = 1 / 60) {
     const boost = strikeFlash > 0 ? (strikeFlash / 90) * 1.9 : 0
     neonL.intensity += (base + boost - neonL.intensity) * 0.05
     neonR.intensity = neonL.intensity
-    neonL.diffuse = Color3.FromHSV(hue, 0.7, 1)
-    neonR.diffuse = Color3.FromHSV((hue + 140) % 360, 0.7, 1)
+    // daylight houses wash the room in pastels instead of hot neon
+    const lightSat = alley.bright ? 0.28 : 0.7
+    neonL.diffuse = Color3.FromHSV(hue, lightSat, 1)
+    neonR.diffuse = Color3.FromHSV((hue + 140) % 360, lightSat, 1)
   }
   if (deckSpot) deckSpot.intensity += ((clutch ? 2.3 : 1.5) * (alley.bright ? 0.6 : 1) - deckSpot.intensity) * 0.04
   if (ipcRef) ipcRef.vignetteWeight += ((clutch ? 2.2 : 1.5) * (alley.bright ? 0.65 : 1) - ipcRef.vignetteWeight) * 0.04
   if (laneKit) {
-    laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, 0.85, 0.85)
-    laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, 0.85, 0.85)
+    // the lane-edge strips: hot neon at night, soft pastel in the daylight
+    const edgeSat = alley.bright ? 0.3 : 0.85
+    const edgeVal = alley.bright ? 0.98 : 0.85
+    laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, edgeSat, edgeVal)
+    laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, edgeSat, edgeVal)
     if (laneKit.gutterMat) {
       const pulse = 0.5 + Math.sin(tickN * 0.05) * 0.3
       laneKit.gutterMat.emissiveColor = Color3.FromHexString(alley.colors.gutterGlow).scale(pulse)

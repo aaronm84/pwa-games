@@ -20,16 +20,19 @@ import {
 // flooring: MANY narrow boards, each its own tone; staggered butt joints
 // where boards meet end-to-end (with a tone break); dense fine grain lines
 // running the length; the occasional cathedral arc. Painted once at build.
-function woodGrainTexture(scene, baseHex) {
+function woodGrainTexture(scene, baseHex, look = {}) {
   // NOTE the orientation: on the lane's top face, canvas X runs DOWN the
   // lane and canvas Y runs across it — so boards are horizontal rows here.
+  // `look` tunes the character: spread = board-to-board contrast, warm = hue
+  // drift, seam/grain = line strength. Soft looks (Poolside) blend together.
+  const { spread = 0.6, warm: warmRange = 0.26, seam = 0.42, grain = 1 } = look
   const W = 1024
   const H = 512
   const tex = new DynamicTexture('laneWood', { width: W, height: H }, scene, true)
   const ctx = tex.getContext()
   const base = Color3.FromHexString(baseHex)
-  // deterministic PRNG so the floor looks the same every visit
-  let seed = 42
+  // seeded per BUILD — every session (and every house) lays its own floor
+  let seed = 1 + Math.floor(Math.random() * 2147483645)
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   const shade = (mul, warm) => {
     const r = Math.min(255, Math.max(0, base.r * 255 * mul * (1 + warm)))
@@ -42,8 +45,8 @@ function woodGrainTexture(scene, baseHex) {
   for (let b = 0; b < BOARDS; b++) {
     const y0b = b * bh
     // this strip's personality: overall lightness + warmth drift
-    const boardMul = 0.72 + rnd() * 0.6
-    const boardWarm = (rnd() - 0.5) * 0.26
+    const boardMul = 1 - spread / 2 + rnd() * spread
+    const boardWarm = (rnd() - 0.5) * warmRange
     // staggered butt joints split the strip into segments, each retoned
     const joints = [0]
     let x = 120 + rnd() * 420
@@ -52,7 +55,7 @@ function woodGrainTexture(scene, baseHex) {
     for (let s = 0; s < joints.length - 1; s++) {
       const x0 = joints[s]
       const x1 = joints[s + 1]
-      const mul = boardMul * (0.84 + rnd() * 0.34)
+      const mul = boardMul * (1 - spread * 0.28 + rnd() * spread * 0.56)
       const warm = boardWarm + (rnd() - 0.5) * 0.1
       const [cr, cg, cb] = shade(mul, warm)
       ctx.fillStyle = `rgb(${cr},${cg},${cb})`
@@ -61,7 +64,7 @@ function woodGrainTexture(scene, baseHex) {
       const lines = 7 + (rnd() * 5 | 0)
       for (let g = 0; g < lines; g++) {
         const dark = rnd() < 0.6
-        ctx.strokeStyle = dark ? `rgba(0,0,0,${0.08 + rnd() * 0.12})` : `rgba(255,235,200,${0.06 + rnd() * 0.1})`
+        ctx.strokeStyle = dark ? `rgba(0,0,0,${(0.08 + rnd() * 0.12) * grain})` : `rgba(255,235,200,${(0.06 + rnd() * 0.1) * grain})`
         ctx.lineWidth = rnd() < 0.25 ? 1.6 : 0.9
         const gy = y0b + 2 + rnd() * (bh - 4)
         const amp = 0.6 + rnd() * 1.8
@@ -89,12 +92,12 @@ function woodGrainTexture(scene, baseHex) {
       }
       // butt joint: a dark end-seam where this segment meets the next
       if (x1 < W) {
-        ctx.fillStyle = 'rgba(0,0,0,0.42)'
+        ctx.fillStyle = `rgba(0,0,0,${seam})`
         ctx.fillRect(x1 - 1, y0b, 2, bh)
       }
     }
     // long seam between strips
-    ctx.fillStyle = 'rgba(0,0,0,0.42)'
+    ctx.fillStyle = `rgba(0,0,0,${seam})`
     ctx.fillRect(0, y0b, W, 1.4)
   }
   tex.update()
@@ -151,7 +154,9 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     laneMat.specularColor = new Color3(0.1, 0.1, 0.12)
   }
   if (opts.wood) {
-    woodTex = woodGrainTexture(scene, colors.lane)
+    // 'soft' (Poolside) keeps the boards sun-bleached and close in tone
+    const look = opts.wood === 'soft' ? { spread: 0.2, warm: 0.08, seam: 0.2, grain: 0.65 } : {}
+    woodTex = woodGrainTexture(scene, colors.lane, look)
     woodTex.uScale = 4 // canvas X runs down-lane; repeat the pattern 4×
     laneMat.diffuseTexture = woodTex
     laneMat.diffuseColor = new Color3(1, 1, 1) // the texture carries the tone
