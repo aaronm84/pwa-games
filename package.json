@@ -1,0 +1,36 @@
+{
+  "name": "@aaronm84/engine-kit",
+  "version": "0.1.0",
+  "description": "Mobile-PWA-optimized Babylon.js game foundation: WebGPU/WebGL2 stage with adaptive resolution, Havok physics helpers, unified touch gestures, sample-free synth SFX, haptics — tree-shaken ESM, framework-agnostic.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "babylonjs",
+    "havok",
+    "pwa",
+    "mobile",
+    "game-engine",
+    "webgpu",
+    "webgl",
+    "webaudio",
+    "quasar",
+    "vite"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aaronm84/pwa-games.git",
+    "directory": "packages/engine-kit"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@babylonjs/core": ">=7.0.0",
+    "@babylonjs/havok": ">=1.3.0"
+  }
+}
