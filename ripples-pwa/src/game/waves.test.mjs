@@ -12,7 +12,7 @@ import {
 } from './waves.js'
 import { skipRipple } from './waves.js'
 import { generateLevel } from './levels.js'
-import { throwStone, stepStone } from './skip.js'
+import { throwStone, stepStone, stoneHitsRock } from './skip.js'
 
 let failed = 0
 function check(name, cond) {
@@ -154,6 +154,33 @@ check('long hold is strong', strengthFor(600) === 'strong')
 
   const aimed = run({ power: 0.8, angle: 0.3 })
   check('aim angle steers the throw', aimed.stone.x > 1)
+}
+
+// rocks are solid at flight height — no stone sails through one
+{
+  const rock = { x: 0, z: 0, radius: 0.75, squash: 0.65 }
+  const skimming = { x: 0.2, y: 0.15, z: 0.1, done: false }
+  const above = { x: 0, y: 2.5, z: 0, done: false }
+  const wide = { x: 3, y: 0.15, z: 0, done: false }
+  check('a skimming stone clacks into a rock', stoneHitsRock(skimming, [rock]) === rock)
+  check('flying high over a rock is fine', stoneHitsRock(above, [rock]) === null)
+  check('passing beside a rock is fine', stoneHitsRock(wide, [rock]) === null)
+}
+
+// pads never spawn interpenetrating (the solver would shove them violently)
+{
+  let clean = true
+  for (const lvl of [6, 10, 12, 18, 25]) {
+    const l = generateLevel(lvl)
+    for (let i = 0; i < l.pads.length; i++) {
+      for (let j = i + 1; j < l.pads.length; j++) {
+        const a = l.pads[i]
+        const b = l.pads[j]
+        if (Math.hypot(a.x - b.x, a.z - b.z) < a.radius + b.radius + 0.29) clean = false
+      }
+    }
+  }
+  check('pads spawn with room to breathe', clean)
 }
 
 // one throw = one wave train: its own skips never stack, other throws do

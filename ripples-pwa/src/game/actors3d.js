@@ -347,24 +347,32 @@ export function buildDriftingPads(scene, shadow, pads, R) {
   const items = []
   const padMat = pbr(scene, { color: '#397630', rough: 0.8, name: 'driftPadMat' })
   for (const P of pads) {
-    const m = MeshBuilder.CreateCylinder(P.id, { diameter: P.radius * 2, height: 0.07, tessellation: 22 }, scene)
-    m.position.set(P.x, PAD_Y, P.z)
-    m.rotation.y = P.rotation
-    m.material = padMat
-    m.isPickable = false
-    shadow?.addShadowCaster(m)
-    const agg = makeDynamic(m, {
+    // the physics PROXY: an invisible collider Havok fully owns. We never
+    // write its transform (no feedback loop with the solver), only nudge it
+    // with impulses and velocity clamps.
+    const proxy = MeshBuilder.CreateCylinder(`${P.id}_body`, { diameter: P.radius * 2, height: 0.07, tessellation: 14 }, scene)
+    proxy.position.set(P.x, PAD_Y, P.z)
+    proxy.isVisible = false
+    const agg = makeDynamic(proxy, {
       shape: PhysicsShapeType.CYLINDER,
       mass: 0.8,
       friction: 0.2,
-      restitution: 0.6,
+      restitution: 0.2, // calm nudges, not pinball
       linearDamping: 0.9, // water drag
       angularDamping: 2.5,
     })
-    agg.body.disablePreStep = false // our per-frame re-seat must reach Havok
     // a lazy initial drift
     agg.body.setLinearVelocity(new Vector3(Math.cos(P.driftAngle) * 0.25, 0, Math.sin(P.driftAngle) * 0.25))
-    items.push({ mesh: m, agg, data: P, yaw: P.rotation })
+
+    // the VISIBLE pad: no physics — it follows the proxy across the plane
+    // and takes its height and lean from the displaced water
+    const m = MeshBuilder.CreateCylinder(P.id, { diameter: P.radius * 2, height: 0.07, tessellation: 22 }, scene)
+    m.position.set(P.x, PAD_Y, P.z)
+    m.material = padMat
+    m.isPickable = false
+    shadow?.addShadowCaster(m)
+
+    items.push({ mesh: m, proxy, agg, data: P, yaw: P.rotation, unstick: 0 })
   }
 
   const tmp = new Vector3()
@@ -373,7 +381,7 @@ export function buildDriftingPads(scene, shadow, pads, R) {
     update(dt, ripples, t = 0) {
       for (const it of items) {
         const body = it.agg.body
-        const p = it.mesh.position
+        const p = it.proxy.position
         // wavefront shove: an outward impulse while the ring passes under
         for (const r of ripples) {
           const d = Math.hypot(p.x - r.x, p.z - r.z)
@@ -412,13 +420,25 @@ export function buildDriftingPads(scene, shadow, pads, R) {
           tmp.set(Math.cos(a) * 0.08 * dt, 0, Math.sin(a) * 0.08 * dt)
           body.applyImpulse(tmp, p)
         }
-        // re-seat on the water: height from the displaced surface, tilt from
-        // its slope, orientation reduced to yaw — no wedge survives a frame
+        // escape hatch: if a contact ever lofts the proxy off the plane, put
+        // it back with the one-frame disablePreStep dance (kit lesson 4) —
+        // never every frame, so the solver has nothing to fight
+        if (it.unstick > 0) {
+          it.unstick--
+          if (it.unstick === 0) body.disablePreStep = true
+        } else if (Math.abs(p.y - PAD_Y) > 0.35) {
+          body.disablePreStep = false
+          p.y = PAD_Y
+          it.unstick = 2
+        }
+
+        // the visible pad: proxy's spot in the plane, the water's height and
+        // lean — Havok never sees these writes, so nothing quivers
         it.yaw += av.y * dt
         const h = surfaceHeight(p.x, p.z, ripples, t)
         const hx = surfaceHeight(p.x + 0.4, p.z, ripples, t)
         const hz = surfaceHeight(p.x, p.z + 0.4, ripples, t)
-        p.y = PAD_Y + h
+        it.mesh.position.set(p.x, PAD_Y + h, p.z)
         const tiltZ = Math.max(-0.2, Math.min(0.2, (h - hx) * 1.6))
         const tiltX = Math.max(-0.2, Math.min(0.2, (hz - h) * 1.6))
         it.mesh.rotationQuaternion = Quaternion.RotationYawPitchRoll(it.yaw, tiltX, tiltZ)
@@ -427,6 +447,7 @@ export function buildDriftingPads(scene, shadow, pads, R) {
     dispose() {
       for (const it of items) {
         it.agg.dispose()
+        it.proxy.dispose()
         it.mesh.dispose()
       }
       padMat.dispose()

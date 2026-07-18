@@ -74,3 +74,19 @@ export function groundStone(stone) {
   stone.done = true
   return { type: 'sink', x: stone.x, z: stone.z, speed: Math.hypot(stone.vx, stone.vy, stone.vz), skips: stone.skips }
 }
+
+// A rock poking above the water is solid at flight height too — a stone
+// can't sail through one between skips. Returns the rock hit, or null.
+// Rocks are squashed spheres centered a little above the waterline.
+export function stoneHitsRock(stone, rocks) {
+  if (stone.done) return null
+  for (const s of rocks) {
+    const cy = s.radius * s.squash * 0.35
+    const dx = stone.x - s.x
+    const dy = (stone.y - cy) / Math.max(0.35, s.squash) // squashed vertically
+    const dz = stone.z - s.z
+    const hit = s.radius * 0.95 + 0.1
+    if (dx * dx + dy * dy + dz * dz < hit * hit) return s
+  }
+  return null
+}
