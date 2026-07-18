@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
 })
 
 async function boot() {
-  pal = paletteFor(themeStore.period.key)
+  pal = paletteFor(devParam('theme') || themeStore.period.key)
   const sharp = settingsStore.settings.sharpRender !== false
   stage = new Stage(gameCanvas.value, { clear: hexToRgba(pal.clear), webgpu: false, maxDpr: sharp ? 3 : 2 })
   await stage.init()
@@ -281,7 +281,7 @@ async function boot() {
 
   const ipc = scene.imageProcessingConfiguration
   ipc.contrast = 1.08
-  ipc.exposure = 1.05
+  ipc.exposure = pal.exposure ?? 1.05
   ipc.vignetteEnabled = true
   ipc.vignetteWeight = 1.1
 
@@ -292,7 +292,7 @@ async function boot() {
 
   // the bowling view, on water: low behind the thrower on the near bank,
   // looking out across the pond into the haze
-  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.12, 9.5, new Vector3(0, 0.4, 4), scene)
+  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.2, 9.5, new Vector3(0, 0.7, 3.4), scene)
   cam.fov = 0.95
   if (sharp) {
     const fxaa = new FxaaPostProcess('fxaa', 1.0, cam)
@@ -349,6 +349,8 @@ function buildLevel() {
   gameStarted.value = false
 
   pond = buildPond(scene, shadow, level, pal)
+  // clouds are emissive (unlit) but must not bloom like the sun does
+  if (glow) for (const m of scene.meshes) if (m.name === 'cloud') glow.addExcludedMesh(m)
   stones3d = buildStones(scene, shadow, level.stones)
   lotuses = buildLotuses(scene, shadow, level.lotus, pal)
   pads = buildDriftingPads(scene, shadow, level.pads, level.R)
