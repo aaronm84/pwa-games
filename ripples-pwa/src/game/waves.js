@@ -25,14 +25,16 @@ export function strengthFor(holdMs) {
 // the stronger and further-reaching the wave. Speed is the stone's impact
 // speed in units/second (a crisp first skip lands around 10-16; the last
 // tired hops around 3-5).
-export function skipRipple(x, z, speed) {
+export function skipRipple(x, z, speed, group = null) {
   // stretched so big waves are earned: a crisp early skip (speed ~17+) makes
   // a full-power ripple, a mid-flight hop (~11) makes a wave that needs
   // interference or accumulation to wake a flower, a dying hop barely stirs
   const p = Math.min(1.0, Math.max(0.28, (speed - 3) / 14))
   const r = createRipple(x, z, 'medium')
+  r.group = group ?? r.id
   r.peakPower = p
-  r.peakRadius = 2.4 + p * 1.8
+  // short reach: a skip must land genuinely close to the flower it's for
+  r.peakRadius = 1.9 + p * 1.5
   r.maxRadius = r.peakRadius * 2.33
   r.speed = (1.9 + p * 0.9) * (0.95 + Math.random() * 0.1)
   r.amp = 0.04 + p * 0.055
@@ -110,6 +112,7 @@ export function collideRipples(ripples, stones, pads) {
         child.peakPower = ripple.peakPower * 0.7
         child.amp = ripple.amp * 0.7
         child.reflectedFrom = [s.id]
+        child.group = `${ripple.group ?? ripple.id}~${s.id}` // a reflection is a new train
         born.push(child)
       }
     }
@@ -125,19 +128,26 @@ export function collideRipples(ripples, stones, pads) {
   return born
 }
 
-// Power delivered to a point right now: every wavefront whose ring is passing
-// over it, with a constructive-interference bonus when several arrive at once.
+// Power delivered to a point right now. Ripples carry a `group` (the throw
+// they came from): skips of ONE throw are one wave train, so within a group
+// only the strongest passing ripple counts — a skip chain can't carpet-bomb
+// a flower by summing its own hops. Waves from different throws (and
+// reflections off rocks, which start fresh groups) DO superpose, with a
+// constructive-interference bonus. Stacking throws is the strategy.
 export function powerAt(x, z, ripples, tolerance = 0.4) {
-  let power = 0
-  let touching = 0
+  const byGroup = new Map()
   for (const r of ripples) {
     const d = Math.hypot(x - r.x, z - r.z)
     if (Math.abs(d - r.radius) <= tolerance) {
-      power += ripplePower(r.radius, r.peakRadius, r.peakPower)
-      touching++
+      const g = r.group ?? r.id
+      const p = ripplePower(r.radius, r.peakRadius, r.peakPower)
+      if (p > (byGroup.get(g) || 0)) byGroup.set(g, p)
     }
   }
-  if (touching > 1) power *= 1 + Math.min(0.3, (touching - 1) * 0.15)
+  let power = 0
+  for (const p of byGroup.values()) power += p
+  const trains = byGroup.size
+  if (trains > 1) power *= 1 + Math.min(0.3, (trains - 1) * 0.15)
   return power
 }
 
@@ -150,9 +160,13 @@ export function updateLotus(lotus, ripples, dt) {
   const power = powerAt(lotus.x, lotus.z, ripples)
 
   if (power > 0) {
-    lotus.accumulatedPower = Math.min(1.5, (lotus.accumulatedPower || 0) + power * 0.02 * k)
+    // slow build: soaking a flower in weak waves is a strategy, not a freebie
+    lotus.accumulatedPower = Math.min(1.5, (lotus.accumulatedPower || 0) + power * 0.013 * k)
   } else {
-    lotus.accumulatedPower = (lotus.accumulatedPower || 0) * Math.pow(0.995, k)
+    // slow fade: the charge a wave train leaves behind survives long enough
+    // for the NEXT good throw to finish the job — two solid throws wake a
+    // flower, one perfect peak-distance hit still does it instantly
+    lotus.accumulatedPower = (lotus.accumulatedPower || 0) * Math.pow(0.9985, k)
   }
 
   // visual charge level (smooth decay), for the glow
@@ -163,7 +177,7 @@ export function updateLotus(lotus, ripples, dt) {
     if (lotus.currentPower < 0.01) lotus.currentPower = 0
   }
 
-  if (power >= lotus.threshold || lotus.accumulatedPower >= lotus.threshold * 0.8) {
+  if (power >= lotus.threshold || lotus.accumulatedPower >= lotus.threshold * 0.9) {
     lotus.isActivated = true
     lotus.sinkProgress = 0
     return true
@@ -171,24 +185,48 @@ export function updateLotus(lotus, ripples, dt) {
   return false
 }
 
-// Water-surface height at a point: each wavefront is a damped ring packet (a
-// couple of trailing crests behind the front), plus the pond's ambient swell.
+// The pond's ambient wave spectrum: six directional components whose speeds
+// obey deep-water dispersion (ω = √(g·k)) — long swells travel fast, short
+// chop crawls — so the surface genuinely MOVES instead of pulsing in place.
+// Amplitudes fall off with wavenumber the way real wind-ripple spectra do.
+const AMBIENT_WAVES = (() => {
+  const g = 9.81
+  const specs = [
+    { lambda: 9.5, dir: 0.4, amp: 0.02 },
+    { lambda: 6.2, dir: 2.3, amp: 0.016 },
+    { lambda: 4.0, dir: 1.1, amp: 0.011 },
+    { lambda: 2.6, dir: 3.6, amp: 0.007 },
+    { lambda: 1.7, dir: 5.1, amp: 0.0045 },
+    { lambda: 1.1, dir: 2.9, amp: 0.003 },
+  ]
+  return specs.map(({ lambda, dir, amp }, i) => {
+    const k = (2 * Math.PI) / lambda
+    return { kx: Math.cos(dir) * k, kz: Math.sin(dir) * k, w: Math.sqrt(g * k), amp, phase: i * 1.7 }
+  })
+})()
+
+// Water-surface height at a point: the ambient spectrum, plus each wavefront
+// as a physical ring packet — a leading crest with a deeper trough right
+// behind it, an oscillation train that disperses (broadens) as it travels,
+// and amplitude decaying like 1/√r as the ring's energy spreads.
 export function surfaceHeight(x, z, ripples, t) {
-  // the pond's ambient life: two crossing swells plus a slow breeze patch
-  // that wanders, so the surface never sits still even between throws
-  let y =
-    Math.sin(x * 0.7 + t * 0.8) * 0.012 +
-    Math.cos(z * 0.55 + t * 0.6) * 0.012 +
-    Math.sin(x * 0.22 + z * 0.31 + t * 0.35) * 0.02 +
-    Math.sin((x + Math.sin(t * 0.1) * 6) * 0.5 - t * 1.3) * Math.cos(z * 0.4 + t * 0.2) * 0.008
+  let y = 0
+  for (const w of AMBIENT_WAVES) {
+    y += Math.sin(w.kx * x + w.kz * z - w.w * t + w.phase) * w.amp
+  }
   for (const r of ripples) {
     const d = Math.hypot(x - r.x, z - r.z)
     const s = d - r.radius // behind the front is negative
-    if (s > 1.2 || s < -3.4) continue
+    if (s > 1.4 || s < -4) continue
     const power = ripplePower(r.radius, r.peakRadius, r.peakPower)
-    const envelope = Math.exp(-s * s * 0.9) + 0.45 * Math.exp(-(s + 1.6) * (s + 1.6) * 1.2)
-    y += Math.cos(s * 4.2) * envelope * r.amp * (0.35 + power) // crest rides the front
-
+    // dispersion: the packet broadens as the ring travels
+    const wPack = 0.55 + r.radius * 0.07
+    // 2-D energy conservation: ring amplitude thins as 1/√r
+    const spread = Math.sqrt((r.peakRadius * 0.6 + 1) / (r.radius + 1))
+    const ampEff = r.amp * (0.35 + power) * Math.min(1.25, spread)
+    const train = Math.cos((s * 4.2) / (0.8 + r.radius * 0.03)) * Math.exp((-s * s) / (wPack * wPack))
+    const trough = -0.42 * Math.exp(-((s + wPack * 0.9) ** 2) / (wPack * 0.7) ** 2)
+    y += (train + trough) * ampEff
   }
   return y
 }

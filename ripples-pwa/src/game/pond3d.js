@@ -75,7 +75,10 @@ function buildWater(scene, R, pal) {
   const mat = pbr(scene, { color: pal.water, rough: 0.34, name: 'waterMat' })
   mat.alpha = 0.86
   mat.metallic = 0.05
-  mat.specularIntensity = 0.35 // glints, not a blown-out sun disc
+  mat.specularIntensity = 0.4 // glints, not a blown-out sun disc
+  mat.clearCoat.isEnabled = true // the wet sheen that sells a water surface
+  mat.clearCoat.intensity = 0.55
+  mat.clearCoat.roughness = 0.32
   water.material = mat
   water.receiveShadows = true
   // the surface renders FIRST among transparents, so everything sitting on
