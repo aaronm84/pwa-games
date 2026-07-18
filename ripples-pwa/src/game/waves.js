@@ -26,13 +26,16 @@ export function strengthFor(holdMs) {
 // speed in units/second (a crisp first skip lands around 10-16; the last
 // tired hops around 3-5).
 export function skipRipple(x, z, speed) {
-  const p = Math.min(1.15, Math.max(0.35, (speed - 2) / 11))
+  // stretched so big waves are earned: a crisp early skip (speed ~17+) makes
+  // a full-power ripple, a mid-flight hop (~11) makes a wave that needs
+  // interference or accumulation to wake a flower, a dying hop barely stirs
+  const p = Math.min(1.0, Math.max(0.28, (speed - 3) / 14))
   const r = createRipple(x, z, 'medium')
-  r.peakPower = p * 1.05
-  r.peakRadius = 2.6 + p * 2.0
+  r.peakPower = p
+  r.peakRadius = 2.4 + p * 1.8
   r.maxRadius = r.peakRadius * 2.33
   r.speed = (1.9 + p * 0.9) * (0.95 + Math.random() * 0.1)
-  r.amp = 0.045 + p * 0.06
+  r.amp = 0.04 + p * 0.055
   return r
 }
 

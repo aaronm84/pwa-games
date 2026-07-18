@@ -228,23 +228,25 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
 // pure skip.js model; this just draws it.
 export function buildSkipper(scene, shadow, pal, thrower) {
   const stoneMat = pbr(scene, { color: '#8a857c', rough: 0.6, name: 'skipStoneMat' })
-  const stone = MeshBuilder.CreateSphere('skipStone', { diameterX: 0.36, diameterY: 0.13, diameterZ: 0.3, segments: 10 }, scene)
+  const stone = MeshBuilder.CreateSphere('skipStone', { diameterX: 0.46, diameterY: 0.17, diameterZ: 0.38, segments: 10 }, scene)
   stone.material = stoneMat
   stone.isPickable = false
   shadow?.addShadowCaster(stone)
 
   // dashed guide out over the water — an aiming aid, not a laser
   const dashes = []
-  for (let i = 0; i < 8; i++) {
-    const d = MeshBuilder.CreateBox('gd', { width: 0.055, height: 0.012, depth: 0.34 }, scene)
-    d.position.set(0, 0.06, -1.6 - i * 0.85)
+  for (let i = 0; i < 12; i++) {
+    const d = MeshBuilder.CreateBox('gd', { width: 0.06, height: 0.014, depth: 0.38 }, scene)
+    d.position.set(0, 0.12, -3.6 - i * 0.9)
     dashes.push(d)
   }
   const guide = Mesh.MergeMeshes(dashes, true, true)
   const guideMat = new StandardMaterial('guideMat', scene)
-  guideMat.emissiveColor = Color3.FromHexString(pal.ring).scale(0.75)
+  // palette-independent: the aim line must read on every water color
+  guideMat.emissiveColor = new Color3(1, 1, 1)
   guideMat.disableLighting = true
-  guideMat.alpha = 0.3
+  guideMat.fogEnabled = false
+  guideMat.alpha = 1
   guide.material = guideMat
   guide.isPickable = false
   guide.position.set(thrower.x, 0, thrower.z)
@@ -265,21 +267,26 @@ export function buildSkipper(scene, shadow, pal, thrower) {
 
   return {
     stone,
+    guideMesh: guide, // exposed so the page can exclude it from the GlowLayer
     // stone resting in the hand, guide showing the line
     rest(aimX, angle) {
       stone.setEnabled(true)
-      stone.position.set(thrower.x + aimX, 0.42, thrower.z)
+      // ahead of the thrower so it clears the camera near-plane — you can
+      // see the stone you're about to throw
+      stone.position.set(thrower.x + aimX, 0.34, thrower.z - 3.1)
       stone.rotation.set(0, 0, 0)
       guide.position.x = thrower.x + aimX
-      guide.rotation.y = angle
+      // LH yaw: rotation.y = +angle points the dashes at (-sin a) while the
+      // stone flies at (+sin a) — negate so the guide shows the real line
+      guide.rotation.y = -angle
     },
     setAiming(on, windup = 0) {
       guide.setEnabled(on)
-      guideMat.alpha = 0.22 + windup * 0.45
+      guideMat.alpha = 0.5 + windup * 0.35
     },
     // pull the stone back and low while winding up
     windup(aimX, k) {
-      stone.position.set(thrower.x + aimX, 0.42 - k * 0.18, thrower.z + 0.5 + k * 0.9)
+      stone.position.set(thrower.x + aimX, 0.34 - k * 0.12, thrower.z - 3.1 + k * 1.3)
     },
     // draw the in-flight stone from the pure model's state
     flight(s, dt) {

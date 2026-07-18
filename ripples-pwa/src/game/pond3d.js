@@ -78,6 +78,9 @@ function buildWater(scene, R, pal) {
   mat.specularIntensity = 0.35 // glints, not a blown-out sun disc
   water.material = mat
   water.receiveShadows = true
+  // the surface renders FIRST among transparents, so everything sitting on
+  // it (aim guide, wavefront rings, splashes) draws over, never under
+  water.alphaIndex = 1
   return { water, mat }
 }
 
@@ -393,7 +396,7 @@ function buildGlitter(scene, pal, R) {
   streak.isPickable = false
   return {
     update(t) {
-      mat.alpha = 0.075 + Math.sin(t * 1.1) * 0.02 + Math.sin(t * 3.7) * 0.012
+      mat.alpha = 0.055 + Math.sin(t * 1.1) * 0.016 + Math.sin(t * 3.7) * 0.01
       streak.scaling.x = 1 + Math.sin(t * 0.7) * 0.1
     },
     dispose() {
