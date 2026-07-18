@@ -1,7 +1,7 @@
 {
   "name": "ripples-game",
   "version": "1.0.0",
-  "description": "Ripples - a zen 3D pond puzzle on Babylon.js + Havok: tap the water, ripple the lotus flowers awake",
+  "description": "Ripples - a zen 3D stone-skipping pond puzzle on Babylon.js + Havok",
   "productName": "Ripples",
   "author": "Aaron Middleton <aaronmiddleton@gmail.com>",
   "type": "module",

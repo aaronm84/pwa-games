@@ -21,6 +21,21 @@ export function strengthFor(holdMs) {
   return 'medium'
 }
 
+// A ripple born from a skipping stone: the harder the stone smacks the water,
+// the stronger and further-reaching the wave. Speed is the stone's impact
+// speed in units/second (a crisp first skip lands around 10-16; the last
+// tired hops around 3-5).
+export function skipRipple(x, z, speed) {
+  const p = Math.min(1.15, Math.max(0.35, (speed - 2) / 11))
+  const r = createRipple(x, z, 'medium')
+  r.peakPower = p * 1.05
+  r.peakRadius = 2.6 + p * 2.0
+  r.maxRadius = r.peakRadius * 2.33
+  r.speed = (1.9 + p * 0.9) * (0.95 + Math.random() * 0.1)
+  r.amp = 0.045 + p * 0.06
+  return r
+}
+
 let rippleSeq = 0
 
 export function createRipple(x, z, strength = 'medium', rand = Math.random) {
@@ -156,7 +171,13 @@ export function updateLotus(lotus, ripples, dt) {
 // Water-surface height at a point: each wavefront is a damped ring packet (a
 // couple of trailing crests behind the front), plus the pond's ambient swell.
 export function surfaceHeight(x, z, ripples, t) {
-  let y = Math.sin(x * 0.7 + t * 0.8) * 0.012 + Math.cos(z * 0.55 + t * 0.6) * 0.012
+  // the pond's ambient life: two crossing swells plus a slow breeze patch
+  // that wanders, so the surface never sits still even between throws
+  let y =
+    Math.sin(x * 0.7 + t * 0.8) * 0.012 +
+    Math.cos(z * 0.55 + t * 0.6) * 0.012 +
+    Math.sin(x * 0.22 + z * 0.31 + t * 0.35) * 0.02 +
+    Math.sin((x + Math.sin(t * 0.1) * 6) * 0.5 - t * 1.3) * Math.cos(z * 0.4 + t * 0.2) * 0.008
   for (const r of ripples) {
     const d = Math.hypot(x - r.x, z - r.z)
     const s = d - r.radius // behind the front is negative

@@ -9,6 +9,7 @@ import {
   Vector3,
   Color3,
   StandardMaterial,
+  Scene,
   pbr,
 } from 'src/engine'
 import { surfaceHeight, ripplePower } from './waves.js'
@@ -232,9 +233,144 @@ function buildFish(scene, fishData, R) {
   }
 }
 
+// The tree line past the banks: cheap silhouettes (cones and lollipops) that
+// the distance haze softens into scenery.
+function buildTrees(scene, trees, pal) {
+  const meshes = []
+  const mats = []
+  const grassC = Color3.FromHexString(pal.grass)
+  for (let tone = 0; tone < 3; tone++) {
+    const m = pbr(scene, { color: '#000000', rough: 1, name: `treeMat${tone}` })
+    m.albedoColor = grassC.scale(0.55 + tone * 0.3).add(new Color3(0.02, 0.05, 0.01))
+    mats.push(m)
+  }
+  const trunkMat = pbr(scene, { color: '#4a3826', rough: 1, name: 'trunkMat' })
+  mats.push(trunkMat)
+  for (const t of trees) {
+    const mat = mats[Math.floor(t.tone * 3)]
+    if (t.kind === 'conifer') {
+      const cone = MeshBuilder.CreateCylinder('tree', { height: t.height, diameterBottom: t.width, diameterTop: 0.02, tessellation: 7 }, scene)
+      cone.position.set(t.x, t.height / 2 - 0.18, t.z)
+      cone.material = mat
+      cone.isPickable = false
+      cone.freezeWorldMatrix()
+      meshes.push(cone)
+    } else {
+      const trunk = MeshBuilder.CreateCylinder('trunk', { height: t.height * 0.5, diameter: t.width * 0.16, tessellation: 6 }, scene)
+      trunk.position.set(t.x, t.height * 0.25 - 0.18, t.z)
+      trunk.material = trunkMat
+      const crown = MeshBuilder.CreateSphere('crown', { diameterX: t.width, diameterY: t.height * 0.7, diameterZ: t.width, segments: 7 }, scene)
+      crown.position.set(t.x, t.height * 0.62 - 0.18, t.z)
+      crown.material = mat
+      for (const m of [trunk, crown]) {
+        m.isPickable = false
+        m.freezeWorldMatrix()
+        meshes.push(m)
+      }
+    }
+  }
+  return {
+    dispose() {
+      for (const m of meshes) m.dispose()
+      for (const m of mats) m.dispose()
+    },
+  }
+}
+
+// Dragonflies: a darting body with shimmering wing quads, wandering a small
+// patch of air on a lissajous path.
+function buildDragonflies(scene, flies) {
+  const items = []
+  const bodyMat = pbr(scene, { color: '#3a6fd8', rough: 0.35, name: 'dflyBody' })
+  const wingMat = new StandardMaterial('dflyWing', scene)
+  wingMat.emissiveColor = new Color3(0.85, 0.92, 1)
+  wingMat.alpha = 0.3
+  wingMat.disableLighting = true
+  wingMat.backFaceCulling = false
+  for (const f of flies) {
+    const body = MeshBuilder.CreateCapsule('dfly', { height: 0.34, radius: 0.028 }, scene)
+    body.rotation.x = Math.PI / 2
+    body.material = bodyMat
+    body.isPickable = false
+    const wings = []
+    for (let w = 0; w < 2; w++) {
+      const wing = MeshBuilder.CreatePlane('wing', { width: 0.34, height: 0.09 }, scene)
+      wing.material = wingMat
+      wing.parent = body
+      wing.rotation.x = Math.PI / 2
+      wing.position.y = 0.05 - w * 0.1
+      wing.isPickable = false
+      wings.push(wing)
+    }
+    items.push({ body, wings, f, dart: 0, dx: 0, dz: 0 })
+  }
+  return {
+    update(t) {
+      for (const it of items) {
+        const { f } = it
+        // lazy lissajous hover with the occasional dart to a new patch
+        if (it.dart <= 0 && Math.random() < 0.003) {
+          it.dart = 1
+          it.dx = (Math.random() - 0.5) * f.wander * 2
+          it.dz = (Math.random() - 0.5) * f.wander * 2
+        }
+        if (it.dart > 0) it.dart = Math.max(0, it.dart - 0.02)
+        const ease = 1 - it.dart
+        const hx = f.x + Math.sin(t * 0.7 + f.phase) * f.wander * 0.5 + it.dx * ease
+        const hz = f.z + Math.sin(t * 0.9 + f.phase * 2) * f.wander * 0.4 + it.dz * ease
+        const hy = f.height + Math.sin(t * 2.1 + f.phase) * 0.08
+        const prev = it.body.position
+        it.body.rotation.y = Math.atan2(hx - prev.x, hz - prev.z)
+        prev.set(hx, hy, hz)
+        for (let w = 0; w < it.wings.length; w++) {
+          it.wings[w].scaling.y = 0.35 + Math.abs(Math.sin(t * 38 + w * 1.7)) * 0.9
+        }
+      }
+    },
+    dispose() {
+      bodyMat.dispose()
+      wingMat.dispose()
+      for (const it of items) it.body.dispose(false, true)
+    },
+  }
+}
+
+// Fringe pads: decorative lily pads hugging the banks, bobbing on the swell.
+function buildFringePads(scene, fringePads) {
+  const items = []
+  const mat = pbr(scene, { color: '#35682c', rough: 0.85, name: 'fringePadMat' })
+  for (const p of fringePads) {
+    const m = MeshBuilder.CreateCylinder('fringe', { diameter: p.radius * 2, height: 0.05, tessellation: 16 }, scene)
+    m.position.set(p.x, 0.03, p.z)
+    m.rotation.y = p.rotation
+    m.material = mat
+    m.isPickable = false
+    items.push({ mesh: m, p })
+  }
+  return {
+    update(t, ripples) {
+      for (const it of items) {
+        const y = surfaceHeight(it.p.x, it.p.z, ripples, t)
+        it.mesh.position.y = 0.03 + y
+        it.mesh.rotation.z = y * 0.8
+      }
+    },
+    dispose() {
+      for (const it of items) it.mesh.dispose()
+      mat.dispose()
+    },
+  }
+}
+
 export function buildPond(scene, shadow, level, pal) {
   const R = level.R
   const disposables = []
+
+  // the world past the water fades into haze — this is what makes a 13-unit
+  // disc read as an expansive pond instead of a diorama
+  scene.fogMode = Scene.FOGMODE_EXP2
+  scene.fogColor = Color3.FromHexString(pal.clear)
+  scene.fogDensity = 0.021
 
   const { water, mat: waterMat } = buildWater(scene, R, pal)
   disposables.push(water, waterMat)
@@ -263,7 +399,7 @@ export function buildPond(scene, shadow, level, pal) {
   bank.freezeWorldMatrix()
   disposables.push(bank, bankMat)
 
-  const grass = MeshBuilder.CreateDisc('grass', { radius: R + 6, tessellation: 72 }, scene)
+  const grass = MeshBuilder.CreateDisc('grass', { radius: R + 40, tessellation: 72 }, scene)
   grass.rotation.x = Math.PI / 2
   grass.position.y = -0.18
   const grassMat = pbr(scene, { color: pal.grass, rough: 1, name: 'grassMat' })
@@ -292,7 +428,10 @@ export function buildPond(scene, shadow, level, pal) {
 
   const reeds = buildReeds(scene, shadow, level.reeds, pal)
   const fish = buildFish(scene, level.fish, R)
-  const rings = buildRippleRings(scene, null, pal)
+  const rings = buildRippleRings(scene, null, pal, 20)
+  const trees = buildTrees(scene, level.trees, pal)
+  const dragonflies = buildDragonflies(scene, level.dragonflies)
+  const fringe = buildFringePads(scene, level.fringePads)
 
   // per-frame water displacement
   const vb = water.getVerticesData('position')
@@ -312,11 +451,16 @@ export function buildPond(scene, shadow, level, pal) {
       rings.update(ripples, 0)
       reeds.update(t, ripples)
       fish.update(t, dt, ripples)
+      dragonflies.update(t)
+      fringe.update(t, ripples)
     },
     dispose() {
       rings.dispose()
       reeds.dispose()
       fish.dispose()
+      trees.dispose()
+      dragonflies.dispose()
+      fringe.dispose()
       for (const d of disposables) d.dispose()
     },
   }

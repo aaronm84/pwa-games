@@ -11,7 +11,7 @@
           <h1 class="app-title">
             <span class="title-emphasis">Ripples</span>
           </h1>
-          <div class="tagline">Still water, waiting lotus</div>
+          <div class="tagline">Flat stone, still water, waiting lotus</div>
         </div>
 
         <!-- Animated Zen Circle (Enso) - instantly hide during transition -->
@@ -55,6 +55,7 @@ const loadingMessages = [
   'Floating the lily pads...',
   'Waking the lotus flowers...',
   'Hushing the dragonflies...',
+  'Picking the flattest stones...',
 ]
 
 let messageIndex = 0

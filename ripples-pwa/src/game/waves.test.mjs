@@ -10,7 +10,9 @@ import {
   surfaceHeight,
   strengthFor,
 } from './waves.js'
+import { skipRipple } from './waves.js'
 import { generateLevel } from './levels.js'
+import { throwStone, stepStone } from './skip.js'
 
 let failed = 0
 function check(name, cond) {
@@ -114,10 +116,52 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('level 1 has no stones', generateLevel(1).stones.length === 0)
   check('level 10 has stones', generateLevel(10).stones.length > 0)
   check('level 10 has drifting pads', generateLevel(10).pads.length > 0)
+  check('ponds come alive: trees, fringe pads, dragonflies', (() => { const l = generateLevel(3); return l.trees.length > 5 && l.fringePads.length > 3 && l.dragonflies.length >= 2 })())
   const lv = generateLevel(15)
+  check('gameplay actors stay in the throw fan', lv.lotus.every((o) => o.z < lv.R - 7))
   const inBounds = [...lv.lotus, ...lv.stones].every((o) => Math.hypot(o.x, o.z) < lv.R)
   check('everything sits inside the pond', inBounds)
-  check('taps allowed ≥ optimal', lv.tapsAllowed >= lv.optimalTaps)
+  check('stones allowed ≥ optimal', lv.stonesAllowed >= lv.optimalStones)
+}
+
+// the skipping stone: a good throw skips several times, then sinks
+{
+  const run = (opts) => {
+    const s = throwStone(0, 12, opts)
+    const events = []
+    for (let i = 0; i < 3000 && !s.done; i++) events.push(...stepStone(s, 1 / 120))
+    return { stone: s, events }
+  }
+
+  const good = run({ power: 0.85 })
+  const skips = good.events.filter((e) => e.type === 'skip')
+  const sinks = good.events.filter((e) => e.type === 'sink')
+  check('a strong throw skips at least 3 times', skips.length >= 3)
+  check('every flight ends in exactly one sink', sinks.length === 1)
+  check('the sink comes last', good.events[good.events.length - 1].type === 'sink')
+  check('skips march toward the far bank (−z)', skips.every((e, i) => i === 0 || e.z < skips[i - 1].z))
+  check('later skips are slower', skips.every((e, i) => i === 0 || e.speed < skips[i - 1].speed))
+  check('the stone stays on line without curve', skips.every((e) => Math.abs(e.x) < 0.01))
+
+  const weak = run({ power: 0 })
+  const weakSkips = weak.events.filter((e) => e.type === 'skip').length
+  check('a feeble toss dies quickly', weakSkips <= 2)
+  check('more power carries further', good.stone.z < weak.stone.z)
+
+  const bent = run({ power: 0.8, curve: 3 })
+  const bentSkips = bent.events.filter((e) => e.type === 'skip')
+  check('sidespin bends the path', bentSkips.length > 0 && Math.abs(bentSkips[bentSkips.length - 1].x) > 0.5)
+
+  const aimed = run({ power: 0.8, angle: 0.3 })
+  check('aim angle steers the throw', aimed.stone.x > 1)
+}
+
+// skip ripples scale with impact speed
+{
+  const fast = skipRipple(0, 0, 14)
+  const slow = skipRipple(0, 0, 4)
+  check('a hard smack out-ripples a tired hop', fast.peakPower > slow.peakPower && fast.peakRadius > slow.peakRadius)
+  check('skip ripples die at their natural radius', Math.abs(fast.maxRadius - fast.peakRadius * 2.33) < 1e-9)
 }
 
 if (failed) {

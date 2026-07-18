@@ -10,7 +10,7 @@
         <h1 class="game-title">
           <span class="title-emphasis">Ripples</span>
         </h1>
-        <p class="game-subtitle">Tap the water, wake the lotus</p>
+        <p class="game-subtitle">Skip stones, wake the lotus</p>
       </div>
 
       <!-- Menu Buttons -->

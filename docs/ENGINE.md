@@ -138,8 +138,18 @@ hand-rolled lines for. Kit growth from this game: **`Stage2D`** (a Canvas-2D
 sibling of `Stage`, same contract) with a Babylon-free
 **`@aaronm84/engine-kit/2d`** entry for future flat games, and a
 `Culling/ray` side-effect import in `babylon.js` — lesson 1 striking again:
-`scene.createPickingRay` fails at runtime without it, and Ripples is the first
-kit game to pick against the world (taps land on the water plane).
+`scene.createPickingRay` fails at runtime without it, and Ripples was briefly
+the first kit game to pick against the world.
+
+The game then **evolved from tapping to stone-skipping**: the bowling control
+language on water (slide to aim along a dashed guide, drag down to wind up,
+snap forward to release — backswing × snap = power, lateral snap = curve), a
+low Alley-Nights-style camera behind the thrower, and a pure `skip.js` flight
+model whose water contacts (skim or plunge) each answer with a ripple. The
+release gate is **snap distance, not speed** — a px/ms threshold silently
+eats throws on slow devices (found under SwiftShader, where frames run ~6×
+slow). The pond grew expansive and alive to match: distance haze (fog), a
+tree line, dragonflies, koi, fringe pads riding the swell.
 
 ## How a new engine game starts (the recipe)
 

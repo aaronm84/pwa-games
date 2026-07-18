@@ -8,8 +8,10 @@
 // circle separation code the 2D game needed.
 import {
   MeshBuilder,
+  Mesh,
   Vector3,
   Color3,
+  StandardMaterial,
   pbr,
   makeStatic,
   makeDynamic,
@@ -215,6 +217,111 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
         f.heartMat.dispose()
         f.padMat.dispose()
         f.root.dispose(false, true)
+      }
+    },
+  }
+}
+
+// ---- the skipping stone ----------------------------------------------------
+// The stone in your hand, the dashed aim guide (the bowling-lane pattern),
+// and a little pool of splash rings for each skip. Flight state lives in the
+// pure skip.js model; this just draws it.
+export function buildSkipper(scene, shadow, pal, thrower) {
+  const stoneMat = pbr(scene, { color: '#8a857c', rough: 0.6, name: 'skipStoneMat' })
+  const stone = MeshBuilder.CreateSphere('skipStone', { diameterX: 0.36, diameterY: 0.13, diameterZ: 0.3, segments: 10 }, scene)
+  stone.material = stoneMat
+  stone.isPickable = false
+  shadow?.addShadowCaster(stone)
+
+  // dashed guide out over the water — an aiming aid, not a laser
+  const dashes = []
+  for (let i = 0; i < 8; i++) {
+    const d = MeshBuilder.CreateBox('gd', { width: 0.055, height: 0.012, depth: 0.34 }, scene)
+    d.position.set(0, 0.06, -1.6 - i * 0.85)
+    dashes.push(d)
+  }
+  const guide = Mesh.MergeMeshes(dashes, true, true)
+  const guideMat = new StandardMaterial('guideMat', scene)
+  guideMat.emissiveColor = Color3.FromHexString(pal.ring).scale(0.75)
+  guideMat.disableLighting = true
+  guideMat.alpha = 0.3
+  guide.material = guideMat
+  guide.isPickable = false
+  guide.position.set(thrower.x, 0, thrower.z)
+
+  // splash rings for each skip
+  const splashMat = new StandardMaterial('skipSplashMat', scene)
+  splashMat.emissiveColor = new Color3(0.95, 0.99, 1)
+  splashMat.disableLighting = true
+  splashMat.alpha = 0
+  const splashes = []
+  for (let i = 0; i < 8; i++) {
+    const m = MeshBuilder.CreateTorus(`skipSplash${i}`, { diameter: 0.5, thickness: 0.05, tessellation: 32 }, scene)
+    m.material = splashMat.clone(`skipSplashMat${i}`)
+    m.isVisible = false
+    m.isPickable = false
+    splashes.push({ mesh: m, t: -1, k: 1 })
+  }
+
+  return {
+    stone,
+    // stone resting in the hand, guide showing the line
+    rest(aimX, angle) {
+      stone.setEnabled(true)
+      stone.position.set(thrower.x + aimX, 0.42, thrower.z)
+      stone.rotation.set(0, 0, 0)
+      guide.position.x = thrower.x + aimX
+      guide.rotation.y = angle
+    },
+    setAiming(on, windup = 0) {
+      guide.setEnabled(on)
+      guideMat.alpha = 0.22 + windup * 0.45
+    },
+    // pull the stone back and low while winding up
+    windup(aimX, k) {
+      stone.position.set(thrower.x + aimX, 0.42 - k * 0.18, thrower.z + 0.5 + k * 0.9)
+    },
+    // draw the in-flight stone from the pure model's state
+    flight(s, dt) {
+      stone.position.set(s.x, Math.max(s.y, 0) + 0.075, s.z)
+      stone.rotation.x -= s.spin * dt
+    },
+    sunk() {
+      stone.setEnabled(false)
+    },
+    splashAt(x, z, speed) {
+      const free = splashes.find((sp) => sp.t < 0)
+      if (!free) return
+      free.t = 0
+      free.k = Math.min(1.2, 0.5 + speed / 14)
+      free.mesh.position.set(x, 0.05, z)
+    },
+    update(dt) {
+      for (const sp of splashes) {
+        if (sp.t < 0) continue
+        sp.t += dt
+        const life = 0.55
+        if (sp.t >= life) {
+          sp.t = -1
+          sp.mesh.isVisible = false
+          continue
+        }
+        const p = sp.t / life
+        sp.mesh.isVisible = true
+        const r = (0.35 + p * 1.6) * sp.k
+        sp.mesh.scaling.set(r, 1, r)
+        sp.mesh.material.alpha = 0.6 * (1 - p) * sp.k
+      }
+    },
+    dispose() {
+      stone.dispose()
+      stoneMat.dispose()
+      guide.material.dispose()
+      guide.dispose()
+      splashMat.dispose()
+      for (const sp of splashes) {
+        sp.mesh.material.dispose()
+        sp.mesh.dispose()
       }
     },
   }
