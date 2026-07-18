@@ -518,74 +518,189 @@ function buildSweep(scene, colors, style, track, mats) {
 
 // ---- per-alley backers ------------------------------------------------------
 
-// Tiki Grove: a bamboo pole strung above the pit with a row of carved masks —
-// glowing eyes, dark mouths, little frond toppers. Merged per material.
+// Tiki Grove: a bamboo pole strung above the pit with a row of carved bar
+// masks, PROCEDURALLY GENERATED per session — each mask rolls its own plaque
+// shape, goggle eyes, giant toothy mouth (maybe a tongue), crown topper and
+// painted band, in the reference's carnival palette. Merged per color.
 function buildMaskWall(scene, totalW, track, freeze, mats) {
-  const wood = [[], []] // two alternating carve tones
-  const dark = []
-  const teeth = []
-  const fronds = []
-  const eyes = []
   const bambooMat = new StandardMaterial('bambooMat', scene)
   bambooMat.diffuseColor = Color3.FromHexString('#a8834a')
   bambooMat.specularColor = new Color3(0.08, 0.08, 0.06)
   mats.push(bambooMat)
   const pole = MeshBuilder.CreateCylinder('maskPole', { diameter: 0.09, height: totalW, tessellation: 12 }, scene)
   pole.rotation.z = Math.PI / 2
-  pole.position.set(0, 2.1, DECK_END - 0.2)
+  pole.position.set(0, 2.16, DECK_END - 0.2)
   pole.material = bambooMat
   track(freeze(pole))
+
+  // color bags: everything of one color merges into one mesh at the end
+  const bags = new Map()
+  const put = (mesh, hex, glow = false) => {
+    const key = hex + (glow ? '!' : '')
+    if (!bags.has(key)) bags.set(key, { hex, glow, bits: [] })
+    bags.get(key).bits.push(mesh)
+  }
+  const rnd = Math.random // fresh masks every session
+  const pick = (arr) => arr[Math.floor(rnd() * arr.length)]
+  const WOODS = ['#8a5a2a', '#6b4423', '#5f3d1c']
+  const WARM = ['#e8481c', '#ff8a3a', '#ffd23f', '#e8342f']
+  const GREENS = ['#2e8b57', '#59c26a']
+  const CREAM = '#f2e8d8'
+  const DARK = '#1a0f06'
+
   const xs = [-1.5, -0.5, 0.5, 1.5]
-  xs.forEach((mx, i) => {
-    const my = 1.35
-    const mz = DECK_END - 0.22
-    // rope from the pole down to the mask
-    const rope = MeshBuilder.CreateCylinder('maskRope', { diameter: 0.025, height: 0.32, tessellation: 6 }, scene)
-    rope.position.set(mx, 1.93, mz)
-    wood[1].push(rope)
-    // the face: a tall carved oval with a heavy brow and a long nose
-    const face = MeshBuilder.CreateSphere('maskFace', { diameterX: 0.56, diameterY: 0.88, diameterZ: 0.2, segments: 18 }, scene)
-    face.position.set(mx, my, mz)
-    wood[i % 2].push(face)
-    const brow = MeshBuilder.CreateBox('maskBrow', { width: 0.5, height: 0.09, depth: 0.08 }, scene)
-    brow.position.set(mx, my + 0.2, mz + 0.06)
-    wood[(i + 1) % 2].push(brow)
-    const nose = MeshBuilder.CreateBox('maskNose', { width: 0.09, height: 0.26, depth: 0.09 }, scene)
-    nose.position.set(mx, my + 0.02, mz + 0.08)
-    wood[(i + 1) % 2].push(nose)
-    // glowing eyes
-    for (const s of [-1, 1]) {
-      const eye = MeshBuilder.CreateSphere('maskEye', { diameterX: 0.11, diameterY: 0.09, diameterZ: 0.05, segments: 10 }, scene)
-      eye.position.set(mx + s * 0.14, my + 0.11, mz + 0.09)
-      eyes.push(eye)
+  for (const mx of xs) {
+    const my = 1.3
+    const mz = DECK_END - 0.24
+    const zf = mz + 0.08 // the carved face plane
+    const wood = pick(WOODS)
+    const accentA = pick(WARM)
+    let accentB = pick(WARM)
+    if (accentB === accentA) accentB = pick(GREENS)
+
+    // rope from the pole down to the plaque
+    const rope = MeshBuilder.CreateCylinder('mRope', { diameter: 0.025, height: 0.34, tessellation: 6 }, scene)
+    rope.position.set(mx, 1.96, mz)
+    put(rope, '#5f3d1c')
+
+    // the plaque: a tall rounded board, sometimes with an arched top
+    const plaque = MeshBuilder.CreateBox('mPlaque', { width: 0.56, height: 0.92, depth: 0.14 }, scene)
+    plaque.position.set(mx, my, mz)
+    put(plaque, wood)
+    if (rnd() < 0.6) {
+      const arch = MeshBuilder.CreateCylinder('mArch', { diameter: 0.56, height: 0.14, tessellation: 20 }, scene)
+      arch.rotation.x = Math.PI / 2
+      arch.position.set(mx, my + 0.46, mz)
+      put(arch, wood)
     }
-    // mouth: a dark slot, some with teeth
-    const mouth = MeshBuilder.CreateBox('maskMouth', { width: 0.3, height: i % 2 ? 0.16 : 0.1, depth: 0.06 }, scene)
-    mouth.position.set(mx, my - 0.24, mz + 0.08)
-    dark.push(mouth)
-    if (i % 2) {
-      // carved fangs: little wooden pyramids hanging from the mouth's top lip
-      for (const tx of [-0.09, 0, 0.09]) {
-        const tooth = MeshBuilder.CreateCylinder('maskTooth', { diameterTop: 0.055, diameterBottom: 0, height: 0.08, tessellation: 4 }, scene)
-        tooth.position.set(mx + tx, my - 0.2, mz + 0.085)
-        teeth.push(tooth)
+
+    // ---- eyes: a goggle band or two big rims, cream lenses, dark pupils ----
+    const eyeY = my + 0.22
+    const glowingPupils = rnd() < 0.5
+    if (rnd() < 0.5) {
+      const band = MeshBuilder.CreateBox('mBand', { width: 0.56, height: 0.17, depth: 0.03 }, scene)
+      band.position.set(mx, eyeY, zf - 0.02)
+      put(band, accentA)
+    } else {
+      for (const sd of [-1, 1]) {
+        const rim = MeshBuilder.CreateTorus('mRim', { diameter: 0.18, thickness: 0.035, tessellation: 18 }, scene)
+        rim.rotation.x = Math.PI / 2
+        rim.position.set(mx + sd * 0.135, eyeY, zf - 0.015)
+        put(rim, accentA)
       }
     }
-    // frond topper
-    for (let f = -1; f <= 1; f++) {
-      const frond = MeshBuilder.CreateBox('maskFrond', { width: 0.06, height: 0.24, depth: 0.03 }, scene)
-      frond.position.set(mx + f * 0.1, my + 0.52, mz)
-      frond.rotation.z = f * 0.45
-      fronds.push(frond)
+    for (const sd of [-1, 1]) {
+      const lens = MeshBuilder.CreateCylinder('mLens', { diameter: 0.14, height: 0.03, tessellation: 16 }, scene)
+      lens.rotation.x = Math.PI / 2
+      lens.position.set(mx + sd * 0.135, eyeY, zf)
+      put(lens, CREAM)
+      const pupil = MeshBuilder.CreateCylinder('mPupil', { diameter: 0.055, height: 0.03, tessellation: 12 }, scene)
+      pupil.rotation.x = Math.PI / 2
+      pupil.position.set(mx + sd * 0.135, eyeY, zf + 0.02)
+      put(pupil, glowingPupils ? '#ffab3a' : DARK, glowingPupils)
     }
-  })
-  const bake = (bits, hex, { emissive = false, scale = 1 } = {}) => {
-    if (!bits.length) return
+
+    // nose: a little wedge between the eyes
+    const nose = MeshBuilder.CreateCylinder('mNose', { diameterTop: 0, diameterBottom: 0.1, height: 0.14, tessellation: 4 }, scene)
+    nose.rotation.x = -Math.PI / 2
+    nose.position.set(mx, my + 0.05, zf)
+    put(nose, pick([accentB, wood]))
+
+    // ---- the mouth: HUGE, lipped, toothy — the whole lower half ----
+    const mw = 0.4 + rnd() * 0.06
+    const mh = 0.2 + rnd() * 0.08
+    const mouY = my - 0.21
+    const inner = MeshBuilder.CreateBox('mMouth', { width: mw, height: mh, depth: 0.03 }, scene)
+    inner.position.set(mx, mouY, zf - 0.01)
+    put(inner, rnd() < 0.5 ? CREAM : DARK)
+    const lipC = pick([accentA, '#e8342f'])
+    const lipT = MeshBuilder.CreateBox('mLipT', { width: mw + 0.09, height: 0.05, depth: 0.045 }, scene)
+    lipT.position.set(mx, mouY + mh / 2 + 0.02, zf)
+    put(lipT, lipC)
+    const lipB = MeshBuilder.CreateBox('mLipB', { width: mw + 0.09, height: 0.05, depth: 0.045 }, scene)
+    lipB.position.set(mx, mouY - mh / 2 - 0.02, zf)
+    put(lipB, lipC)
+    for (const sd of [-1, 1]) {
+      const lipS = MeshBuilder.CreateBox('mLipS', { width: 0.05, height: mh + 0.09, depth: 0.045 }, scene)
+      lipS.position.set(mx + sd * (mw / 2 + 0.02), mouY, zf)
+      put(lipS, lipC)
+    }
+    // teeth: a row hanging from the top lip, sometimes rising from the bottom
+    const nTeeth = 3 + Math.floor(rnd() * 2)
+    for (let t = 0; t < nTeeth; t++) {
+      const tx = mx - mw / 2 + (t + 0.5) * (mw / nTeeth)
+      const tooth = MeshBuilder.CreateCylinder('mTooth', { diameterTop: 0.06, diameterBottom: 0, height: 0.09, tessellation: 4 }, scene)
+      tooth.position.set(tx, mouY + mh / 2 - 0.045, zf + 0.005)
+      put(tooth, CREAM)
+    }
+    if (rnd() < 0.5) {
+      for (let t = 0; t < nTeeth - 1; t++) {
+        const tx = mx - mw / 2 + (t + 1) * (mw / nTeeth)
+        const tooth = MeshBuilder.CreateCylinder('mToothB', { diameterTop: 0, diameterBottom: 0.055, height: 0.08, tessellation: 4 }, scene)
+        tooth.position.set(tx, mouY - mh / 2 + 0.04, zf + 0.005)
+        put(tooth, CREAM)
+      }
+    } else if (rnd() < 0.5) {
+      // ...or a tongue lolling out
+      const tongue = MeshBuilder.CreateSphere('mTongue', { diameterX: 0.13, diameterY: 0.2, diameterZ: 0.05, segments: 12 }, scene)
+      tongue.position.set(mx + (rnd() - 0.5) * 0.1, mouY - mh / 2 - 0.06, zf + 0.01)
+      put(tongue, '#e8342f')
+    }
+
+    // ---- topper: spiky crown, leaf fan, or a flower ----
+    const topY = my + 0.5
+    const style = rnd()
+    if (style < 0.4) {
+      const n = 5 + Math.floor(rnd() * 3)
+      for (let f = 0; f < n; f++) {
+        const k = f - (n - 1) / 2
+        const spike = MeshBuilder.CreateCylinder('mSpike', { diameterTop: 0, diameterBottom: 0.07, height: 0.2 + (1 - Math.abs(k) / n) * 0.14, tessellation: 4 }, scene)
+        spike.position.set(mx + k * 0.08, topY + 0.06, mz)
+        spike.rotation.z = -k * 0.3
+        put(spike, f % 2 ? accentA : accentB)
+      }
+    } else if (style < 0.75) {
+      for (let f = -2; f <= 2; f++) {
+        const leaf = MeshBuilder.CreateSphere('mLeaf', { diameterX: 0.07, diameterY: 0.26, diameterZ: 0.03, segments: 8 }, scene)
+        leaf.position.set(mx + f * 0.09, topY + 0.05, mz)
+        leaf.rotation.z = -f * 0.4
+        put(leaf, pick(GREENS))
+      }
+    } else {
+      const heart = MeshBuilder.CreateSphere('mFlower', { diameter: 0.1, segments: 10 }, scene)
+      heart.position.set(mx, topY + 0.05, zf - 0.04)
+      put(heart, '#ffd23f')
+      for (let f = 0; f < 6; f++) {
+        const a = (f / 6) * Math.PI * 2
+        const petal = MeshBuilder.CreateSphere('mPetal', { diameterX: 0.09, diameterY: 0.13, diameterZ: 0.04, segments: 8 }, scene)
+        petal.position.set(mx + Math.sin(a) * 0.09, topY + 0.05 + Math.cos(a) * 0.09, zf - 0.05)
+        petal.rotation.z = -a
+        put(petal, pick(['#ff8ac2', '#e8342f', '#ff8a3a']))
+      }
+    }
+
+    // ---- painted band or leaf skirt along the chin ----
+    if (rnd() < 0.55) {
+      const bandB = MeshBuilder.CreateBox('mBase', { width: 0.56, height: 0.1, depth: 0.03 }, scene)
+      bandB.position.set(mx, my - 0.4, zf - 0.02)
+      put(bandB, pick([accentB, ...GREENS]))
+    } else {
+      for (let f = -1; f <= 1; f++) {
+        const blade = MeshBuilder.CreateSphere('mSkirt', { diameterX: 0.07, diameterY: 0.18, diameterZ: 0.03, segments: 8 }, scene)
+        blade.position.set(mx + f * 0.12, my - 0.48, zf - 0.03)
+        blade.rotation.z = f * 0.5 + Math.PI
+        put(blade, pick(GREENS))
+      }
+    }
+  }
+
+  // bake: one merged mesh + material per color
+  for (const { hex, glow, bits } of bags.values()) {
     const merged = Mesh.MergeMeshes(bits, true, true)
     let m
-    if (emissive) {
+    if (glow) {
       m = new StandardMaterial('maskGlow', scene)
-      m.emissiveColor = Color3.FromHexString(hex).scale(scale)
+      m.emissiveColor = Color3.FromHexString(hex).scale(1.1)
       m.disableLighting = true
     } else {
       m = new StandardMaterial('maskMat', scene)
@@ -597,12 +712,6 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
     merged.isPickable = false
     track(freeze(merged))
   }
-  bake(wood[0], '#8a5a2a')
-  bake(wood[1], '#5f3d1c')
-  bake(dark, '#1a0f06')
-  bake(teeth, '#b98d54')
-  bake(fronds, '#2e6b34')
-  bake(eyes, '#ffab3a', { emissive: true, scale: 1.1 })
 }
 
 // Lava Lanes: the lane dead-ends into a volcano. Dark cone, glowing crater,
