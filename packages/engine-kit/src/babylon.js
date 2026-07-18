@@ -23,6 +23,7 @@ import '@babylonjs/core/Meshes/Builders/linesBuilder' // CreateLines (path trace
 import '@babylonjs/core/Layers/effectLayerSceneComponent' // GlowLayer hooks
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent' // shadows hook into scene render
 import '@babylonjs/core/Physics/joinedPhysicsEngineComponent' // adds Scene.enablePhysics
+import '@babylonjs/core/Culling/ray' // Scene.createPickingRay / mesh picking
 
 // --- named re-exports (tree-shaken) ---
 export { Engine } from '@babylonjs/core/Engines/engine'

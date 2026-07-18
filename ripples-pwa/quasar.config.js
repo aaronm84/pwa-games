@@ -57,9 +57,17 @@ export default defineConfig((ctx) => {
       // polyfillModulePreload: true,
       // distDir
 
+      // Split Babylon into its own vendor chunk so it caches independently of
+      // app code — a game/UI update won't re-download the (large) engine.
       extendViteConf(viteConf) {
+        viteConf.build = viteConf.build || {}
+        viteConf.build.rollupOptions = viteConf.build.rollupOptions || {}
+        viteConf.build.rollupOptions.output = viteConf.build.rollupOptions.output || {}
+        viteConf.build.rollupOptions.output.manualChunks = (id) => {
+          if (id.includes('@babylonjs')) return 'babylon'
+        }
         // the engine-kit is a symlinked local package (file:../packages/engine-kit);
-        // keep the symlink path so its imports resolve from THIS app's
+        // keep the symlink path so its @babylonjs imports resolve from THIS app's
         // node_modules instead of hunting above the package's real location
         viteConf.resolve = viteConf.resolve || {}
         viteConf.resolve.preserveSymlinks = true

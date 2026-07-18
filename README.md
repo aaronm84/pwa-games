@@ -30,7 +30,7 @@ project in its own top-level `*-pwa/` folder.
 | 🎰 **Slots** — spin the reels, chase the jackpot (for-fun casino) | [`slots-pwa/`](slots-pwa/) | https://aaronm84.github.io/pwa-games/slots/ |
 | ⛳ **Mini Golf** — 5 courses, 90 holes, gators, UFOs, yetis, lava & special putters | [`minigolf-pwa/`](minigolf-pwa/) | https://aaronm84.github.io/pwa-games/minigolf/ |
 | ⛳ **Mini Golf 3D** — all 90 holes in real 3D on the shared engine-kit (Babylon.js + Havok) | [`minigolf3d-pwa/`](minigolf3d-pwa/) | https://aaronm84.github.io/pwa-games/minigolf3d/ |
-| 🪷 **Ripples** — zen pond puzzle on the engine-kit's 2D stage: tap the water, wake the lotus | [`ripples-pwa/`](ripples-pwa/) | https://aaronm84.github.io/pwa-games/ripples/ |
+| 🪷 **Ripples** — zen pond puzzle in real 3D on the engine-kit (Babylon.js + Havok): tap the water, wake the lotus | [`ripples-pwa/`](ripples-pwa/) | https://aaronm84.github.io/pwa-games/ripples/ |
 
 Landing page: **https://aaronm84.github.io/pwa-games/**
 

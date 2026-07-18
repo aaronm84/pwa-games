@@ -127,15 +127,19 @@ scoring module.
 task is extracting `src/engine/` into a shared workspace package
 (e.g. `packages/engine-kit/`) so fixes stop needing to be copied between games.
 
-**Status:** 🪷 **Ripples ported** as `ripples-pwa/` — the kit's third adopter
-and its first **2D** one. The zen pond game (originally built in the zenith-app
-repo) kept its Canvas-2D look and gameplay but now runs entirely on kit
-modules, which grew the kit a new muscle: **`Stage2D`**, a Canvas-2D sibling of
-`Stage` with the same contract (DPR cap, clamped `dt`, pause-when-hidden), plus
-a Babylon-free **`@aaronm84/engine-kit/2d`** entry so 2D consumers don't need
-the `@babylonjs/*` peer deps. Its sampled `.wav` splashes were replaced with
-`createSynth()` noise/tone water plops, Capacitor haptics with
-`createHaptics()`, and ad-hoc touch handlers with `Gestures`.
+**Status:** 🪷 **Ripples shipped** as `ripples-pwa/` — the kit's third
+Babylon + Havok adopter. The zen pond game (originally a 2D canvas game in the
+zenith-app repo) was first ported 1:1 onto kit modules, then **remade in real
+3D**: a polar-grid water mesh whose vertices ride a pure, unit-tested wave
+model (five-zone power curve, reflection/absorption/interference), and a
+**gravity-zero Havok world** where drifting lily pads are dynamic bodies shoved
+by wavefront impulses — kinematic collision code the 2D version needed ~200
+hand-rolled lines for. Kit growth from this game: **`Stage2D`** (a Canvas-2D
+sibling of `Stage`, same contract) with a Babylon-free
+**`@aaronm84/engine-kit/2d`** entry for future flat games, and a
+`Culling/ray` side-effect import in `babylon.js` — lesson 1 striking again:
+`scene.createPickingRay` fails at runtime without it, and Ripples is the first
+kit game to pick against the world (taps land on the water plane).
 
 ## How a new engine game starts (the recipe)
 
