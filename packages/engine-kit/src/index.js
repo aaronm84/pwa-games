@@ -6,6 +6,7 @@
 // defaults. sfx is a sample-free WebAudio synth kit; haptics wraps vibration.
 // Games import what they need and supply the content.
 export { Stage } from './stage.js'
+export { Stage2D } from './stage2d.js'
 export { Gestures } from './input.js'
 export {
   initPhysics,

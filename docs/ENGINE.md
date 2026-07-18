@@ -127,6 +127,16 @@ scoring module.
 task is extracting `src/engine/` into a shared workspace package
 (e.g. `packages/engine-kit/`) so fixes stop needing to be copied between games.
 
+**Status:** 🪷 **Ripples ported** as `ripples-pwa/` — the kit's third adopter
+and its first **2D** one. The zen pond game (originally built in the zenith-app
+repo) kept its Canvas-2D look and gameplay but now runs entirely on kit
+modules, which grew the kit a new muscle: **`Stage2D`**, a Canvas-2D sibling of
+`Stage` with the same contract (DPR cap, clamped `dt`, pause-when-hidden), plus
+a Babylon-free **`@aaronm84/engine-kit/2d`** entry so 2D consumers don't need
+the `@babylonjs/*` peer deps. Its sampled `.wav` splashes were replaced with
+`createSynth()` noise/tone water plops, Capacitor haptics with
+`createHaptics()`, and ad-hoc touch handlers with `Gestures`.
+
 ## How a new engine game starts (the recipe)
 
 ```bash
