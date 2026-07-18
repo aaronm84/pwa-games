@@ -16,52 +16,86 @@ import {
   PhysicsShapeType,
 } from 'src/engine'
 
-// Procedural wood grain for the wooden houses: boards running down-lane with
-// seams and wavy grain strokes, painted once onto a small canvas texture.
+// Procedural wood grain for the wooden houses, modeled on reclaimed alley
+// flooring: MANY narrow boards, each its own tone; staggered butt joints
+// where boards meet end-to-end (with a tone break); dense fine grain lines
+// running the length; the occasional cathedral arc. Painted once at build.
 function woodGrainTexture(scene, baseHex) {
-  const tex = new DynamicTexture('laneWood', { width: 256, height: 512 }, scene, true)
+  // NOTE the orientation: on the lane's top face, canvas X runs DOWN the
+  // lane and canvas Y runs across it — so boards are horizontal rows here.
+  const W = 1024
+  const H = 512
+  const tex = new DynamicTexture('laneWood', { width: W, height: H }, scene, true)
   const ctx = tex.getContext()
-  ctx.fillStyle = baseHex
-  ctx.fillRect(0, 0, 256, 512)
-  const BOARDS = 8
-  const bw = 256 / BOARDS
+  const base = Color3.FromHexString(baseHex)
+  // deterministic PRNG so the floor looks the same every visit
+  let seed = 42
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const shade = (mul, warm) => {
+    const r = Math.min(255, Math.max(0, base.r * 255 * mul * (1 + warm)))
+    const g = Math.min(255, Math.max(0, base.g * 255 * mul))
+    const b = Math.min(255, Math.max(0, base.b * 255 * mul * (1 - warm * 0.8)))
+    return [r | 0, g | 0, b | 0]
+  }
+  const BOARDS = 18
+  const bh = H / BOARDS
   for (let b = 0; b < BOARDS; b++) {
-    const x = b * bw
-    // alternate board tone slightly
-    ctx.fillStyle = b % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)'
-    ctx.fillRect(x, 0, bw, 512)
-    // seam between boards
-    ctx.strokeStyle = 'rgba(0,0,0,0.30)'
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.moveTo(x + 0.75, 0)
-    ctx.lineTo(x + 0.75, 512)
-    ctx.stroke()
-    // grain: a few long wavy strokes per board
-    for (let g = 0; g < 4; g++) {
-      ctx.strokeStyle = g % 2 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.07)'
-      ctx.lineWidth = 1
-      const gx = x + 4 + ((b * 7.3 + g * 9.1) % (bw - 8))
-      ctx.beginPath()
-      ctx.moveTo(gx, 0)
-      for (let y = 0; y <= 512; y += 24) {
-        const sway = Math.sin((y / 512) * Math.PI * 2 + b * 1.7 + g * 2.3) * 3
-        ctx.lineTo(Math.max(x + 2, Math.min(x + bw - 2, gx + sway)), y)
+    const y0b = b * bh
+    // this strip's personality: overall lightness + warmth drift
+    const boardMul = 0.72 + rnd() * 0.6
+    const boardWarm = (rnd() - 0.5) * 0.26
+    // staggered butt joints split the strip into segments, each retoned
+    const joints = [0]
+    let x = 120 + rnd() * 420
+    while (x < W - 80) { joints.push(x | 0); x += 260 + rnd() * 520 }
+    joints.push(W)
+    for (let s = 0; s < joints.length - 1; s++) {
+      const x0 = joints[s]
+      const x1 = joints[s + 1]
+      const mul = boardMul * (0.84 + rnd() * 0.34)
+      const warm = boardWarm + (rnd() - 0.5) * 0.1
+      const [cr, cg, cb] = shade(mul, warm)
+      ctx.fillStyle = `rgb(${cr},${cg},${cb})`
+      ctx.fillRect(x0, y0b, x1 - x0, bh)
+      // dense fine grain: many long streaks running down-lane, lightly wavy
+      const lines = 7 + (rnd() * 5 | 0)
+      for (let g = 0; g < lines; g++) {
+        const dark = rnd() < 0.6
+        ctx.strokeStyle = dark ? `rgba(0,0,0,${0.08 + rnd() * 0.12})` : `rgba(255,235,200,${0.06 + rnd() * 0.1})`
+        ctx.lineWidth = rnd() < 0.25 ? 1.6 : 0.9
+        const gy = y0b + 2 + rnd() * (bh - 4)
+        const amp = 0.6 + rnd() * 1.8
+        const ph = rnd() * 6.3
+        const wl = 140 + rnd() * 260
+        ctx.beginPath()
+        ctx.moveTo(x0, gy)
+        for (let xx = x0; xx <= x1; xx += 18) {
+          const sway = Math.sin((xx / wl) * Math.PI * 2 + ph) * amp
+          ctx.lineTo(xx, Math.max(y0b + 1, Math.min(y0b + bh - 1, gy + sway)))
+        }
+        ctx.stroke()
       }
-      ctx.stroke()
+      // cathedral arcs: nested elongated ellipses, like the reference
+      if (rnd() < 0.3 && x1 - x0 > 220) {
+        const cy = y0b + bh / 2
+        const cx = x0 + 80 + rnd() * (x1 - x0 - 160)
+        for (let a = 0; a < 4; a++) {
+          ctx.strokeStyle = `rgba(0,0,0,${0.11 - a * 0.02})`
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.ellipse(cx, cy, 26 + a * 22, Math.min(bh / 2 - 2, 4 + a * 4), 0, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+      }
+      // butt joint: a dark end-seam where this segment meets the next
+      if (x1 < W) {
+        ctx.fillStyle = 'rgba(0,0,0,0.42)'
+        ctx.fillRect(x1 - 1, y0b, 2, bh)
+      }
     }
-    // an occasional knot
-    if ((b * 13) % 3 === 0) {
-      const kx = x + bw / 2
-      const ky = 60 + ((b * 173) % 380)
-      ctx.strokeStyle = 'rgba(0,0,0,0.16)'
-      ctx.beginPath()
-      ctx.ellipse(kx, ky, 4.5, 8, 0.2, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.ellipse(kx, ky, 2, 4, 0.2, 0, Math.PI * 2)
-      ctx.stroke()
-    }
+    // long seam between strips
+    ctx.fillStyle = 'rgba(0,0,0,0.42)'
+    ctx.fillRect(0, y0b, W, 1.4)
   }
   tex.update()
   return tex
@@ -118,7 +152,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   }
   if (opts.wood) {
     woodTex = woodGrainTexture(scene, colors.lane)
-    woodTex.vScale = 4 // grain repeats down the length of the lane
+    woodTex.uScale = 4 // canvas X runs down-lane; repeat the pattern 4×
     laneMat.diffuseTexture = woodTex
     laneMat.diffuseColor = new Color3(1, 1, 1) // the texture carries the tone
   }
