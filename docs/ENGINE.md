@@ -15,6 +15,10 @@ framework-agnostic ESM package at **`packages/engine-kit`**:
   so no game code changed
 - other repos can consume it the same way today, or from npm once published:
   from `packages/engine-kit`, bump the version and `npm publish --access public`
+- the kit also has a standalone home:
+  **https://github.com/aaronm84/pwa-engine-kit** (mirrored from this
+  directory via `git subtree split --prefix=packages/engine-kit`; re-split
+  and push after meaningful kit changes here)
 - peer deps: `@babylonjs/core` + `@babylonjs/havok` (consumers pick versions);
   bundler note: the Havok wasm loads via Vite's `?url`, so the kit targets
   Vite-family bundlers (Vite / Quasar / Astro)

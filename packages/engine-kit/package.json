@@ -25,8 +25,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aaronm84/pwa-games.git",
-    "directory": "packages/engine-kit"
+    "url": "git+https://github.com/aaronm84/pwa-engine-kit.git"
+  },
+  "homepage": "https://github.com/aaronm84/pwa-engine-kit#readme",
+  "bugs": {
+    "url": "https://github.com/aaronm84/pwa-engine-kit/issues"
   },
   "license": "MIT",
   "peerDependencies": {
