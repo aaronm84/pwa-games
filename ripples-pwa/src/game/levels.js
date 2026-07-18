@@ -5,7 +5,7 @@
 // pads) live in the throw fan; ambient life (reeds, fringe pads, trees,
 // koi, dragonflies) rings the water so the pond feels expansive and alive.
 
-const PROTECTED_RADIUS = 1.25
+const PROTECTED_RADIUS = 1.5
 const MIN_LOTUS_SPACING = 3.75
 
 function seededRandom(seed) {
@@ -37,7 +37,9 @@ export function generateLevel(levelNum, R = 13) {
   // lane), reachable by a skipping stone
   const playSpot = () => {
     for (let tries = 0; tries < 50; tries++) {
-      const z = -(R - 3.2) + rng() * (R - 3.2 + (R - 8))
+      // stay in the band where a throw's fast, wave-making skips land —
+      // the deep pond beyond is beautiful, and where overthrows go to die
+      const z = -6.5 + rng() * (6.5 + (R - 8))
       const wedge = Math.min(
         Math.sqrt(Math.max(0, (R - 2.2) ** 2 - z * z)),
         1.8 + (R - 0.8 - z) * 0.16,
@@ -53,7 +55,7 @@ export function generateLevel(levelNum, R = 13) {
   const stoneCount = Math.min(Math.floor((levelNum - 1) / 3), 3)
   const padGroupCount = Math.min(Math.floor((levelNum - 2) / 4), 2)
 
-  const stonesAllowed = Math.max(2, Math.ceil(lotusCount * 0.6) + Math.floor(levelNum / 8))
+  const stonesAllowed = lotusCount + 1 // one stone per flower, one spare — far flowers cost two
   const optimalStones = Math.max(1, Math.ceil(lotusCount * 0.5))
 
   const lotus = []
@@ -72,7 +74,7 @@ export function generateLevel(levelNum, R = 13) {
       id: `lotus_${i}`,
       x: p.x,
       z: p.z,
-      threshold: 0.65 + rng() * 0.15,
+      threshold: 0.72 + rng() * 0.16,
       protectedRadius: PROTECTED_RADIUS,
       isActivated: false,
       accumulatedPower: 0,

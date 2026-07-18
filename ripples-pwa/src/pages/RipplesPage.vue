@@ -329,7 +329,12 @@ async function boot() {
       flying: !!flyingStone && !flyingStone.done,
       skips: flyingStone?.skips ?? 0,
       lotus: level.lotus.map((l) => ({ x: l.x, z: l.z, on: l.isActivated, sink: l.sinkProgress || 0 })),
-      pads: pads.items.map((p) => ({ x: p.mesh.position.x, z: p.mesh.position.z })),
+      pads: pads.items.map((p) => {
+        const q = p.mesh.rotationQuaternion
+        // tilt = angle between the pad's up axis and world up
+        const upY = q ? 1 - 2 * (q.x * q.x + q.z * q.z) : 1
+        return { x: p.mesh.position.x, z: p.mesh.position.z, y: p.mesh.position.y, tiltDeg: +((Math.acos(Math.max(-1, Math.min(1, upY))) * 180) / Math.PI).toFixed(1) }
+      }),
       backend: backend.value,
       aim: aimAngle,
       won: showWinDialog.value,
@@ -461,6 +466,7 @@ function onRelease() {
 function doThrow(power, angle, curve) {
   if (!canThrow()) return
   flyingStone = throwStone(thrower.x, thrower.z - 3.0, { angle, power, curve })
+  flyingStone.group = `throw_${stonesUsed.value}`
   stonesRemaining.value--
   stonesUsed.value++
   gameStarted.value = true
@@ -521,7 +527,7 @@ function handleContact(e) {
     sfx.clack()
     haptics.medium()
     skipper.splashAt(e.x, e.z, e.speed * 0.5)
-    ripples.push(skipRipple(e.x, e.z, e.speed * 0.5))
+    ripples.push(skipRipple(e.x, e.z, e.speed * 0.5, flyingStone.group))
     skipper.sunk()
     return
   }
@@ -534,12 +540,12 @@ function handleContact(e) {
     return
   }
   if (e.type === 'skip') {
-    ripples.push(skipRipple(e.x, e.z, e.speed))
+    ripples.push(skipRipple(e.x, e.z, e.speed, flyingStone.group))
     skipper.splashAt(e.x, e.z, e.speed)
     sfx.skip(e.speed)
     haptics.light()
   } else {
-    ripples.push(skipRipple(e.x, e.z, e.speed * 0.8))
+    ripples.push(skipRipple(e.x, e.z, e.speed * 0.8, flyingStone.group))
     skipper.splashAt(e.x, e.z, e.speed * 0.7)
     sfx.sink()
     skipper.sunk()
@@ -579,7 +585,7 @@ function tick(dt) {
       }
     }
 
-    pads.update(dt, ripples)
+    pads.update(dt, ripples, t)
 
     // when the pond has gone quiet, the next stone appears in hand
     if ((!flyingStone || flyingStone.done) && stonesRemaining.value > 0 && gestureMode !== 'swing') {

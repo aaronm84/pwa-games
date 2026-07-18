@@ -10,6 +10,7 @@ import {
   MeshBuilder,
   Mesh,
   Vector3,
+  Quaternion,
   Color3,
   StandardMaterial,
   pbr,
@@ -335,6 +336,13 @@ export function buildSkipper(scene, shadow, pal, thrower) {
 }
 
 // ---- drifting lily pads (Havok dynamic bodies) -----------------------------
+// Havok moves the pads in the water plane (drift, shoves, collisions), but a
+// gravity-zero world has nothing to right a pad a hard contact tips or lifts
+// — left alone they wedge at odd angles hovering over the water. So each
+// frame we RE-SEAT the pad: yaw survives, tilt and height are handed back to
+// the water (glued to the displaced surface, leaning with its slope).
+// disablePreStep = false lets those transform writes reach the physics body
+// (the kit's kinematic-body lesson, pointed the other way).
 export function buildDriftingPads(scene, shadow, pads, R) {
   const items = []
   const padMat = pbr(scene, { color: '#397630', rough: 0.8, name: 'driftPadMat' })
@@ -353,15 +361,16 @@ export function buildDriftingPads(scene, shadow, pads, R) {
       linearDamping: 0.9, // water drag
       angularDamping: 2.5,
     })
+    agg.body.disablePreStep = false // our per-frame re-seat must reach Havok
     // a lazy initial drift
     agg.body.setLinearVelocity(new Vector3(Math.cos(P.driftAngle) * 0.25, 0, Math.sin(P.driftAngle) * 0.25))
-    items.push({ mesh: m, agg, data: P })
+    items.push({ mesh: m, agg, data: P, yaw: P.rotation })
   }
 
   const tmp = new Vector3()
   return {
     items,
-    update(dt, ripples) {
+    update(dt, ripples, t = 0) {
       for (const it of items) {
         const body = it.agg.body
         const p = it.mesh.position
@@ -383,11 +392,18 @@ export function buildDriftingPads(scene, shadow, pads, R) {
           tmp.set((-p.x / rr) * k, 0, (-p.z / rr) * k)
           body.applyImpulse(tmp, p)
         }
-        // this is a water plane: kill any vertical drift collisions impart
+        // this is a water plane: kill any vertical drift collisions impart,
+        // and let angular motion carry yaw only
         const v = body.getLinearVelocity()
         if (v.y !== 0) {
           v.y = 0
           body.setLinearVelocity(v)
+        }
+        const av = body.getAngularVelocity()
+        if (av.x !== 0 || av.z !== 0) {
+          av.x = 0
+          av.z = 0
+          body.setAngularVelocity(av)
         }
         // a floor drift speed so pads never go fully still (matches 2D feel)
         const speed = Math.hypot(v.x, v.z)
@@ -396,6 +412,16 @@ export function buildDriftingPads(scene, shadow, pads, R) {
           tmp.set(Math.cos(a) * 0.08 * dt, 0, Math.sin(a) * 0.08 * dt)
           body.applyImpulse(tmp, p)
         }
+        // re-seat on the water: height from the displaced surface, tilt from
+        // its slope, orientation reduced to yaw — no wedge survives a frame
+        it.yaw += av.y * dt
+        const h = surfaceHeight(p.x, p.z, ripples, t)
+        const hx = surfaceHeight(p.x + 0.4, p.z, ripples, t)
+        const hz = surfaceHeight(p.x, p.z + 0.4, ripples, t)
+        p.y = PAD_Y + h
+        const tiltZ = Math.max(-0.2, Math.min(0.2, (h - hx) * 1.6))
+        const tiltX = Math.max(-0.2, Math.min(0.2, (hz - h) * 1.6))
+        it.mesh.rotationQuaternion = Quaternion.RotationYawPitchRoll(it.yaw, tiltX, tiltZ)
       }
     },
     dispose() {

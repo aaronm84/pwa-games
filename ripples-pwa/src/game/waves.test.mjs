@@ -156,6 +156,27 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('aim angle steers the throw', aimed.stone.x > 1)
 }
 
+// one throw = one wave train: its own skips never stack, other throws do
+{
+  const a = skipRipple(-3, 0, 15, 'throw_1')
+  const b = skipRipple(3, 0, 15, 'throw_1')
+  a.radius = 3
+  b.radius = 3
+  const single = powerAt(0, 0, [a])
+  const both = powerAt(0, 0, [a, b])
+  check('same-throw skips take the max, not the sum', Math.abs(both - single) < 1e-9)
+
+  const c = skipRipple(3, 0, 15, 'throw_2')
+  c.radius = 3
+  const cross = powerAt(0, 0, [a, c])
+  check('different throws superpose with a bonus', cross > single * 2)
+
+  const parent = skipRipple(0, 0, 15, 'throw_3')
+  parent.radius = 3
+  const born = collideRipples([parent], [{ id: 'rock', x: 3, z: 0, radius: 0.7 }], [])
+  check('a rock reflection starts its own wave train', born.length === 1 && born[0].group !== parent.group)
+}
+
 // skip ripples scale with impact speed — and big waves are EARNED
 {
   const fast = skipRipple(0, 0, 17)
