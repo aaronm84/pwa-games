@@ -15,6 +15,7 @@ offline-safe physics wasm, autoplay-safe audio.
 | Module | What it does |
 | --- | --- |
 | `Stage` | Renderer bootstrap + lifecycle: WebGPU with WebGL2 fallback, DPR cap (`maxDpr`), **adaptive resolution** that steps render scale down/up to hold `targetFps`, resize handling, pause-when-hidden. `stage.run(dt => …)` is your loop. |
+| `Stage2D` | The **Canvas-2D sibling** of `Stage` for flat-by-design games: same contract (`init()` / `run(dt => …)` / `resize()` / `dispose()`), DPR-capped backing store with game code working in CSS pixels, clamped `dt`, pause-when-hidden. Import it from **`@aaronm84/engine-kit/2d`** (with `Gestures`, `createSynth`, `createHaptics`) and the Babylon peer deps aren't needed at all. |
 | `initPhysics` / `makeStatic` / `makeDynamic` / `physicsSupported` | Havok (WASM) with the binary **bundled and fetched locally** — works offline under a service worker. Thin aggregate helpers with sane damping/friction defaults. |
 | `Gestures` | One drag model for touch + mouse: start/move/end with dx/dy/dist/velocity — enough for swings, putts and camera pulls. |
 | `outdoorLight` / `pbr` / `orbitCamera` | Good-looking defaults: hemi+key rig with soft (blur-ESM) shadows and a `shadowSize` knob, matte PBR materials, a phone-tuned orbit camera. |
@@ -28,7 +29,9 @@ offline-safe physics wasm, autoplay-safe audio.
 npm i @aaronm84/engine-kit @babylonjs/core @babylonjs/havok
 ```
 
-(Babylon and Havok are peer dependencies — you control their versions.)
+(Babylon and Havok are peer dependencies — you control their versions. A
+pure-2D game that only uses the `@aaronm84/engine-kit/2d` entry can skip
+them entirely.)
 
 > **Bundler note:** the physics module imports the Havok `.wasm` via `?url`,
 > so the kit targets **Vite-family bundlers** (Vite, Quasar, Astro…). PRs
