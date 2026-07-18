@@ -5,6 +5,7 @@ import {
   MeshBuilder,
   Mesh,
   MirrorTexture,
+  DynamicTexture,
   Plane,
   Vector3,
   Color3,
@@ -14,6 +15,57 @@ import {
   PhysicsAggregate,
   PhysicsShapeType,
 } from 'src/engine'
+
+// Procedural wood grain for the wooden houses: boards running down-lane with
+// seams and wavy grain strokes, painted once onto a small canvas texture.
+function woodGrainTexture(scene, baseHex) {
+  const tex = new DynamicTexture('laneWood', { width: 256, height: 512 }, scene, true)
+  const ctx = tex.getContext()
+  ctx.fillStyle = baseHex
+  ctx.fillRect(0, 0, 256, 512)
+  const BOARDS = 8
+  const bw = 256 / BOARDS
+  for (let b = 0; b < BOARDS; b++) {
+    const x = b * bw
+    // alternate board tone slightly
+    ctx.fillStyle = b % 2 ? 'rgba(255,255,255,0.045)' : 'rgba(0,0,0,0.05)'
+    ctx.fillRect(x, 0, bw, 512)
+    // seam between boards
+    ctx.strokeStyle = 'rgba(0,0,0,0.30)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(x + 0.75, 0)
+    ctx.lineTo(x + 0.75, 512)
+    ctx.stroke()
+    // grain: a few long wavy strokes per board
+    for (let g = 0; g < 4; g++) {
+      ctx.strokeStyle = g % 2 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.07)'
+      ctx.lineWidth = 1
+      const gx = x + 4 + ((b * 7.3 + g * 9.1) % (bw - 8))
+      ctx.beginPath()
+      ctx.moveTo(gx, 0)
+      for (let y = 0; y <= 512; y += 24) {
+        const sway = Math.sin((y / 512) * Math.PI * 2 + b * 1.7 + g * 2.3) * 3
+        ctx.lineTo(Math.max(x + 2, Math.min(x + bw - 2, gx + sway)), y)
+      }
+      ctx.stroke()
+    }
+    // an occasional knot
+    if ((b * 13) % 3 === 0) {
+      const kx = x + bw / 2
+      const ky = 60 + ((b * 173) % 380)
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)'
+      ctx.beginPath()
+      ctx.ellipse(kx, ky, 4.5, 8, 0.2, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.ellipse(kx, ky, 2, 4, 0.2, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+  tex.update()
+  return tex
+}
 
 export const LANE_W = 2.2 // playable lane width
 export const LANE_LEN = 18
@@ -46,9 +98,11 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   const freeze = (m) => (m.freezeWorldMatrix(), m)
 
   // the oiled lane: optionally a true planar mirror, so the neon strips, pins
-  // and ball reflect in the surface (the page keeps the render list current)
+  // and ball reflect in the surface (the page keeps the render list current).
+  // Wooden houses lay grained boards under the polish.
   let laneMat
   let mirror = null
+  let woodTex = null
   if (opts.reflections) {
     laneMat = new StandardMaterial('lane', scene)
     laneMat.diffuseColor = Color3.FromHexString(colors.lane)
@@ -58,7 +112,15 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     mirror.level = 0.4
     laneMat.reflectionTexture = mirror
   } else {
-    laneMat = pbr(scene, { color: colors.lane, rough: 0.28, name: 'lane' })
+    laneMat = new StandardMaterial('lane', scene)
+    laneMat.diffuseColor = Color3.FromHexString(colors.lane)
+    laneMat.specularColor = new Color3(0.1, 0.1, 0.12)
+  }
+  if (opts.wood) {
+    woodTex = woodGrainTexture(scene, colors.lane)
+    woodTex.vScale = 4 // grain repeats down the length of the lane
+    laneMat.diffuseTexture = woodTex
+    laneMat.diffuseColor = new Color3(1, 1, 1) // the texture carries the tone
   }
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
@@ -233,6 +295,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
       for (const a of aggs) a.dispose?.()
       for (const m of meshes) m.dispose()
       mirror?.dispose()
+      woodTex?.dispose()
       laneMat.dispose()
       gutterMat.dispose()
       darkMat.dispose()
@@ -561,10 +624,32 @@ function buildSlotBacker(scene, totalW, track, freeze, mats) {
   cab.diffuseColor = Color3.FromHexString('#4a1626')
   cab.specularColor = new Color3(0.12, 0.08, 0.1)
   mats.push(cab)
-  const body = MeshBuilder.CreateBox('slotBody', { width: totalW, height: 2.5, depth: 0.3 }, scene)
-  body.position.set(0, 1.25, DECK_END - 0.45)
+  // the cabinet stops well above the deck: the whole bottom is the payout
+  // tray — a wide dark mouth the ball visibly disappears into
+  const body = MeshBuilder.CreateBox('slotBody', { width: totalW, height: 1.92, depth: 0.3 }, scene)
+  body.position.set(0, 1.61, DECK_END - 0.45)
   body.material = cab
   track(freeze(body))
+  const mouthMat = new StandardMaterial('slotMouth', scene)
+  mouthMat.diffuseColor = new Color3(0, 0, 0)
+  mouthMat.specularColor = new Color3(0, 0, 0)
+  mouthMat.disableLighting = true
+  mats.push(mouthMat)
+  // cavity: recessed black back + ceiling, framed in gold
+  const mouthBack = MeshBuilder.CreateBox('slotMouthBack', { width: totalW, height: 0.7, depth: 0.06 }, scene)
+  mouthBack.position.set(0, 0.3, DECK_END - 0.9)
+  mouthBack.material = mouthMat
+  track(freeze(mouthBack))
+  const mouthTop = MeshBuilder.CreateBox('slotMouthTop', { width: totalW, height: 0.06, depth: 0.55 }, scene)
+  mouthTop.position.set(0, 0.66, DECK_END - 0.62)
+  mouthTop.material = mouthMat
+  track(freeze(mouthTop))
+  for (const side of [-1, 1]) {
+    const cheekIn = MeshBuilder.CreateBox('slotMouthCheek', { width: 0.06, height: 0.7, depth: 0.55 }, scene)
+    cheekIn.position.set(side * (totalW / 2 - 0.03), 0.3, DECK_END - 0.62)
+    cheekIn.material = mouthMat
+    track(freeze(cheekIn))
+  }
   // crown: a rounded topper with the house's gold trim
   const crown = MeshBuilder.CreateCylinder('slotCrown', { diameter: 0.5, height: totalW, tessellation: 18 }, scene)
   crown.rotation.z = Math.PI / 2
@@ -575,6 +660,20 @@ function buildSlotBacker(scene, totalW, track, freeze, mats) {
   gold.emissiveColor = Color3.FromHexString('#ffd23f').scale(0.75)
   gold.disableLighting = true
   mats.push(gold)
+  // gold frame around the payout mouth + a slanted tray lip below it
+  const trayBits = []
+  const lipTop = MeshBuilder.CreateBox('slotTrayTop', { width: totalW, height: 0.055, depth: 0.1 }, scene)
+  lipTop.position.set(0, 0.68, DECK_END - 0.34)
+  trayBits.push(lipTop)
+  for (const side of [-1, 1]) {
+    const post = MeshBuilder.CreateBox('slotTrayPost', { width: 0.055, height: 0.68, depth: 0.1 }, scene)
+    post.position.set(side * (totalW / 2 - 0.03), 0.34, DECK_END - 0.34)
+    trayBits.push(post)
+  }
+  const trayFrame = Mesh.MergeMeshes(trayBits, true, true)
+  trayFrame.material = gold
+  trayFrame.isPickable = false
+  track(freeze(trayFrame))
   // reel window: cream panel + gold frame
   const face = new StandardMaterial('slotFace', scene)
   face.diffuseColor = Color3.FromHexString('#f2ede4')

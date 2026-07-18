@@ -43,6 +43,7 @@ export const alleys = [
     fx: 'lava', // molten gutters pulse; gutter balls sizzle
     pit: 'volcano', // the lane dead-ends into a glowing volcano
     sweepStyle: 'drip', // basalt bar shedding glowing lava drips
+    wood: true, // grained boards on the lane floor
     pin: { body: '#fff3e6', bands: [{ y: 0.66, c: '#e8481c' }, { y: 0.735, c: '#ffb52f' }] },
     hazards: ['lavapatch', 'boulder'],
     colors: {
@@ -110,6 +111,7 @@ export const alleys = [
     fx: 'tiki', // torchlight flickers; strikes flare the flames
     pit: 'masks', // a row of glowing-eyed tiki masks above the pit
     sweepStyle: 'bamboo', // a thick cane with nodes and rope lashings
+    wood: true, // grained boards on the lane floor
     pin: { body: '#c98d4e', bands: [{ y: 0.24, c: '#7a4a22' }, { y: 0.49, c: '#2e8b57' }, { y: 0.7, c: '#e8481c' }] },
     hazards: ['coconut', 'pineapple', 'tikidrink', 'fallentorch'],
     colors: {
@@ -177,6 +179,7 @@ export const alleys = [
     bright: true, // full daylight rig
     pit: 'water', // no dark backstop — the deck ends over open pool water
     sweepStyle: 'noodle', // a candy-striped foam pool noodle
+    wood: true, // grained boards on the lane floor
     pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
     hazards: ['beachball', 'floaty', 'sunglasses', 'towel', 'sandal'],
     colors: {

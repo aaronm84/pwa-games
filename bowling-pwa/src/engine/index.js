@@ -24,6 +24,7 @@ export {
   VertexData,
   MirrorTexture,
   Texture,
+  DynamicTexture,
   Plane,
   Vector3,
   Quaternion,

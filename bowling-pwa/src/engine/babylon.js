@@ -42,6 +42,7 @@ export { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder'
 export { Mesh } from '@babylonjs/core/Meshes/mesh'
 export { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData' // embedded meshes (the rental shoe)
 export { Texture } from '@babylonjs/core/Materials/Textures/texture'
+export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTexture' // procedural wood grain
 export { MirrorTexture } from '@babylonjs/core/Materials/Textures/mirrorTexture'
 export { Plane } from '@babylonjs/core/Maths/math.plane'
 export { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial'

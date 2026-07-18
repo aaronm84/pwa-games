@@ -3,6 +3,16 @@
     <div class="settings-container">
       <h3 class="text-h4 text-white q-mb-lg q-pt-md">Settings</h3>
 
+      <!-- Sound -->
+      <q-card class="settings-card q-mb-md">
+        <q-card-section>
+          <div class="text-h6 q-mb-md text-white">Sound</div>
+          <q-toggle v-model="settings.soundEffectsEnabled" label="Sound effects (synth — rolls, crashes, stingers)" @update:model-value="saveSettings" />
+          <div class="text-caption text-white q-mt-sm" style="opacity: 0.8;">Volume</div>
+          <q-slider v-model="settings.soundEffectsVolume" :min="0" :max="1" :step="0.05" :disable="!settings.soundEffectsEnabled" color="green" @change="saveSettings" />
+        </q-card-section>
+      </q-card>
+
       <!-- Haptics Settings -->
       <q-card class="settings-card q-mb-md">
         <q-card-section>

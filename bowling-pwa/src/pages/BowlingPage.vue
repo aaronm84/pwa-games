@@ -158,6 +158,7 @@ import RivalAvatar from 'src/components/RivalAvatar.vue'
 import { useSettingsStore } from 'src/stores/settings'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
+import { sfx } from 'src/game/sfx'
 
 const router = useRouter()
 const route = useRoute()
@@ -293,6 +294,7 @@ let gutterBall = false
 let sweepAt = 0
 let gutterQuipped = false
 let patchSizzled = false // the lava patch only quips once per throw
+let crashPlayed = false // one pin-crash sound per throw
 let strikesThisGame = 0
 let aiActAt = -1 // when the rival takes their next throw
 // instant replay: every throw records ball+pin transforms; strikes play back
@@ -360,7 +362,7 @@ async function boot() {
   if (sharp) new FxaaPostProcess('fxaa', 1.0, cam)
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit, sweepStyle: alley.sweepStyle })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood })
   environs = buildEnvirons(scene, alley)
 
   makeBall()
@@ -405,10 +407,11 @@ async function boot() {
   if (alley.fx === 'ufo') ufo = makeUfo(scene)
 
   gestures = new Gestures(canvasEl.value, {
-    onDragStart: () => { if (state.value === 'rolling') ffHold = true },
+    onDragStart: () => { sfx.unlock(); if (state.value === 'rolling') ffHold = true },
     onDrag: (g) => onAim(g),
     onDragEnd: (g) => { ffHold = false; onRelease(g) },
   })
+  sfx.configure({ on: settings.settings.soundEffectsEnabled, vol: settings.settings.soundEffectsVolume })
   stage.run((dt) => tick(dt))
   booting.value = false
 
@@ -430,6 +433,7 @@ async function boot() {
       hazardCount: hazards.length,
       hazardIds: hazards.map((h) => h.id),
       replayOn: showReplay.value,
+      sfxEvents: sfx.events,
       replayBufLen: replayBuf.length,
       ghost: ghostActive.value ? { pace: ghostPace.value, best: progress.bowling.bestScore } : null,
       devSetBest: (r) => {
@@ -698,6 +702,9 @@ function launch(speed, spin, vx0 = 0) {
   gutterQuipped = false
   patchSizzled = false
   replayBuf = []
+  crashPlayed = false
+  sfx.configure({ on: settings.settings.soundEffectsEnabled, vol: settings.settings.soundEffectsVolume })
+  sfx.rollStart()
   state.value = 'rolling'
   ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), BALL_R, START_Z)
   ballAgg.body.disablePreStep = false
@@ -790,6 +797,12 @@ function tick(dt = 1 / 60) {
       tracePts.push(ball.position.clone().add(new Vector3(0, 0.02 - BALL_R + 0.03, 0)))
     }
     const v = ballAgg.body.getLinearVelocity()
+    sfx.rollUpdate(Math.hypot(v.x, v.y, v.z))
+    // the moment the ball reaches the rack: one crash, scaled by pace
+    if (!crashPlayed && ball.position.z < PIN_Z + 0.55 && !gutterBall) {
+      crashPlayed = true
+      sfx.crash(Math.min(1, Math.hypot(v.x, v.z) / 13))
+    }
     // hook: side-spin bends the ball harder as it travels down the oiled lane
     const onLane = ball.position.z > PIN_Z + 0.5 && Math.abs(ball.position.x) < LANE_W / 2 && !gutterBall
     if (onLane && ball.__spin) {
@@ -805,6 +818,7 @@ function tick(dt = 1 / 60) {
         gutterQuipped = true
         setBanner('GUTTER.', 'bad')
         setQuip(pick(alley.lines.gutter))
+        sfx.gutter()
       }
     }
     // encroaching lava: rolling through the molten patch costs real speed
@@ -831,7 +845,10 @@ function tick(dt = 1 / 60) {
       // at the pool there's no pit curtain — the ball plunks into the water
       if (alley.pit === 'water' && (ball.position.z < PIT_Z || ball.position.y < -0.35)) {
         confetti.push(burstConfetti(scene, Math.max(-1.6, Math.min(1.6, ball.position.x)), 0.4, PIT_Z - 0.6, ['#bfe8ff', '#7fd0ea', '#ffffff', '#4a9cc2']))
+        sfx.splash()
       }
+      sfx.rollStop()
+      sfx.sweepDown()
       thrown = false
       state.value = 'sweep'
       sweepAt = tickN + 95 // pins finish falling while the sweep bar drops
@@ -925,11 +942,13 @@ function settleThrow2(mine, cur, pos, knocked) {
     setBanner('STRIKE!', 'good')
     setQuip(pick(alley.lines.strike))
     celebrate()
+    sfx.stinger('strike')
     haptics.success()
   } else if (isSpare) {
     setBanner('SPARE!', 'good')
     setQuip(pick(alley.lines.spare))
     celebrate()
+    sfx.stinger('spare')
     haptics.success()
   } else if (knocked === 0 && !gutterBall) {
     setQuip(pick(alley.lines.open))
@@ -994,6 +1013,7 @@ function startReplay(cont) {
   ballAgg.body.disablePreStep = false
   showReplay.value = true
   state.value = 'replay'
+  sfx.replayWoosh()
   haptics.light()
   return true
 }
