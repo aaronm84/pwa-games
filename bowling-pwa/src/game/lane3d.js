@@ -518,10 +518,260 @@ function buildSweep(scene, colors, style, track, mats) {
 
 // ---- per-alley backers ------------------------------------------------------
 
-// Tiki Grove: a bamboo pole strung above the pit with a row of carved bar
-// masks, PROCEDURALLY GENERATED per session — each mask rolls its own plaque
-// shape, goggle eyes, giant toothy mouth (maybe a tongue), crown topper and
-// painted band, in the reference's carnival palette. Merged per color.
+// Tiki Grove: a bamboo pole strung with carved bar masks. The tiki look is a
+// 2D design language — pointed eye-masks, huge lip rings with triangle teeth,
+// zig-zag crowns — so each mask is PAINTED: its features are traced from the
+// reference as canvas components, randomized and combined per session, then
+// hung on a thin wooden board (alpha texture carries the silhouette).
+function roundedRect(ctx, x, y, w, h, rTop, rBot) {
+  ctx.beginPath()
+  ctx.moveTo(x + rTop, y)
+  ctx.lineTo(x + w - rTop, y)
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rTop)
+  ctx.lineTo(x + w, y + h - rBot)
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rBot, y + h)
+  ctx.lineTo(x + rBot, y + h)
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rBot)
+  ctx.lineTo(x, y + rTop)
+  ctx.quadraticCurveTo(x, y, x + rTop, y)
+  ctx.closePath()
+}
+
+function drawTikiMask(ctx, W, H, rnd) {
+  const pick = (arr) => arr[Math.floor(rnd() * arr.length)]
+  const WOODS = ['#8a5a2a', '#75502e', '#6b4423']
+  const WARM = ['#d8302a', '#e8722a', '#f0b62a']
+  const GREENS = ['#3f8a4a', '#6aa84f']
+  const CREAM = '#f6ecd8'
+  const DARK = '#2a1608'
+  const wood = pick(WOODS)
+  const accentA = pick(WARM)
+  let accentB = pick(WARM)
+  if (accentB === accentA) accentB = pick(GREENS)
+  const cx = W / 2
+  const bx = 40, bw = W - 80
+  const bTop = 92, bBot = H - 8
+  ctx.clearRect(0, 0, W, H)
+  ctx.lineJoin = 'round'
+
+  // ---- ears (some masks): round bumps behind the board edges ----
+  if (rnd() < 0.4) {
+    ctx.fillStyle = wood
+    ctx.strokeStyle = DARK
+    ctx.lineWidth = 5
+    for (const sd of [-1, 1]) {
+      ctx.beginPath()
+      ctx.ellipse(cx + sd * (bw / 2 + 4), bTop + 110, 22, 34, 0, 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+    }
+  }
+
+  // ---- the board: tombstone silhouette, wood grain, carved outline ----
+  ctx.fillStyle = wood
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = 6
+  roundedRect(ctx, bx, bTop, bw, bBot - bTop, 60 + rnd() * 24, 18)
+  ctx.fill(); ctx.stroke()
+  ctx.save()
+  ctx.clip() // grain stays inside the board
+  ctx.strokeStyle = 'rgba(0,0,0,0.14)'
+  ctx.lineWidth = 2
+  for (let g = 0; g < 7; g++) {
+    const gx = bx + 14 + g * (bw - 24) / 6 + rnd() * 6
+    ctx.beginPath()
+    ctx.moveTo(gx, bTop)
+    ctx.quadraticCurveTo(gx + (rnd() - 0.5) * 22, (bTop + bBot) / 2, gx + (rnd() - 0.5) * 10, bBot)
+    ctx.stroke()
+  }
+  ctx.restore()
+
+  // ---- headdress: zig-zag crown / palm spikes / leaf fan / flower ----
+  const hv = rnd()
+  if (hv < 0.35) {
+    // zig-zag crown of triangles across the board top
+    const n = 7
+    for (let i = 0; i < n; i++) {
+      const x0 = bx + 8 + i * (bw - 16) / n
+      const x1 = bx + 8 + (i + 1) * (bw - 16) / n
+      ctx.fillStyle = [accentA, accentB, pick(WARM)][i % 3]
+      ctx.strokeStyle = DARK
+      ctx.lineWidth = 4
+      ctx.beginPath()
+      ctx.moveTo(x0, bTop + 12)
+      ctx.lineTo((x0 + x1) / 2, bTop - 54 - rnd() * 14)
+      ctx.lineTo(x1, bTop + 12)
+      ctx.closePath()
+      ctx.fill(); ctx.stroke()
+    }
+  } else if (hv < 0.65) {
+    // radiating palm spikes
+    const n = 9
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.3
+      ctx.fillStyle = i % 2 ? pick(GREENS) : '#8fbf4f'
+      ctx.strokeStyle = DARK
+      ctx.lineWidth = 3.5
+      const len = 58 + (1 - Math.abs(i - (n - 1) / 2) / n) * 26
+      const tx = cx + Math.cos(a) * len
+      const ty = bTop + 6 + Math.sin(a) * len
+      ctx.beginPath()
+      ctx.moveTo(cx - 10, bTop + 10)
+      ctx.lineTo(tx, ty)
+      ctx.lineTo(cx + 10, bTop + 10)
+      ctx.closePath()
+      ctx.fill(); ctx.stroke()
+    }
+  } else if (hv < 0.85) {
+    // fat leaf fan
+    for (let i = -2; i <= 2; i++) {
+      ctx.fillStyle = pick(GREENS)
+      ctx.strokeStyle = DARK
+      ctx.lineWidth = 4
+      ctx.save()
+      ctx.translate(cx + i * 26, bTop + 4)
+      ctx.rotate(i * 0.42)
+      ctx.beginPath()
+      ctx.ellipse(0, -36, 15, 40, 0, 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+      ctx.restore()
+    }
+  } else {
+    // hibiscus flower
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2
+      ctx.fillStyle = pick(['#e86aa8', '#d8302a', '#e8722a'])
+      ctx.strokeStyle = DARK
+      ctx.lineWidth = 3.5
+      ctx.save()
+      ctx.translate(cx + Math.sin(a) * 26, bTop - 26 + Math.cos(a) * 26)
+      ctx.rotate(-a)
+      ctx.beginPath()
+      ctx.ellipse(0, 0, 13, 20, 0, 0, Math.PI * 2)
+      ctx.fill(); ctx.stroke()
+      ctx.restore()
+    }
+    ctx.fillStyle = '#f0b62a'
+    ctx.beginPath()
+    ctx.arc(cx, bTop - 26, 12, 0, Math.PI * 2)
+    ctx.fill(); ctx.stroke()
+  }
+
+  // ---- the signature eye-mask: winged shape with pointed outer corners ----
+  const eyeY = bTop + 96
+  ctx.fillStyle = accentA
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = 6
+  ctx.beginPath()
+  ctx.moveTo(bx - 6, eyeY + 26) // pointed outer left
+  ctx.quadraticCurveTo(bx + 16, eyeY - 44, cx - 24, eyeY - 34)
+  ctx.quadraticCurveTo(cx, eyeY - 20, cx + 24, eyeY - 34) // brow dip
+  ctx.quadraticCurveTo(bx + bw - 16, eyeY - 44, bx + bw + 6, eyeY + 26)
+  ctx.quadraticCurveTo(cx + 50, eyeY + 34, cx, eyeY + 22)
+  ctx.quadraticCurveTo(cx - 50, eyeY + 34, bx - 6, eyeY + 26)
+  ctx.closePath()
+  ctx.fill(); ctx.stroke()
+  // eyes: big cream almonds with a dark or glowing pupil (some squint)
+  const squint = rnd() < 0.3
+  for (const sd of [-1, 1]) {
+    ctx.fillStyle = CREAM
+    ctx.strokeStyle = DARK
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.ellipse(cx + sd * 46, eyeY - 2, 30, squint ? 12 : 21, 0, 0, Math.PI * 2)
+    ctx.fill(); ctx.stroke()
+    if (!squint) {
+      ctx.fillStyle = rnd() < 0.5 ? DARK : '#f7a72e'
+      ctx.beginPath()
+      ctx.arc(cx + sd * 46, eyeY - 2, 8.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+
+  // ---- nose: rounded wedge with nostrils ----
+  const noseY = eyeY + 52
+  ctx.fillStyle = rnd() < 0.5 ? accentB : wood
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = 5
+  ctx.beginPath()
+  ctx.moveTo(cx, noseY - 26)
+  ctx.quadraticCurveTo(cx + 22, noseY + 10, cx + 12, noseY + 16)
+  ctx.quadraticCurveTo(cx, noseY + 22, cx - 12, noseY + 16)
+  ctx.quadraticCurveTo(cx - 22, noseY + 10, cx, noseY - 26)
+  ctx.closePath()
+  ctx.fill(); ctx.stroke()
+
+  // ---- the mouth: a huge lip ring full of triangle teeth ----
+  const mTop = noseY + 34
+  const mH = 86 + rnd() * 18
+  const mX = bx + 22, mW = bw - 44
+  const lipC = pick(['#d8302a', accentA])
+  ctx.fillStyle = lipC
+  ctx.strokeStyle = DARK
+  ctx.lineWidth = 6
+  roundedRect(ctx, mX, mTop, mW, mH, 30, 30)
+  ctx.fill(); ctx.stroke()
+  // the slot
+  const sX = mX + 18, sW = mW - 36, sTop = mTop + 20, sH = mH - 40
+  ctx.fillStyle = CREAM
+  roundedRect(ctx, sX, sTop, sW, sH, 14, 14)
+  ctx.fill()
+  ctx.save()
+  ctx.clip()
+  // teeth: lip-colored triangles biting into the cream from both edges
+  const nT = 4 + Math.floor(rnd() * 2)
+  ctx.fillStyle = lipC
+  for (let t = 0; t <= nT; t++) {
+    const x0 = sX + t * (sW / nT) - sW / nT / 2
+    ctx.beginPath()
+    ctx.moveTo(x0, sTop - 1)
+    ctx.lineTo(x0 + sW / nT, sTop - 1)
+    ctx.lineTo(x0 + sW / nT / 2, sTop + sH * 0.42)
+    ctx.closePath()
+    ctx.fill()
+    ctx.beginPath()
+    ctx.moveTo(x0 + sW / nT / 2, sTop + sH + 1)
+    ctx.lineTo(x0 + sW / nT * 1.5, sTop + sH + 1)
+    ctx.lineTo(x0 + sW / nT, sTop + sH * 0.58)
+    ctx.closePath()
+    ctx.fill()
+  }
+  // some mouths loll a tongue over the bottom lip
+  if (rnd() < 0.35) {
+    ctx.fillStyle = '#c22a3a'
+    ctx.strokeStyle = DARK
+    ctx.lineWidth = 4
+    ctx.beginPath()
+    ctx.ellipse(cx + (rnd() - 0.5) * 30, sTop + sH, 26, 34, 0, 0, Math.PI * 2)
+    ctx.fill(); ctx.stroke()
+  }
+  ctx.restore()
+
+  // ---- chin: painted leaves or stripes under the mouth ----
+  const chinY = mTop + mH + 4
+  if (chinY < bBot - 20) {
+    if (rnd() < 0.5) {
+      for (let i = -1; i <= 1; i++) {
+        ctx.fillStyle = pick(GREENS)
+        ctx.strokeStyle = DARK
+        ctx.lineWidth = 3.5
+        ctx.save()
+        ctx.translate(cx + i * 34, chinY + 16)
+        ctx.rotate(i * 0.5 + Math.PI)
+        ctx.beginPath()
+        ctx.ellipse(0, -12, 11, 20, 0, 0, Math.PI * 2)
+        ctx.fill(); ctx.stroke()
+        ctx.restore()
+      }
+    } else {
+      ctx.fillStyle = accentB
+      ctx.strokeStyle = DARK
+      ctx.lineWidth = 4
+      roundedRect(ctx, bx + 20, chinY, bw - 40, 16, 8, 8)
+      ctx.fill(); ctx.stroke()
+    }
+  }
+}
+
 function buildMaskWall(scene, totalW, track, freeze, mats) {
   const bambooMat = new StandardMaterial('bambooMat', scene)
   bambooMat.diffuseColor = Color3.FromHexString('#a8834a')
@@ -532,178 +782,43 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
   pole.position.set(0, 2.16, DECK_END - 0.2)
   pole.material = bambooMat
   track(freeze(pole))
-
-  // color bags: everything of one color merges into one mesh at the end
-  const bags = new Map()
-  const put = (mesh, hex, glow = false) => {
-    const key = hex + (glow ? '!' : '')
-    if (!bags.has(key)) bags.set(key, { hex, glow, bits: [] })
-    bags.get(key).bits.push(mesh)
-  }
-  const rnd = Math.random // fresh masks every session
-  const pick = (arr) => arr[Math.floor(rnd() * arr.length)]
-  const WOODS = ['#8a5a2a', '#6b4423', '#5f3d1c']
-  const WARM = ['#e8481c', '#ff8a3a', '#ffd23f', '#e8342f']
-  const GREENS = ['#2e8b57', '#59c26a']
-  const CREAM = '#f2e8d8'
-  const DARK = '#1a0f06'
-
+  const ropeBits = []
   const xs = [-1.5, -0.5, 0.5, 1.5]
   for (const mx of xs) {
-    const my = 1.3
-    const mz = DECK_END - 0.24
-    const zf = mz + 0.08 // the carved face plane
-    const wood = pick(WOODS)
-    const accentA = pick(WARM)
-    let accentB = pick(WARM)
-    if (accentB === accentA) accentB = pick(GREENS)
-
-    // rope from the pole down to the plaque
-    const rope = MeshBuilder.CreateCylinder('mRope', { diameter: 0.025, height: 0.34, tessellation: 6 }, scene)
-    rope.position.set(mx, 1.96, mz)
-    put(rope, '#5f3d1c')
-
-    // the plaque: a rounded lozenge (capsule), like a carved palm bole —
-    // no corners anywhere; some masks run wider in the belly
-    const plaque = MeshBuilder.CreateCapsule('mPlaque', { radius: 0.28, height: 1.0, orientation: new Vector3(0, 1, 0), tessellation: 20, capSubdivisions: 8 }, scene)
-    plaque.scaling.z = 0.25
-    if (rnd() < 0.5) plaque.scaling.x = 1.04 + rnd() * 0.14
-    plaque.position.set(mx, my, mz)
-    put(plaque, wood)
-
-    // ---- eyes: a goggle band or two big rims, cream lenses, dark pupils ----
-    const eyeY = my + 0.22
-    const glowingPupils = rnd() < 0.5
-    if (rnd() < 0.5) {
-      const band = MeshBuilder.CreateCapsule('mBand', { radius: 0.085, height: 0.56, orientation: new Vector3(1, 0, 0), tessellation: 14, capSubdivisions: 6 }, scene)
-      band.scaling.z = 0.3
-      band.position.set(mx, eyeY, zf - 0.02)
-      put(band, accentA)
-    } else {
-      for (const sd of [-1, 1]) {
-        const rim = MeshBuilder.CreateTorus('mRim', { diameter: 0.18, thickness: 0.035, tessellation: 18 }, scene)
-        rim.rotation.x = Math.PI / 2
-        rim.position.set(mx + sd * 0.135, eyeY, zf - 0.015)
-        put(rim, accentA)
-      }
-    }
-    for (const sd of [-1, 1]) {
-      const lens = MeshBuilder.CreateSphere('mLens', { diameterX: 0.15, diameterY: 0.13, diameterZ: 0.05, segments: 14 }, scene)
-      lens.position.set(mx + sd * 0.135, eyeY, zf)
-      put(lens, CREAM)
-      const pupil = MeshBuilder.CreateSphere('mPupil', { diameterX: 0.06, diameterY: 0.065, diameterZ: 0.04, segments: 10 }, scene)
-      pupil.position.set(mx + sd * 0.135, eyeY, zf + 0.025)
-      put(pupil, glowingPupils ? '#ffab3a' : DARK, glowingPupils)
-    }
-
-    // nose: a little wedge between the eyes
-    const nose = MeshBuilder.CreateSphere('mNose', { diameterX: 0.09, diameterY: 0.17, diameterZ: 0.08, segments: 12 }, scene)
-    nose.position.set(mx, my + 0.04, zf)
-    put(nose, pick([accentB, wood]))
-
-    // ---- the mouth: HUGE, lipped, toothy — the whole lower half ----
-    const mw = 0.4 + rnd() * 0.06
-    const mh = 0.2 + rnd() * 0.08
-    const mouY = my - 0.21
-    const inner = MeshBuilder.CreateSphere('mMouth', { diameterX: mw, diameterY: mh, diameterZ: 0.045, segments: 16 }, scene)
-    inner.position.set(mx, mouY, zf - 0.005)
-    put(inner, rnd() < 0.5 ? CREAM : DARK)
-    const lipC = pick([accentA, '#e8342f'])
-    // one fat lip ring: a torus squashed into the mouth's oval
-    const lip = MeshBuilder.CreateTorus('mLip', { diameter: mw, thickness: 0.06, tessellation: 26 }, scene)
-    lip.rotation.x = Math.PI / 2
-    lip.scaling.z = mh / mw // torus lies in xz after the rotation; z is mouth height
-    lip.position.set(mx, mouY, zf)
-    put(lip, lipC)
-    // teeth: a row hanging from the top lip, sometimes rising from the bottom
-    const nTeeth = 3 + Math.floor(rnd() * 2)
-    const span = mw * 0.62
-    for (let t = 0; t < nTeeth; t++) {
-      const tx = mx - span / 2 + (t + 0.5) * (span / nTeeth)
-      const tooth = MeshBuilder.CreateCylinder('mTooth', { diameterTop: 0.055, diameterBottom: 0, height: 0.085, tessellation: 12 }, scene)
-      tooth.position.set(tx, mouY + mh / 2 - 0.05, zf + 0.01)
-      put(tooth, CREAM)
-    }
-    if (rnd() < 0.5) {
-      for (let t = 0; t < nTeeth - 1; t++) {
-        const tx = mx - span / 2 + (t + 1) * (span / nTeeth)
-        const tooth = MeshBuilder.CreateCylinder('mToothB', { diameterTop: 0, diameterBottom: 0.05, height: 0.075, tessellation: 12 }, scene)
-        tooth.position.set(tx, mouY - mh / 2 + 0.045, zf + 0.01)
-        put(tooth, CREAM)
-      }
-    } else if (rnd() < 0.5) {
-      // ...or a tongue lolling out
-      const tongue = MeshBuilder.CreateSphere('mTongue', { diameterX: 0.13, diameterY: 0.2, diameterZ: 0.05, segments: 12 }, scene)
-      tongue.position.set(mx + (rnd() - 0.5) * 0.1, mouY - mh / 2 - 0.06, zf + 0.01)
-      put(tongue, '#e8342f')
-    }
-
-    // ---- topper: spiky crown, leaf fan, or a flower ----
-    const topY = my + 0.5
-    const style = rnd()
-    if (style < 0.4) {
-      const n = 5 + Math.floor(rnd() * 3)
-      for (let f = 0; f < n; f++) {
-        const k = f - (n - 1) / 2
-        const spike = MeshBuilder.CreateCylinder('mSpike', { diameterTop: 0, diameterBottom: 0.07, height: 0.2 + (1 - Math.abs(k) / n) * 0.14, tessellation: 12 }, scene)
-        spike.position.set(mx + k * 0.08, topY + 0.06, mz)
-        spike.rotation.z = -k * 0.3
-        put(spike, f % 2 ? accentA : accentB)
-      }
-    } else if (style < 0.75) {
-      for (let f = -2; f <= 2; f++) {
-        const leaf = MeshBuilder.CreateSphere('mLeaf', { diameterX: 0.07, diameterY: 0.26, diameterZ: 0.03, segments: 8 }, scene)
-        leaf.position.set(mx + f * 0.09, topY + 0.05, mz)
-        leaf.rotation.z = -f * 0.4
-        put(leaf, pick(GREENS))
-      }
-    } else {
-      const heart = MeshBuilder.CreateSphere('mFlower', { diameter: 0.1, segments: 10 }, scene)
-      heart.position.set(mx, topY + 0.05, zf - 0.04)
-      put(heart, '#ffd23f')
-      for (let f = 0; f < 6; f++) {
-        const a = (f / 6) * Math.PI * 2
-        const petal = MeshBuilder.CreateSphere('mPetal', { diameterX: 0.09, diameterY: 0.13, diameterZ: 0.04, segments: 8 }, scene)
-        petal.position.set(mx + Math.sin(a) * 0.09, topY + 0.05 + Math.cos(a) * 0.09, zf - 0.05)
-        petal.rotation.z = -a
-        put(petal, pick(['#ff8ac2', '#e8342f', '#ff8a3a']))
-      }
-    }
-
-    // ---- painted band or leaf skirt along the chin ----
-    if (rnd() < 0.55) {
-      const bandB = MeshBuilder.CreateCapsule('mBase', { radius: 0.055, height: 0.5, orientation: new Vector3(1, 0, 0), tessellation: 12, capSubdivisions: 5 }, scene)
-      bandB.scaling.z = 0.4
-      bandB.position.set(mx, my - 0.4, zf - 0.02)
-      put(bandB, pick([accentB, ...GREENS]))
-    } else {
-      for (let f = -1; f <= 1; f++) {
-        const blade = MeshBuilder.CreateSphere('mSkirt', { diameterX: 0.07, diameterY: 0.18, diameterZ: 0.03, segments: 8 }, scene)
-        blade.position.set(mx + f * 0.12, my - 0.48, zf - 0.03)
-        blade.rotation.z = f * 0.5 + Math.PI
-        put(blade, pick(GREENS))
-      }
-    }
+    const rope = MeshBuilder.CreateCylinder('mRope', { diameter: 0.025, height: 0.3, tessellation: 6 }, scene)
+    rope.position.set(mx, 1.98, DECK_END - 0.22)
+    ropeBits.push(rope)
+    // the painted plaque: alpha texture carries the whole traced design
+    const tex = new DynamicTexture('maskTex', { width: 256, height: 416 }, scene, true)
+    tex.hasAlpha = true
+    drawTikiMask(tex.getContext(), 256, 416, Math.random)
+    tex.update()
+    const mat = new StandardMaterial('maskMat', scene)
+    mat.diffuseTexture = tex
+    mat.useAlphaFromDiffuseTexture = true
+    mat.emissiveColor = new Color3(0.34, 0.3, 0.26) // torchlit even at dusk
+    mat.specularColor = new Color3(0.03, 0.03, 0.02)
+    mat.maxSimultaneousLights = 6
+    mats.push(mat)
+    const plane = MeshBuilder.CreatePlane('maskPlane', { width: 0.62, height: 1.0, sideOrientation: Mesh.DOUBLESIDE }, scene)
+    plane.material = mat
+    plane.position.set(mx, 1.32, DECK_END - 0.24)
+    plane.isPickable = false
+    track(freeze(plane))
+    // a slim wooden backing so the plaque reads as carved, not paper
+    const back = MeshBuilder.CreateBox('maskBack', { width: 0.46, height: 0.78, depth: 0.05 }, scene)
+    back.position.set(mx, 1.28, DECK_END - 0.28)
+    back.material = bambooMat
+    back.isPickable = false
+    track(freeze(back))
   }
-
-  // bake: one merged mesh + material per color
-  for (const { hex, glow, bits } of bags.values()) {
-    const merged = Mesh.MergeMeshes(bits, true, true)
-    let m
-    if (glow) {
-      m = new StandardMaterial('maskGlow', scene)
-      m.emissiveColor = Color3.FromHexString(hex).scale(1.1)
-      m.disableLighting = true
-    } else {
-      m = new StandardMaterial('maskMat', scene)
-      m.diffuseColor = Color3.FromHexString(hex)
-      m.specularColor = new Color3(0.05, 0.05, 0.04)
-    }
-    mats.push(m)
-    merged.material = m
-    merged.isPickable = false
-    track(freeze(merged))
-  }
+  const ropes = Mesh.MergeMeshes(ropeBits, true, true)
+  const ropeMat = new StandardMaterial('ropeMat', scene)
+  ropeMat.diffuseColor = Color3.FromHexString('#5f3d1c')
+  mats.push(ropeMat)
+  ropes.material = ropeMat
+  ropes.isPickable = false
+  track(freeze(ropes))
 }
 
 // Lava Lanes: the lane dead-ends into a volcano. Dark cone, glowing crater,
