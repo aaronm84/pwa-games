@@ -1,7 +1,7 @@
 {
   "name": "Ripples",
   "short_name": "Ripples",
-  "description": "A zen pond puzzle: tap the water, ripple the lotus flowers awake",
+  "description": "A zen pond in real 3D: skip stones across the water, ripple the lotus flowers awake",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a3a52",

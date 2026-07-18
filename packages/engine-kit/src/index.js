@@ -24,6 +24,7 @@ export { createHaptics } from './haptics.js'
 // Common Babylon primitives games need, re-exported from the tree-shaken module
 // so game code imports everything from the kit and never the heavy barrel.
 export {
+  Scene,
   MeshBuilder,
   Mesh,
   VertexData,

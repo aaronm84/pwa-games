@@ -1,9 +1,11 @@
 # Ripples 🪷
 
-A **zen pond puzzle in real 3D**, packaged as an installable **Progressive Web
-App (PWA)**. Tap the water to send out ripples and wake every lotus flower
-before your taps run out — stones reflect your waves, drifting lily pads absorb
-them, and overlapping ripples combine.
+A **zen stone-skipping pond in real 3D**, packaged as an installable
+**Progressive Web App (PWA)**. Skim stones across an expansive pond — every
+skip sends out a ripple, and you must wake every lotus flower before your
+stones run out. Rocks reflect your waves (and clack stones out of the air),
+drifting lily pads swallow stone and wave alike, and overlapping ripples
+combine.
 
 Originally a 2D canvas game in the zenith-app repo, now rebuilt on the shared
 **[`@aaronm84/engine-kit`](../packages/engine-kit)** (Babylon.js 7 + Havok),
@@ -19,17 +21,26 @@ alongside Mini Golf 3D and Alley Nights:
 - **A pure wave model** (`src/game/waves.js`) — five-zone power curve,
   one-shot reflection/absorption, constructive interference, accumulation —
   unit-tested headless (`npm test`), shared by gameplay and water rendering.
+- **The bowling control language, on water** — slide to aim along a dashed
+  guide, drag down to wind up, snap forward to release: backswing × snap =
+  power, and a sideways snap bends the flight. The stone itself is a pure,
+  unit-tested flight model (`src/game/skip.js`): gravity, skim-or-plunge
+  contacts, per-skip decay.
+- **An expansive, living pond** — a low camera behind the thrower, distance
+  haze, a ragged tree line, dragonflies, koi that scurry from wavefronts,
+  fringe pads bobbing on the swell.
 - **Kit everything else** — `Stage` (WebGL2, adaptive resolution), `Gestures`
-  (hold-timed taps → light/medium/strong ripples), `outdoorLight` + PBR +
-  GlowLayer + FXAA, sample-free synth SFX, kit haptics.
+  driving the swing, `outdoorLight` + PBR + GlowLayer + FXAA, sample-free
+  synth SFX, kit haptics.
 
 ## How to play
 
-**Tap** the pond to create a ripple; **hold** longer for a slower, stronger one.
-A ripple's power peaks partway through its journey, so distance matters. Wake
-every lotus within the tap limit: stones bounce waves around the pond, lily pads
-sap them, and simultaneous wavefronts add up. Finish at the optimal tap count
-for 3 stars.
+**Slide** sideways to aim, **drag down** to wind up, **snap forward** to send
+the stone skimming. Every skip ripples the water — harder skips ripple bigger —
+and a ripple's power peaks partway through its journey, so where your skips
+land matters. The calm circle around a sleeping flower hushes any skip inside
+it: wake flowers from beside, not above. Finish at the optimal stone count for
+3 stars.
 
 ## Features
 

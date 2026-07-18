@@ -16,38 +16,39 @@
             </div>
             <h2>Objective</h2>
             <p>
-              Tap the pond to send out ripples and wake <strong>every lotus
-              flower</strong> before you run out of taps. A flower opens when
-              enough wave energy washes over it — then it sinks softly beneath
-              the surface.
+              Skip stones across the pond to wake <strong>every lotus
+              flower</strong> before your stones run out. Each skip sends a
+              ripple over the water — when enough wave energy washes over a
+              flower, it opens, then sinks softly beneath the surface.
             </p>
           </div>
 
-          <!-- How to Play -->
+          <!-- How to Throw -->
           <div class="instruction-card">
             <div class="card-icon">
-              <q-icon name="touch_app" size="xl" color="primary" />
+              <q-icon name="swipe_vertical" size="xl" color="primary" />
             </div>
-            <h2>How to Play</h2>
+            <h2>The Throw</h2>
             <ol>
-              <li><strong>Tap</strong> the water to create a ripple</li>
-              <li><strong>Hold</strong> the tap longer for a slower, stronger ripple that carries further</li>
-              <li>A ripple is strongest partway through its journey — <strong>distance matters</strong></li>
-              <li>You can't tap inside a flower's protected circle — wake it from afar</li>
+              <li><strong>Slide sideways</strong> to sweep your aim line across the pond</li>
+              <li><strong>Drag down</strong> to wind up — deeper is stronger</li>
+              <li><strong>Snap forward</strong> and let go — backswing × snap = power</li>
+              <li>Drifting your snap <strong>sideways</strong> bends the stone's flight</li>
             </ol>
           </div>
 
-          <!-- Rules -->
+          <!-- The Pond -->
           <div class="instruction-card">
             <div class="card-icon">
               <q-icon name="rule" size="xl" color="amber" />
             </div>
             <h2>The Pond</h2>
             <ul>
-              <li><strong>Stones</strong> reflect ripples — bounce waves around the pond</li>
-              <li><strong>Drifting lily pads</strong> absorb ripples and sap their power</li>
-              <li>Overlapping ripples <strong>combine</strong> — timed waves wake stubborn flowers</li>
-              <li>Weak waves still count: energy <strong>accumulates</strong> in a flower over time</li>
+              <li>Harder skips make <strong>bigger ripples</strong>; a dying hop barely stirs the water</li>
+              <li><strong>Rocks</strong> reflect ripples — and clack a stone right out of its flight</li>
+              <li><strong>Drifting lily pads</strong> swallow stone and wave alike</li>
+              <li>The <strong>calm circle</strong> around a sleeping flower hushes any skip inside it — wake it from beside, not above</li>
+              <li>Overlapping ripples <strong>combine</strong>, and weak waves still accumulate over time</li>
             </ul>
           </div>
 
@@ -58,10 +59,10 @@
             </div>
             <h2>Scoring</h2>
             <ul>
-              <li>Finish at or under the <strong>optimal taps</strong> for 3 stars</li>
-              <li>One tap over is 2 stars; any finish within the limit earns 1</li>
-              <li>Stars add to your <strong>total score</strong> across levels</li>
-              <li>Five failures in a row costs a star — breathe, then try again</li>
+              <li>Finish at or under the <strong>optimal stone count</strong> for 3 stars</li>
+              <li>One stone over is 2 stars; any finish within the limit earns 1</li>
+              <li>One perfect throw can chain skips past <strong>several flowers</strong></li>
+              <li>Five failures in a row costs a star — breathe, then throw again</li>
             </ul>
           </div>
         </div>

@@ -27,6 +27,30 @@ export const sfx = {
     synth.tone(880, 0.07, { type: 'triangle', gain: 0.05, slide: 660 })
   },
 
+  // the stone leaving your hand
+  whoosh(power = 0.6) {
+    synth.noise(0.28, { freq: 500 + power * 700, gain: 0.1 + power * 0.1, type: 'bandpass', q: 0.8 })
+  },
+
+  // a skip off the surface: a bright little plip, higher when faster
+  skip(speed = 10) {
+    const f = 420 + Math.min(1, speed / 16) * 420
+    synth.tone(f, 0.09, { type: 'sine', gain: 0.14, slide: f * 0.55 })
+    synth.noise(0.07, { freq: 2200, gain: 0.06, type: 'highpass' })
+  },
+
+  // the stone thudding into a lily pad
+  thud() {
+    synth.tone(180, 0.16, { type: 'triangle', gain: 0.12, slide: 90 })
+    synth.noise(0.12, { freq: 420, gain: 0.07 })
+  },
+
+  // clacking off a rock
+  clack() {
+    synth.tone(950, 0.06, { type: 'square', gain: 0.09, slide: 500 })
+    synth.noise(0.06, { freq: 3000, gain: 0.05, type: 'highpass' })
+  },
+
   // a soft two-note chime when a lotus wakes
   lotusChime() {
     synth.tone(523.25, 0.35, { type: 'sine', gain: 0.1 }) // C5

@@ -10,8 +10,8 @@
         <div class="text-caption text-white text-center q-mb-xs">Level {{ currentLevel }}</div>
         <div class="level-stats">
           <div class="stat-item">
-            <q-icon name="touch_app" color="white" size="16px" />
-            <span class="text-body2 text-white text-weight-bold">{{ tapsRemaining }}</span>
+            <q-icon name="lens" color="blue-grey-3" size="14px" />
+            <span class="text-body2 text-white text-weight-bold">{{ stonesRemaining }}</span>
           </div>
           <div class="stat-item">
             <q-icon name="stars" color="amber" size="16px" />
@@ -57,10 +57,12 @@
 
     <div class="backend-chip" v-if="backend">{{ backend }}</div>
 
-    <!-- Tap to Start Hint -->
+    <!-- Throw Hint -->
     <div v-if="!gameStarted && showTapHint && !booting" class="tap-hint">
-      <q-icon name="touch_app" color="white" size="lg" />
-      <div class="text-white text-h6 q-mt-sm">Tap to Create Ripples</div>
+      <q-icon name="swipe_vertical" color="white" size="lg" />
+      <div class="text-white text-subtitle1 q-mt-sm text-center">
+        Slide to aim<br />drag down, snap forward to skip
+      </div>
     </div>
 
     <!-- Boot overlay -->
@@ -75,13 +77,14 @@
         <q-card-section>
           <div class="text-h6 q-mb-md text-white">How to Play</div>
           <div class="text-body2 text-white">
-            <p>• Tap the water to create ripples</p>
-            <p>• Ripples must reach lotus flowers to activate them</p>
-            <p>• Hold tap longer for stronger ripples</p>
-            <p>• Stones reflect ripples</p>
-            <p>• Drifting lily pads absorb ripples</p>
-            <p>• Multiple ripples combine their power</p>
-            <p>• Activate all lotus flowers within the tap limit</p>
+            <p>• Skip stones across the pond to wake the lotus flowers</p>
+            <p>• <b>Slide sideways</b> to aim your line</p>
+            <p>• <b>Drag down</b> to wind up, <b>snap forward</b> to throw</p>
+            <p>• Every skip sends out a ripple — harder skips, bigger ripples</p>
+            <p>• A sideways snap bends the stone's flight</p>
+            <p>• Stones reflect ripples; drifting lily pads swallow stone and wave alike</p>
+            <p>• The calm circle around a flower hushes any skip inside it</p>
+            <p>• Wake every flower before you run out of stones</p>
           </div>
         </q-card-section>
         <q-card-actions align="right">
@@ -110,12 +113,12 @@
 
           <div class="stats-grid q-mt-md">
             <div class="stat-item">
-              <div class="text-caption text-grey-4">Taps Used</div>
-              <div class="text-h6 text-white">{{ tapsUsed }}</div>
+              <div class="text-caption text-grey-4">Stones Used</div>
+              <div class="text-h6 text-white">{{ stonesUsed }}</div>
             </div>
             <div class="stat-item">
               <div class="text-caption text-grey-4">Optimal</div>
-              <div class="text-h6 text-white">{{ level?.optimalTaps }}</div>
+              <div class="text-h6 text-white">{{ level?.optimalStones }}</div>
             </div>
             <div class="stat-item">
               <div class="text-caption text-grey-4">Total Score</div>
@@ -135,7 +138,7 @@
         <q-card-section class="text-center">
           <div class="text-h5 text-white q-mb-md">Try Again</div>
           <div class="text-body1 text-white q-mb-sm">
-            Activated: {{ activatedCount }}/{{ totalLotus }}
+            Awakened: {{ activatedCount }}/{{ totalLotus }}
           </div>
           <div v-if="failureStreak >= 5" class="text-caption text-red-3 q-mt-sm">
             Failure streak: {{ failureStreak }}
@@ -151,10 +154,12 @@
 </template>
 
 <script setup>
-// Ripples in real 3D on the shared engine-kit: Stage (WebGL2/WebGPU) renders a
-// displaced-vertex pond, Havok drives the drifting lily pads in a gravity-zero
-// water world, Gestures times tap holds into wave strengths, and the synth +
-// haptics carry the feedback. The wave model itself is pure (src/game/waves).
+// Ripples, the stone-skipping pond. Bowling's control language on water:
+// slide to line up, drag down to wind up, snap forward to send the stone
+// skimming. Each skip is a contact event from the pure flight model
+// (src/game/skip.js) that the pond answers with a ripple; the wave model
+// (src/game/waves.js) carries those ripples to the lotus flowers. Babylon
+// renders the living pond; Havok drives the drifting pads.
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -168,10 +173,11 @@ import {
   GlowLayer,
   FxaaPostProcess,
 } from 'src/engine'
-import { createRipple, stepRipples, collideRipples, updateLotus, strengthFor } from 'src/game/waves'
+import { stepRipples, collideRipples, updateLotus, skipRipple } from 'src/game/waves'
+import { throwStone, stepStone, groundStone } from 'src/game/skip'
 import { generateLevel } from 'src/game/levels'
 import { buildPond, paletteFor } from 'src/game/pond3d'
-import { buildStones, buildLotuses, buildDriftingPads } from 'src/game/actors3d'
+import { buildStones, buildLotuses, buildDriftingPads, buildSkipper } from 'src/game/actors3d'
 import { sfx } from 'src/game/sfx'
 import { useThemeStore } from 'src/stores/theme'
 import { useProgressStore } from 'src/stores/progress'
@@ -195,8 +201,8 @@ function devParam(k) {
 const booting = ref(true)
 const backend = ref('')
 const currentLevel = ref(Number(devParam('lv')) || progressStore.ripples.currentLevel)
-const tapsRemaining = ref(3)
-const tapsUsed = ref(0)
+const stonesRemaining = ref(3)
+const stonesUsed = ref(0)
 const gameStarted = ref(false)
 const showTapHint = ref(true)
 const totalScore = computed(() => progressStore.ripples.totalScore)
@@ -216,15 +222,24 @@ let shadow = null
 let glow = null
 let gestures = null
 let pond = null
-let stones = null
+let stones3d = null
 let lotuses = null
 let pads = null
+let skipper = null
 let level = null
 let pal = null
+let thrower = { x: 0, z: 0 }
 let ripples = []
+let flyingStone = null
 let t = 0
-let holdStart = 0
-let lastTapAt = -1
+
+// swing state (the bowling pattern): slide = aim, drag down = wind up,
+// snap forward = release
+let gestureMode = null // null | 'aim' | 'swing'
+let aimAngle = 0
+let aimAtSwingStart = 0
+let windupK = 0
+let swingSamples = []
 
 const activatedCount = computed(() => level?.lotus.filter((l) => l.isActivated).length ?? 0)
 const totalLotus = computed(() => level?.lotus.length ?? 0)
@@ -264,7 +279,6 @@ async function boot() {
   rig.sun.diffuse = Color3.FromHexString(pal.sun)
   rig.hemi.diffuse = Color3.FromHexString(pal.sun).scale(0.9)
 
-  // a gentle cinematic grade — this is a calm pond, not a neon alley
   const ipc = scene.imageProcessingConfiguration
   ipc.contrast = 1.08
   ipc.exposure = 1.05
@@ -276,70 +290,80 @@ async function boot() {
     glow.intensity = 0.55
   }
 
-  // a fixed contemplative view: steep enough to read the whole pond on a
-  // portrait phone, tilted enough that the water reads as a surface
-  cam = new ArcRotateCamera('cam', -Math.PI / 2, 0.52, 17.5, new Vector3(0, 0, 0.6), scene)
-  cam.fov = 0.85
+  // the bowling view, on water: low behind the thrower on the near bank,
+  // looking out across the pond into the haze
+  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.12, 9.5, new Vector3(0, 0.4, 4), scene)
+  cam.fov = 0.95
   if (sharp) {
     const fxaa = new FxaaPostProcess('fxaa', 1.0, cam)
     fxaa.samples = 2
   }
 
-  // a gravity-zero world: everything floats on the water plane, Havok
-  // handles the drifting-pad collisions
   await initPhysics(scene, { gravity: 0 })
 
   buildLevel()
 
   gestures = new Gestures(gameCanvas.value, {
     onDragStart: () => {
-      holdStart = performance.now()
       sfx.unlock()
+      gestureMode = null
+      windupK = 0
+      swingSamples = []
+      aimAtSwingStart = aimAngle
     },
-    onTap: (info) => handleTap(info),
+    onDrag: (g) => onSwing(g),
+    onDragEnd: (g) => onRelease(g),
   })
 
   stage.run((dt) => tick(dt))
   booting.value = false
 
   showTapHint.value = true
-  setTimeout(() => (showTapHint.value = false), 2400)
+  setTimeout(() => (showTapHint.value = false), 3500)
 
-  // DEV-only state hook so a headless harness can drive and assert the game
   if (import.meta.env.DEV) {
     window.__ripples = () => ({
       level: currentLevel.value,
-      taps: tapsRemaining.value,
+      stones: stonesRemaining.value,
       ripples: ripples.length,
+      flying: !!flyingStone && !flyingStone.done,
+      skips: flyingStone?.skips ?? 0,
       lotus: level.lotus.map((l) => ({ x: l.x, z: l.z, on: l.isActivated, sink: l.sinkProgress || 0 })),
       pads: pads.items.map((p) => ({ x: p.mesh.position.x, z: p.mesh.position.z })),
       backend: backend.value,
       won: showWinDialog.value,
       lost: showLoseDialog.value,
-      tap: (x, z, strength) => spawnRipple(x, z, strength || 'medium'),
+      throw: (power, angle, curve) => doThrow(power ?? 0.8, angle ?? 0, curve ?? 0),
     })
   }
 }
 
 function buildLevel() {
   level = generateLevel(currentLevel.value)
-  tapsRemaining.value = level.tapsAllowed
-  tapsUsed.value = 0
+  thrower = { x: 0, z: level.R - 0.8 }
+  stonesRemaining.value = level.stonesAllowed
+  stonesUsed.value = 0
   ripples = []
+  flyingStone = null
+  aimAngle = 0
   gameStarted.value = false
 
   pond = buildPond(scene, shadow, level, pal)
-  stones = buildStones(scene, shadow, level.stones)
+  stones3d = buildStones(scene, shadow, level.stones)
   lotuses = buildLotuses(scene, shadow, level.lotus, pal)
   pads = buildDriftingPads(scene, shadow, level.pads, level.R)
+  skipper = buildSkipper(scene, shadow, pal, thrower)
+  skipper.rest(0, aimAngle)
+  skipper.setAiming(true, 0)
 }
 
 function disposeLevel() {
   pond?.dispose()
-  stones?.dispose()
+  stones3d?.dispose()
   lotuses?.dispose()
   pads?.dispose()
-  pond = stones = lotuses = pads = null
+  skipper?.dispose()
+  pond = stones3d = lotuses = pads = skipper = null
 }
 
 function resetLevel() {
@@ -347,50 +371,176 @@ function resetLevel() {
   buildLevel()
 }
 
-// tap → a point on the water plane: an analytic ray/plane hit, so the
-// displaced water mesh never confuses picking. Gestures reports CSS px;
-// the picking ray wants render px, so convert through the engine scaling.
-function handleTap(info) {
-  if (booting.value || showWinDialog.value || showLoseDialog.value || showInstructions.value) return
-  if (tapsRemaining.value <= 0) return
-  if (performance.now() - lastTapAt < 120) return
+// ---- the swing --------------------------------------------------------------
 
-  const scaling = stage.engine.getHardwareScalingLevel()
-  const dpr = (window.devicePixelRatio || 1) / scaling
-  const ray = scene.createPickingRay(info.x * dpr, info.y * dpr, null, cam)
-  if (Math.abs(ray.direction.y) < 1e-6) return
-  const tHit = -ray.origin.y / ray.direction.y
-  if (tHit <= 0) return
-  const x = ray.origin.x + ray.direction.x * tHit
-  const z = ray.origin.z + ray.direction.z * tHit
+function canThrow() {
+  return (
+    !booting.value &&
+    !showWinDialog.value &&
+    !showLoseDialog.value &&
+    !showInstructions.value &&
+    stonesRemaining.value > 0 &&
+    (!flyingStone || flyingStone.done)
+  )
+}
 
-  // must land on the water
-  if (Math.hypot(x, z) > level.R - 0.2) return
-
-  // the calm circle around a sleeping lotus rejects taps
-  for (const L of level.lotus) {
-    if (!L.isActivated && Math.hypot(x - L.x, z - L.z) < L.protectedRadius) {
-      haptics.warning()
-      sfx.deny()
-      return
+function onSwing(g) {
+  if (!canThrow()) return
+  if (!gestureMode) {
+    if (Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy)) gestureMode = 'aim'
+    else if (g.dy > 16) {
+      gestureMode = 'swing'
+      aimAtSwingStart = aimAngle
     }
   }
+  if (gestureMode === 'aim') {
+    // slide to sweep the line across the pond
+    aimAngle = Math.max(-0.45, Math.min(0.45, aimAtSwingStart + g.ndx * 1.5))
+    skipper.rest(0, aimAngle)
+  } else if (gestureMode === 'swing') {
+    windupK = Math.max(0, Math.min(1, g.dy / 240))
+    skipper.windup(0, windupK)
+    skipper.setAiming(true, windupK)
+    swingSamples.push({ t: performance.now(), dx: g.dx, dy: g.dy })
+    if (swingSamples.length > 60) swingSamples.shift()
+  }
+}
 
-  lastTapAt = performance.now()
-  const strength = strengthFor(performance.now() - holdStart)
-  haptics[strength === 'light' ? 'light' : 'medium']()
-  showMenu.value = false
+function onRelease() {
+  const mode = gestureMode
+  gestureMode = null
+  if (import.meta.env.DEV) {
+    window.__swingDebug = { mode, samples: swingSamples.length, canThrow: canThrow() }
+  }
+  if (mode !== 'swing' || !canThrow() || swingSamples.length < 2) {
+    skipper?.rest(0, aimAngle)
+    skipper?.setAiming(canThrow(), 0)
+    windupK = 0
+    return
+  }
 
-  spawnRipple(x, z, strength)
-  tapsRemaining.value--
-  tapsUsed.value++
+  // the bowling release: find the bottom of the backswing, then measure the
+  // forward snap from there — backswing × snap speed = power
+  let bottom = swingSamples[0]
+  for (const s of swingSamples) if (s.dy >= bottom.dy) bottom = s
+  const end = swingSamples[swingSamples.length - 1]
+  const snapPx = bottom.dy - end.dy
+  const snapMs = Math.max(1, end.t - bottom.t)
+  const snapSpeed = snapPx / snapMs // px per ms, upward
+
+  if (import.meta.env.DEV) {
+    Object.assign(window.__swingDebug, { snapPx, snapMs, snapSpeed, bottomDy: bottom.dy, endDy: end.dy })
+  }
+  // the gate is DISTANCE (a real forward stroke), not speed — a slow device
+  // or a deliberate finger still gets its throw. Speed adds power on top.
+  if (snapPx < 40) {
+    // no forward snap — the stone stays in hand
+    skipper.rest(0, aimAngle)
+    skipper.setAiming(true, 0)
+    windupK = 0
+    return
+  }
+
+  const backswing = Math.max(0, Math.min(1, bottom.dy / 260))
+  const power = Math.max(
+    0.15,
+    Math.min(1, backswing * 0.5 + Math.min(1, snapPx / 300) * 0.3 + Math.min(1, snapSpeed / 1.5) * 0.35),
+  )
+  // lateral drift during the snap bends the flight
+  const curve = Math.max(-3, Math.min(3, ((end.dx - bottom.dx) / snapMs) * 4))
+
+  doThrow(power, aimAngle, curve)
+}
+
+function doThrow(power, angle, curve) {
+  if (!canThrow()) return
+  flyingStone = throwStone(thrower.x, thrower.z, { angle, power, curve })
+  stonesRemaining.value--
+  stonesUsed.value++
   gameStarted.value = true
+  windupK = 0
+  skipper.setAiming(false, 0)
+  sfx.whoosh(power)
+  haptics.medium()
 }
 
-function spawnRipple(x, z, strength) {
-  sfx.splash(strength)
-  ripples.push(createRipple(x, z, strength))
+// what the pond says about a stone touching down at (x, z)
+function contactContext(x, z) {
+  for (const L of level.lotus) {
+    if (!L.isActivated && Math.hypot(x - L.x, z - L.z) < L.protectedRadius) return 'calm'
+  }
+  for (const it of pads.items) {
+    const p = it.mesh.position
+    if (Math.hypot(x - p.x, z - p.z) < it.data.radius * 0.9) return 'pad'
+  }
+  for (const s of level.stones) {
+    if (Math.hypot(x - s.x, z - s.z) < s.radius + 0.15) return 'rock'
+  }
+  if (Math.hypot(x, z) > level.R - 0.35) return 'bank'
+  return 'water'
 }
+
+function stepFlight(dt) {
+  if (!flyingStone || flyingStone.done) return
+  // substep for crisp contact detection at speed
+  for (let i = 0; i < 2 && !flyingStone.done; i++) {
+    const events = stepStone(flyingStone, dt / 2)
+    for (const e of events) handleContact(e)
+    if (flyingStone.done) break
+    const ctx = contactContext(flyingStone.x, flyingStone.z)
+    if (ctx === 'bank' && flyingStone.y < 0.6) {
+      groundStone(flyingStone)
+      sfx.thud()
+      skipper.sunk()
+    }
+  }
+  if (!flyingStone.done) skipper.flight(flyingStone, dt)
+}
+
+function handleContact(e) {
+  const ctx = contactContext(e.x, e.z)
+  if (import.meta.env.DEV) {
+    ;(window.__skipLog = window.__skipLog || []).push({ ...e, ctx })
+  }
+  if (ctx === 'pad') {
+    // a lily pad swallows the stone — no ripple, just a soft thud
+    groundStone(flyingStone)
+    sfx.thud()
+    haptics.light()
+    skipper.sunk()
+    return
+  }
+  if (ctx === 'rock') {
+    groundStone(flyingStone)
+    sfx.clack()
+    haptics.medium()
+    skipper.splashAt(e.x, e.z, e.speed * 0.5)
+    ripples.push(skipRipple(e.x, e.z, e.speed * 0.5))
+    skipper.sunk()
+    return
+  }
+  if (ctx === 'calm') {
+    // the flower's calm circle hushes the skip: the stone travels on, but
+    // the water refuses to ripple
+    if (e.type === 'sink') skipper.sunk()
+    haptics.warning()
+    sfx.deny()
+    return
+  }
+  if (e.type === 'skip') {
+    ripples.push(skipRipple(e.x, e.z, e.speed))
+    skipper.splashAt(e.x, e.z, e.speed)
+    sfx.skip(e.speed)
+    haptics.light()
+  } else {
+    ripples.push(skipRipple(e.x, e.z, e.speed * 0.8))
+    skipper.splashAt(e.x, e.z, e.speed * 0.7)
+    sfx.sink()
+    skipper.sunk()
+  }
+}
+
+// ---- the frame --------------------------------------------------------------
 
 function tick(dt) {
   dt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.05)
@@ -399,7 +549,8 @@ function tick(dt) {
   const paused = showWinDialog.value || showLoseDialog.value
 
   if (!paused) {
-    // advance the wave model against the LIVE pad positions (Havok moves them)
+    stepFlight(dt)
+
     ripples = stepRipples(ripples, dt)
     const padCircles = pads.items.map((p) => ({
       id: p.data.id,
@@ -413,7 +564,6 @@ function tick(dt) {
       sfx.stoneTick()
     }
 
-    // lotus charging + activation
     for (const f of lotuses.flowers) {
       if (updateLotus(f.data, ripples, dt)) {
         lotuses.activate(f)
@@ -424,12 +574,23 @@ function tick(dt) {
     }
 
     pads.update(dt, ripples)
+
+    // when the pond has gone quiet, the next stone appears in hand
+    if ((!flyingStone || flyingStone.done) && stonesRemaining.value > 0 && gestureMode !== 'swing') {
+      skipper.rest(0, aimAngle)
+      skipper.setAiming(true, windupK)
+    }
+
     checkGameState()
   }
 
-  // visuals always breathe, even behind a dialog
+  // the camera leans out after the stone, then settles home
+  const followZ = flyingStone && !flyingStone.done ? Math.max(-2, flyingStone.z * 0.35) : 4
+  cam.target.z += (followZ - cam.target.z) * Math.min(1, dt * 2.2)
+
   pond.update(t, dt, ripples)
   lotuses.update(t, dt, ripples)
+  skipper.update(dt)
 }
 
 function checkGameState() {
@@ -438,15 +599,16 @@ function checkGameState() {
 
   const allActivated = level.lotus.every((l) => l.isActivated)
   const allSunk = level.lotus.every((l) => !l.isActivated || (l.sinkProgress || 0) >= 1)
+  const stoneSettled = !flyingStone || flyingStone.done
 
   if (allActivated && allSunk) {
     calculateScore()
     failureStreak.value = 0
-    const isPerfect = tapsUsed.value <= level.optimalTaps
+    const isPerfect = stonesUsed.value <= level.optimalStones
     progressStore.recordLevelComplete(currentLevel.value + 1, levelScore.value, isPerfect)
     sfx.win(starsEarned.value)
     showWinDialog.value = true
-  } else if (tapsRemaining.value === 0 && ripples.length === 0 && !allActivated) {
+  } else if (stonesRemaining.value === 0 && stoneSettled && ripples.length === 0 && !allActivated) {
     failureStreak.value++
     if (failureStreak.value % 5 === 0) progressStore.recordFailurePenalty()
     sfx.lose()
@@ -455,8 +617,8 @@ function checkGameState() {
 }
 
 function calculateScore() {
-  const optimal = level.optimalTaps
-  const used = tapsUsed.value
+  const optimal = level.optimalStones
+  const used = stonesUsed.value
   const stars = used <= optimal ? 3 : used <= optimal + 1 ? 2 : 1
   levelScore.value = stars
   starsEarned.value = stars
@@ -517,7 +679,6 @@ function openInstructions() {
   left: 0;
   width: 100%;
   height: 100%;
-  cursor: crosshair;
   touch-action: none;
   outline: none;
 }
@@ -659,9 +820,9 @@ function openInstructions() {
 
 .tap-hint {
   position: absolute;
-  top: 50%;
+  bottom: 18%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -674,11 +835,9 @@ function openInstructions() {
   0%,
   100% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
   }
   50% {
-    opacity: 0.7;
-    transform: translate(-50%, -50%) scale(0.95);
+    opacity: 0.65;
   }
 }
 
