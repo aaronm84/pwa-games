@@ -12,7 +12,7 @@ import {
 
 // A soft outdoor lighting rig: ambient fill + a warm key light that casts soft
 // shadows. Returns the shadow generator so meshes can be registered as casters.
-export function outdoorLight(scene, { intensity = 1 } = {}) {
+export function outdoorLight(scene, { intensity = 1, shadowSize = 1024 } = {}) {
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0.2), scene)
   hemi.intensity = 0.55 * intensity
   hemi.groundColor = new Color3(0.35, 0.4, 0.3)
@@ -21,7 +21,7 @@ export function outdoorLight(scene, { intensity = 1 } = {}) {
   sun.position = new Vector3(30, 60, -40)
   sun.intensity = 1.15 * intensity
 
-  const shadow = new ShadowGenerator(1024, sun)
+  const shadow = new ShadowGenerator(shadowSize, sun)
   shadow.useBlurExponentialShadowMap = true
   shadow.blurKernel = 32
   shadow.darkness = 0.35

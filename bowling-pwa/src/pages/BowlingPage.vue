@@ -158,7 +158,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Stage, initPhysics, makeDynamic, outdoorLight, pbr, Gestures, MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, ArcRotateCamera, PointLight, SpotLight, GlowLayer, FxaaPostProcess } from 'src/engine'
-import { buildAlley, makePin, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
+import { buildAlley, makePin, makePinMats, pinSpots, LANE_W, BALL_R, PIN_Z, PIT_Z, START_Z } from 'src/game/lane3d'
 import { scoreGame, rollPosition } from 'src/game/scoring'
 import { alleyById } from 'src/game/alleys'
 import { balls } from 'src/game/balls'
@@ -267,6 +267,7 @@ let scene = null
 let cam = null
 let shadowGen = null
 let laneKit = null
+let pinMats = null // one material set shared by every rack
 let ball = null
 let ballAgg = null
 let ballGlowMat = null
@@ -348,6 +349,7 @@ onMounted(async () => {
   }
 })
 onBeforeUnmount(() => {
+  pinMats?.dispose()
   for (const h of hazards) h.dispose()
   environs?.dispose()
   traceMesh?.dispose()
@@ -366,7 +368,7 @@ async function boot() {
   await stage.init()
   backend.value = stage.backend.toUpperCase()
   scene = stage.scene
-  shadowGen = outdoorLight(scene, { intensity: alley.bright ? 1.15 : 0.5 }).shadow // Poolside is daylight; the rest are moody
+  shadowGen = outdoorLight(scene, { intensity: alley.bright ? 1.15 : 0.5, shadowSize: sharp ? 2048 : 1024 }).shadow // Poolside is daylight; the rest are moody
   scene.skipPointerMovePicking = true
   // cinematic grade: gentle contrast + vignette
   const ipc = scene.imageProcessingConfiguration
@@ -376,7 +378,7 @@ async function boot() {
   ipc.vignetteWeight = alley.bright ? 0.9 : 1.5
   // bloom on every emissive: the neon strips, guide line and power cue glow
   if (settings.settings.glowFx !== false) {
-    glowLayer = new GlowLayer('glow', scene, { mainTextureRatio: 0.5 })
+    glowLayer = new GlowLayer('glow', scene, { mainTextureRatio: sharp ? 0.75 : 0.5 })
     glowLayer.intensity = alley.bright ? 0.45 : 0.8
   }
   // the classic pin-deck spotlight
@@ -391,13 +393,17 @@ async function boot() {
   // flat enough that the ball at the bowler's feet is in frame, high enough to
   // read the whole lane
   cam = new ArcRotateCamera('cam', Math.PI / 2, 1.17, 7.6, new Vector3(0, 0.2, 2.4), scene)
-  if (sharp) new FxaaPostProcess('fxaa', 1.0, cam)
+  if (sharp) {
+    const fxaa = new FxaaPostProcess('fxaa', 1.0, cam)
+    fxaa.samples = 2 // light MSAA on the post pipeline, FXAA mops up the rest
+  }
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood })
   environs = buildEnvirons(scene, alley)
 
   makeBall()
+  pinMats = makePinMats(scene, alley.colors, alley.pin)
   rackPins()
 
   // the target line: a subtle DASHED guide from the bowler down the lane —
@@ -468,6 +474,9 @@ async function boot() {
       replayOn: showReplay.value,
       sfxEvents: sfx.events,
       coachStep: coachStep.value,
+      fps: Math.round(stage.engine.getFps()),
+      actives: scene.getActiveMeshes().length,
+      shadowCasters: shadowGen?.getShadowMap()?.renderList?.length ?? 0,
       replayBufLen: replayBuf.length,
       ghost: ghostActive.value ? { pace: ghostPace.value, best: progress.bowling.bestScore } : null,
       devSetBest: (r) => {
@@ -572,8 +581,8 @@ function placeBallForThrow(x) {
 }
 
 function rackPins() {
-  for (const p of pins) p.dispose()
-  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors, alley.pin))
+  for (const p of pins) { shadowGen.removeShadowCaster(p.body, true); p.dispose() }
+  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors, alley.pin, pinMats))
   spawnHazards()
   refreshMirror()
 }
@@ -581,7 +590,10 @@ function rackPins() {
 // drinks, lost shoes) scattered on the boards. Frequency follows the hazard
 // level: light = sometimes one, wild = always a mess.
 function spawnHazards() {
-  for (const h of hazards) h.dispose()
+  for (const h of hazards) {
+    for (const m of h.meshes) shadowGen.removeShadowCaster(m, true)
+    h.dispose()
+  }
   hazards = []
   const dv = devParam('hazards')
   const level = dv === '1' ? 'wild' : dv || settings.settings.hazardLevel
@@ -821,7 +833,7 @@ function tick(dt = 1 / 60) {
     const f = fading[i]
     f.t--
     f.p.body.scaling.setAll(Math.max(0.01, f.t / 18))
-    if (f.t <= 0) { f.p.dispose(); fading.splice(i, 1) }
+    if (f.t <= 0) { shadowGen.removeShadowCaster(f.p.body, true); f.p.dispose(); fading.splice(i, 1) }
   }
 
   // the broadcast tape: while a throw is live, record every body's transform

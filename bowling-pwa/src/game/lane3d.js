@@ -144,7 +144,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     laneMat = new StandardMaterial('lane', scene)
     laneMat.diffuseColor = Color3.FromHexString(colors.lane)
     laneMat.specularColor = new Color3(0.14, 0.14, 0.18)
-    mirror = new MirrorTexture('laneMirror', { ratio: 0.5 }, scene, true)
+    mirror = new MirrorTexture('laneMirror', { ratio: opts.mirrorRatio || 0.5 }, scene, true)
     mirror.mirrorPlane = new Plane(0, -1, 0, 0)
     mirror.level = 0.4
     laneMat.reflectionTexture = mirror
@@ -158,12 +158,16 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     const look = opts.wood === 'soft' ? { spread: 0.2, warm: 0.08, seam: 0.2, grain: 0.65 } : {}
     woodTex = woodGrainTexture(scene, colors.lane, look)
     woodTex.uScale = 4 // canvas X runs down-lane; repeat the pattern 4×
+    woodTex.anisotropicFilteringLevel = 8 // grain stays crisp at grazing angles
     laneMat.diffuseTexture = woodTex
     laneMat.diffuseColor = new Color3(1, 1, 1) // the texture carries the tone
   }
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
   for (const m of [laneMat, gutterMat, darkMat]) m.maxSimultaneousLights = 6
+  // these never change defines after setup (the lava gutter pulse only writes
+  // a color uniform, so even gutterMat is safe to freeze)
+  scene.onAfterRenderObservable.addOnce(() => { laneMat.freeze(); darkMat.freeze() })
 
   // lane bed (top at y=0), slick like an oiled lane. The floor STOPS at the pit
   // edge — balls and deadwood drop away behind the pin deck like a real house.
@@ -793,6 +797,7 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
     tex.hasAlpha = true
     drawTikiMask(tex.getContext(), 256, 416, Math.random)
     tex.update()
+    tex.anisotropicFilteringLevel = 8
     const mat = new StandardMaterial('maskMat', scene)
     mat.diffuseTexture = tex
     mat.useAlphaFromDiffuseTexture = true
@@ -1060,34 +1065,45 @@ function pinRadiusAt(yn) {
   return PIN_PROFILE[PIN_PROFILE.length - 1][0]
 }
 
+// One set of pin materials — build once per game and share across every rack
+// so re-racking ten pins per frame stops churning materials.
+export function makePinMats(scene, colors, pinStyle = null) {
+  const body = pbr(scene, { color: pinStyle?.body || colors.pin, rough: 0.32, name: 'pinMat' })
+  body.maxSimultaneousLights = 6
+  const bandDefs = pinStyle?.bands || [{ y: 0.66, c: colors.pinStripe }, { y: 0.735, c: colors.pinStripe }]
+  const bands = bandDefs.map((b) => {
+    const m = pbr(scene, { color: b.c, rough: 0.4, name: 'bandMat' })
+    m.maxSimultaneousLights = 6
+    return m
+  })
+  return { body, bands, bandDefs, dispose() { body.dispose(); for (const m of bands) m.dispose() } }
+}
+
 // The bare pin visual (lathed body + themed bands) — shared by the real physics
 // pins and the ghost pins on the neighbor lanes. `pinStyle` comes from the
-// alley: { body: hex, bands: [{ y, c }] } — totem stripes, gold rings, etc.
-export function makePinMesh(scene, colors, name = 'pin', pinStyle = null) {
+// alley: { body: hex, bands: [{ y, c }] }. Pass `shared` (from makePinMats) to
+// reuse materials; the pin then never disposes them.
+export function makePinMesh(scene, colors, name = 'pin', pinStyle = null, shared = null) {
   const shape = PIN_PROFILE.map(([r, y]) => new Vector3(r * PIN_H, y * PIN_H, 0))
   const body = MeshBuilder.CreateLathe(name, { shape, tessellation: 28, closed: true, cap: 3 }, scene)
-  const mat = pbr(scene, { color: pinStyle?.body || colors.pin, rough: 0.32, name: 'pinMat' })
-  mat.maxSimultaneousLights = 6
-  body.material = mat
-  const bands = pinStyle?.bands || [{ y: 0.66, c: colors.pinStripe }, { y: 0.735, c: colors.pinStripe }]
+  const pm = shared || makePinMats(scene, colors, pinStyle)
+  body.material = pm.body
   const stripes = []
-  const mats = [mat]
-  for (const b of bands) {
+  pm.bandDefs.forEach((b, i) => {
     const band = MeshBuilder.CreateTorus('band', { diameter: (pinRadiusAt(b.y) + 0.012) * PIN_H * 2, thickness: 0.018, tessellation: 24 }, scene)
-    const bm = pbr(scene, { color: b.c, rough: 0.4, name: 'bandMat' })
-    band.material = bm
+    band.material = pm.bands[i]
     band.parent = body
     band.position.y = b.y * PIN_H
     stripes.push(band)
-    mats.push(bm)
-  }
-  return { body, stripes, mats }
+  })
+  // only own what we created — shared materials outlive the pin
+  return { body, stripes, mats: shared ? [] : [pm.body, ...pm.bands] }
 }
 
 // One pin: a lathed body whose collider is its convex hull, so the ball meets a
 // real pin shape. Dynamic from birth so a hit topples it realistically.
-export function makePin(scene, shadow, x, z, colors, pinStyle = null) {
-  const { body, stripes, mats } = makePinMesh(scene, colors, 'pin', pinStyle)
+export function makePin(scene, shadow, x, z, colors, pinStyle = null, sharedMats = null) {
+  const { body, stripes, mats } = makePinMesh(scene, colors, 'pin', pinStyle, sharedMats)
   body.position.set(x, 0.001, z)
   shadow.addShadowCaster(body)
   let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
