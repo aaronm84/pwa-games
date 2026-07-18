@@ -1,17 +1,28 @@
 # The engine-kit: where we are & what to build next
 
-_Last updated after the Mini Golf 3D conversion shipped (Stages 1–7, live on the
-landing page)._
+_Last updated when the kit became a real package: `packages/engine-kit`,
+publishable to npm as **`@aaronm84/engine-kit`**._
 
 ## Where we are
 
-The repo has **20 shipped PWA games**. Nineteen are hand-rolled 2D canvas games;
-one — **Mini Golf 3D** — runs on a shared, PWA-optimized 3D foundation we call the
-**engine-kit** (`minigolf3d-pwa/src/engine/`), built on **Babylon.js 7 + Havok
-physics** (WASM). The kit was built deliberately generic, then validated by
-converting the biggest 2D game we have, end to end.
+The repo's 3D games — **Mini Golf 3D** and **Alley Nights** (bowling) — run on a
+shared, PWA-optimized foundation we call the **engine-kit**, built on
+**Babylon.js 7 + Havok physics** (WASM). It now lives as a standalone,
+framework-agnostic ESM package at **`packages/engine-kit`**:
 
-### The kit itself (5 small modules, ~zero game specifics)
+- both apps depend on it via `"@aaronm84/engine-kit": "file:../packages/engine-kit"`,
+  and their old `src/engine/index.js` files are one-line shims re-exporting it,
+  so no game code changed
+- other repos can consume it the same way today, or from npm once published:
+  from `packages/engine-kit`, bump the version and `npm publish --access public`
+- peer deps: `@babylonjs/core` + `@babylonjs/havok` (consumers pick versions);
+  bundler note: the Havok wasm loads via Vite's `?url`, so the kit targets
+  Vite-family bundlers (Vite / Quasar / Astro)
+- gotcha for `file:` consumers: set `resolve.preserveSymlinks = true` in the
+  app's Vite config so the linked package resolves Babylon from the APP's
+  node_modules (both apps' quasar.config.js show the pattern)
+
+### The kit itself (7 small modules, ~zero game specifics)
 
 | Module | What it gives a game |
 | --- | --- |
@@ -20,6 +31,8 @@ converting the biggest 2D game we have, end to end.
 | `input.js` | Unified **pointer gestures** (drag/tap) that behave identically on touch and mouse, with pointer capture |
 | `presets.js` | One-call outdoor **lighting rig** (ambient + soft-shadow sun), PBR material helper, orbit camera |
 | `babylon.js` | **Per-module Babylon imports** + required side-effect registrations, so Vite tree-shakes the ~80% of Babylon we don't use |
+| `sfx.js` | `createSynth()` — a **sample-free WebAudio kit**: filtered noise bursts, tones with pitch slides, speed-tracking loops; autoplay-safe unlock, master volume, an `events` counter for headless tests |
+| `haptics.js` | `createHaptics()` — vibration helpers (light/medium/heavy/success/scaled crash) that no-op gracefully where unsupported |
 
 **Cost of 3D:** ~0.5 MB gzipped engine JS (vs ~1.09 MB naive) + ~2 MB Havok WASM,
 cached after first load. Renders headless (SwiftShader) for CI-style verification.

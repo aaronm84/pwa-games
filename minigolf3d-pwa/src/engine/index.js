@@ -1,30 +1,4 @@
-// engine-kit — shared Babylon.js + Havok foundation for PWA games.
-//
-// Extensible on purpose: Stage handles bootstrap/perf/lifecycle, physics.js wraps
-// Havok, input.js unifies touch/mouse gestures, presets.js gives good-looking
-// defaults. A game imports what it needs and supplies the content.
-export { Stage } from './stage.js'
-export { Gestures } from './input.js'
-export {
-  initPhysics,
-  physicsSupported,
-  makeStatic,
-  makeDynamic,
-  PhysicsAggregate,
-  PhysicsShapeType,
-  PhysicsMotionType,
-} from './physics.js'
-export { outdoorLight, pbr, orbitCamera } from './presets.js'
-
-// Common Babylon primitives games need, re-exported from the tree-shaken module
-// so game code imports everything from 'src/engine' and never the heavy barrel.
-export {
-  MeshBuilder,
-  Vector3,
-  Quaternion,
-  Color3,
-  Color4,
-  StandardMaterial,
-  PBRMaterial,
-  ArcRotateCamera,
-} from './babylon.js'
+// The engine lives in the shared package now (packages/engine-kit — published
+// as @aaronm84/engine-kit). This shim keeps every game import ('src/engine')
+// working unchanged.
+export * from '@aaronm84/engine-kit'

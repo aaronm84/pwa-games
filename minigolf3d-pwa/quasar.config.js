@@ -66,6 +66,11 @@ export default defineConfig((ctx) => {
         viteConf.build.rollupOptions.output.manualChunks = (id) => {
           if (id.includes('@babylonjs')) return 'babylon'
         }
+        // the engine-kit is a symlinked local package (file:../packages/engine-kit);
+        // keep the symlink path so its @babylonjs imports resolve from THIS app's
+        // node_modules instead of hunting above the package's real location
+        viteConf.resolve = viteConf.resolve || {}
+        viteConf.resolve.preserveSymlinks = true
       },
       // viteVuePluginOptions: {},
 
