@@ -136,6 +136,31 @@ export function generateLevel(levelNum, R = 13) {
     }
   }
 
+  // pads must not SPAWN interpenetrating — the solver would shove them apart
+  // violently on frame one. Relax overlapping pairs until everyone has room.
+  for (let iter = 0; iter < 16; iter++) {
+    let moved = false
+    for (let i = 0; i < pads.length; i++) {
+      for (let j = i + 1; j < pads.length; j++) {
+        const a = pads[i]
+        const b = pads[j]
+        const d = dist(a, b)
+        const min = a.radius + b.radius + 0.3
+        if (d < min) {
+          moved = true
+          const push = (min - d) / 2 + 0.01
+          const nx = d > 0.01 ? (b.x - a.x) / d : 1
+          const nz = d > 0.01 ? (b.z - a.z) / d : 0
+          a.x -= nx * push
+          a.z -= nz * push
+          b.x += nx * push
+          b.z += nz * push
+        }
+      }
+    }
+    if (!moved) break
+  }
+
   // ---- ambient pond life (visual only) ----
 
   // reeds ring the banks, thicker on the sides and far shore

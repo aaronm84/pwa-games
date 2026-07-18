@@ -174,7 +174,7 @@ import {
   FxaaPostProcess,
 } from 'src/engine'
 import { stepRipples, collideRipples, updateLotus, skipRipple } from 'src/game/waves'
-import { throwStone, stepStone, groundStone } from 'src/game/skip'
+import { throwStone, stepStone, groundStone, stoneHitsRock } from 'src/game/skip'
 import { generateLevel } from 'src/game/levels'
 import { buildPond, paletteFor } from 'src/game/pond3d'
 import { buildStones, buildLotuses, buildDriftingPads, buildSkipper } from 'src/game/actors3d'
@@ -337,6 +337,7 @@ async function boot() {
       }),
       backend: backend.value,
       aim: aimAngle,
+      rocks: level.stones.map((s) => ({ x: s.x, z: s.z, r: s.radius })),
       won: showWinDialog.value,
       lost: showLoseDialog.value,
       throw: (power, angle, curve) => doThrow(power ?? 0.8, angle ?? 0, curve ?? 0),
@@ -499,6 +500,21 @@ function stepFlight(dt) {
     const events = stepStone(flyingStone, dt / 2)
     for (const e of events) handleContact(e)
     if (flyingStone.done) break
+    // rocks are solid at flight height too — no sailing through one
+    const rock = stoneHitsRock(flyingStone, level.stones)
+    if (rock) {
+      const speed = Math.hypot(flyingStone.vx, flyingStone.vy, flyingStone.vz)
+      if (import.meta.env.DEV) {
+        ;(window.__skipLog = window.__skipLog || []).push({ type: 'clack', ctx: 'rock-flight', x: flyingStone.x, z: flyingStone.z, speed })
+      }
+      groundStone(flyingStone)
+      sfx.clack()
+      haptics.medium()
+      skipper.splashAt(flyingStone.x, flyingStone.z, speed * 0.5)
+      ripples.push(skipRipple(flyingStone.x, flyingStone.z, speed * 0.5, flyingStone.group))
+      skipper.sunk()
+      break
+    }
     const ctx = contactContext(flyingStone.x, flyingStone.z)
     if (ctx === 'bank' && flyingStone.y < 0.6) {
       groundStone(flyingStone)
