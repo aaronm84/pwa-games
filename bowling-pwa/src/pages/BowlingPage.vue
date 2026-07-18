@@ -34,10 +34,22 @@
       <div v-if="quip" class="quip">{{ quip }}</div>
     </transition>
 
-    <div class="hud-hint" v-if="state === 'aiming' && rolls.length === 0">
+    <div class="hud-hint" v-if="coachStep < 0 && state === 'aiming' && rolls.length === 0">
       Slide sideways to line up · drag down to wind up, snap forward to bowl
     </div>
-    <div class="hud-hint" v-if="state === 'rolling'">⏩ hold to fast-forward</div>
+    <div class="hud-hint" v-if="coachStep < 0 && state === 'rolling'">⏩ hold to fast-forward</div>
+
+    <!-- the beginner coach: walks the first game, step by step -->
+    <transition name="fade">
+      <div v-if="coachStep >= 0" class="coach-card">
+        <div class="coach-head">
+          <span class="coach-tag">🎳 COACH</span>
+          <span class="coach-dots"><i v-for="(c, i) in COACH" :key="i" :class="{ on: i <= coachStep }" /></span>
+          <button class="coach-skip" @click="coachDoneNow">skip</button>
+        </div>
+        <div class="coach-text">{{ COACH[coachStep] }}</div>
+      </div>
+    </transition>
 
     <!-- the broadcast moment: letterboxed pin-cam replay, tap to skip -->
     <transition name="fade">
@@ -303,6 +315,26 @@ let replayIdx = 0
 let replayEnd = 0
 let replayCont = null
 const showReplay = ref(false)
+// the beginner coach: -1 = off; otherwise the index into COACH
+const COACH = [
+  'Slide your finger sideways to walk the approach and line up your shot.',
+  'Now drag straight DOWN — the ball winds back behind you.',
+  'Snap FORWARD and let go while moving. Backswing × snap speed = power!',
+  'Rolling! Drifting your snap sideways bends the ball — that’s hook.',
+  'Now clean up what’s left. Strikes and spares earn bonus points — and the ball button (bottom right) swaps balls. You’re ready!',
+]
+const coachStep = ref(-1)
+function coachNext() {
+  if (coachStep.value < 0) return
+  coachStep.value++
+  if (coachStep.value >= COACH.length) coachDoneNow()
+}
+function coachDoneNow() {
+  if (coachStep.value < 0) return
+  coachStep.value = -1
+  settings.updateSetting('coachDone', true)
+  setBanner('You’re ready — go get a strike!', 'good')
+}
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)]
 
@@ -412,6 +444,7 @@ async function boot() {
     onDragEnd: (g) => { ffHold = false; onRelease(g) },
   })
   sfx.configure({ on: settings.settings.soundEffectsEnabled, vol: settings.settings.soundEffectsVolume })
+  if (!vsRival && (!settings.settings.coachDone || devParam('coach'))) coachStep.value = 0
   stage.run((dt) => tick(dt))
   booting.value = false
 
@@ -434,6 +467,7 @@ async function boot() {
       hazardIds: hazards.map((h) => h.id),
       replayOn: showReplay.value,
       sfxEvents: sfx.events,
+      coachStep: coachStep.value,
       replayBufLen: replayBuf.length,
       ghost: ghostActive.value ? { pace: ghostPace.value, best: progress.bowling.bestScore } : null,
       devSetBest: (r) => {
@@ -618,6 +652,7 @@ function onAim(g) {
 
   if (gestureMode.kind === 'aim') {
     aimX = Math.max(-1.35, Math.min(1.35, gestureMode.fromX + g.dx / 130))
+    if (coachStep.value === 0 && Math.abs(g.dx) > 55) coachNext()
     ball.position.set(aimX, BALL_R, START_Z)
     syncBallBody()
     return
@@ -629,6 +664,7 @@ function onAim(g) {
   if (g.dy >= maxBackswing) { maxBackswing = g.dy; bottomDx = g.dx; bottomT = performance.now() }
   // pendulum: the ball lifts visibly into frame as you wind up
   const p = Math.max(0, Math.min(1.15, g.dy / 230))
+  if ((coachStep.value === 0 || coachStep.value === 1) && g.dy > 140) coachStep.value = 2
   ball.position.set(aimX + g.dx / 600, BALL_R + p * 1.6, START_Z + p * 0.4)
   syncBallBody()
   // power cue
@@ -703,6 +739,8 @@ function launch(speed, spin, vx0 = 0) {
   patchSizzled = false
   replayBuf = []
   crashPlayed = false
+  if (coachStep.value === 2) coachNext()
+  else if (coachStep.value === 4) coachDoneNow()
   sfx.configure({ on: settings.settings.soundEffectsEnabled, vol: settings.settings.soundEffectsVolume })
   sfx.rollStart()
   state.value = 'rolling'
@@ -756,6 +794,7 @@ function tick(dt = 1 / 60) {
     guide.isVisible = state.value === 'aiming' && bowler.value === 'me'
     guide.position.x = aimX
   }
+  if (coachStep.value === 3 && state.value === 'aiming' && !thrown && rolls.value.length >= 1) coachNext()
   if (vsRival && bowler.value === 'ai' && state.value === 'aiming' && aiActAt >= 0 && tickN > aiActAt) {
     aiActAt = -1
     aiThrow()
@@ -1136,6 +1175,29 @@ function goBack() { router.push({ name: 'menu' }) }
 .m-cum.up { color: #7de88a; }
 .m-cum.down { color: #ff8a8a; }
 .m-ghost { font-size: 0.58rem; opacity: 0.55; line-height: 1; }
+
+/* the beginner coach card */
+.coach-card {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 5;
+  background: rgba(10, 8, 22, 0.88);
+  border: 1px solid rgba(123, 47, 240, 0.55);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
+.coach-head { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+.coach-tag { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em; color: #b9a5ff; }
+.coach-dots { display: flex; gap: 4px; flex: 1; }
+.coach-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+.coach-dots i.on { background: #6ee07a; }
+.coach-skip { background: none; border: none; color: rgba(255,255,255,0.6); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; }
+.coach-text { font-size: 0.92rem; line-height: 1.35; }
 
 /* the broadcast letterbox */
 .replay-ui { position: absolute; inset: 0; z-index: 6; cursor: pointer; }

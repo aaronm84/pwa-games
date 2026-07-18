@@ -27,6 +27,7 @@ export const useSettingsStore = defineStore('settings', () => {
     instantReplay: true, // pin-cam replay on strikes
     sharpRender: true, // full-retina resolution + FXAA edge smoothing
     ghostRace: true, // race your best game's scorecard in solo play
+    coachDone: false, // the beginner coach runs until a first game is walked through
     showTrace: true, // draw the last ball's path
     snappySweep: false, // shorter pinsetter pause (quick sessions)
     hookSens: 1, // hook sensitivity multiplier

@@ -1,5 +1,6 @@
 <template>
-  <q-page class="settings-page" :style="{ background: themeStore.colors.gradient }">
+  <q-page class="settings-page">
+    <AlleyBackdrop />
     <div class="settings-container">
       <h3 class="text-h4 text-white q-mb-lg q-pt-md">Settings</h3>
 
@@ -75,32 +76,19 @@
         </q-card-section>
       </q-card>
 
-      <!-- Display Settings -->
+      <!-- Extras -->
       <q-card class="settings-card q-mb-md">
         <q-card-section>
-          <div class="text-h6 q-mb-md text-white">Display</div>
-
-          <div class="text-caption text-white q-mb-md" style="opacity: 0.8;">
-            The background theme automatically changes throughout the day based on the time. However, feel free to change it to whatever theme fits your mood.
-          </div>
-
-          <q-select
-            v-model="selectedTheme"
-            :options="themeOptions"
-            option-label="label"
-            option-value="value"
-            emit-value
-            map-options
-            label="Theme"
-            @update:model-value="updateTheme"
-          />
-
+          <div class="text-h6 q-mb-md text-white">Extras</div>
           <q-toggle
             v-model="settings.reducedMotion"
             label="Reduced Motion"
-            class="q-mt-md"
             @update:model-value="saveSettings"
           />
+          <div class="text-caption text-white q-mt-md q-mb-sm" style="opacity: 0.8;">
+            The beginner coach walks you through your first throws.
+          </div>
+          <q-btn outline color="white" icon="school" label="Replay the beginner coach" @click="replayCoach" />
         </q-card-section>
       </q-card>
 
@@ -115,7 +103,7 @@
               Games bowled: {{ progressStore.bowling.games }} ·
               Strikes: {{ progressStore.bowling.totalStrikes }}
             </template>
-            <template v-else>No rounds finished yet — play the Front Nine!</template>
+            <template v-else>No games finished yet — go bowl one!</template>
           </div>
 
           <q-btn
@@ -132,57 +120,25 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useSettingsStore } from 'src/stores/settings'
-import { useThemeStore } from 'src/stores/theme'
+import AlleyBackdrop from 'src/components/AlleyBackdrop.vue'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
 
 const $q = useQuasar()
 const settingsStore = useSettingsStore()
-const themeStore = useThemeStore()
 const progressStore = useProgressStore()
 const haptics = useHaptics()
 
 const settings = computed(() => settingsStore.settings)
 
-// Theme selection
-const selectedTheme = ref('auto')
-
-const themeOptions = computed(() => {
-  const options = [
-    { label: 'Auto (Based on time)', value: 'auto' }
-  ]
-
-  // Add all time-of-day themes
-  Object.entries(themeStore.timeSchemes).forEach(([key, scheme]) => {
-    options.push({
-      label: scheme.name,
-      value: key
-    })
-  })
-
-  return options
-})
-
-function updateTheme(value) {
+function replayCoach() {
   haptics.light()
-  if (value === 'auto') {
-    themeStore.setThemeOverride(null)
-  } else {
-    themeStore.setThemeOverride(value)
-  }
-  selectedTheme.value = value
-
-  // Save theme preference to settings
-  settingsStore.updateSetting('themeOverride', value)
+  settingsStore.updateSetting('coachDone', false)
+  $q.notify({ message: 'Coach is back on — he meets you at the lane.', color: 'positive', timeout: 1800 })
 }
-
-onMounted(() => {
-  // Initialize selected theme based on saved preference
-  selectedTheme.value = settingsStore.settings.themeOverride || 'auto'
-})
 
 async function saveSettings() {
   haptics.light()
@@ -207,10 +163,12 @@ function confirmReset() {
 <style lang="scss" scoped>
 .settings-page {
   min-height: 100vh;
-  transition: background 2s ease;
+  position: relative;
 }
 
 .settings-container {
+  position: relative;
+  z-index: 2;
   width: 100%;
   max-width: 600px;
   padding: 24px;
@@ -220,7 +178,8 @@ function confirmReset() {
 
 .settings-card {
   border-radius: 12px;
-  background: v-bind('themeStore.colors.cardBg');
+  background: rgba(18, 14, 34, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
   transition: all 0.3s ease;
 

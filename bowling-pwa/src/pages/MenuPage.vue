@@ -14,96 +14,49 @@
         <p class="game-subtitle">Cosmic ten-pin · real physics</p>
       </div>
 
-      <!-- Menu Buttons -->
+      <!-- pick a house: compact tile grid, then one big Bowl button -->
       <div class="menu-buttons">
-        <q-btn
-          v-for="a in alleys"
-          :key="a.id"
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="playAlley(a.id)"
-        >
-          <div class="btn-content">
-            <span class="btn-icon btn-emoji">{{ a.icon }}</span>
-            <div class="btn-text">
-              <div class="btn-label">{{ a.name }}</div>
-              <div class="btn-sublabel">{{ a.tagline }}</div>
-            </div>
-          </div>
+        <div class="alley-grid">
+          <button
+            v-for="a in alleys"
+            :key="a.id"
+            class="alley-tile"
+            :class="{ sel: a.id === settings.settings.selectedAlley }"
+            @click="selectAlley(a.id)"
+          >
+            <span class="tile-icon">{{ a.icon }}</span>
+            <span class="tile-name">{{ a.name }}</span>
+          </button>
+        </div>
+        <div class="alley-tagline">{{ selectedAlleyObj.tagline }}</div>
+
+        <q-btn unelevated size="xl" color="primary" text-color="white" class="bowl-btn" @click="playSelected">
+          <span class="bowl-label">🎳 Bowl at {{ selectedAlleyObj.name }}</span>
         </q-btn>
 
-        <q-btn unelevated size="xl" color="secondary" text-color="white" class="menu-btn" @click="showRivals = true">
-          <div class="btn-content">
-            <span class="btn-icon btn-emoji">🎳</span>
-            <div class="btn-text">
-              <div class="btn-label">Challenge a Rival</div>
-              <div class="btn-sublabel">Head-to-head vs the regulars ({{ selectedAlleyName }})</div>
+        <div class="pair-row">
+          <q-btn unelevated color="secondary" text-color="white" class="pair-btn" @click="showRivals = true">
+            <div class="pair-content"><span class="pair-icon">🤜</span><span>Rival</span></div>
+          </q-btn>
+          <q-btn unelevated color="secondary" text-color="white" class="pair-btn" @click="playTournament">
+            <div class="pair-content">
+              <RivalAvatar :id="nextTournamentRival.id" :size="22" />
+              <span>Tournament <small>R{{ bowling.tournamentStage + 1 }}/3</small></span>
             </div>
-          </div>
-        </q-btn>
-
-        <q-btn unelevated size="xl" color="secondary" text-color="white" class="menu-btn" @click="playTournament">
-          <div class="btn-content">
-            <RivalAvatar :id="nextTournamentRival.id" :size="34" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Tournament</div>
-              <div class="btn-sublabel">Round {{ bowling.tournamentStage + 1 }} of 3 — vs {{ nextTournamentRival.name }}</div>
-            </div>
-          </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="howToPlay"
-        >
-          <div class="btn-content">
-            <q-icon name="help_outline" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">How to Play</div>
-              <div class="btn-sublabel">Learn the basics</div>
-            </div>
-          </div>
-        </q-btn>
-
-        <q-btn
-          unelevated
-          size="xl"
-          color="primary"
-          text-color="white"
-          class="menu-btn"
-          @click="openSettings"
-        >
-          <div class="btn-content">
-            <q-icon name="settings" size="md" class="btn-icon" />
-            <div class="btn-text">
-              <div class="btn-label">Settings</div>
-              <div class="btn-sublabel">Haptics & theme</div>
-            </div>
-          </div>
-        </q-btn>
+          </q-btn>
+        </div>
+        <div class="pair-row">
+          <q-btn flat text-color="white" class="pair-btn pair-quiet" icon="help_outline" label="How to Play" @click="howToPlay" />
+          <q-btn flat text-color="white" class="pair-btn pair-quiet" icon="settings" label="Settings" @click="openSettings" />
+        </div>
       </div>
 
-      <!-- Progress Info -->
-      <div v-if="bowling.games > 0" class="progress-info">
-        <div class="progress-stat">
-          <q-icon name="emoji_events" size="sm" color="yellow-6" />
-          <span>Best game: {{ bowling.bestScore }}</span>
-        </div>
-        <div v-if="bowling.totalStrikes > 0" class="progress-stat">
-          <q-icon name="bolt" size="sm" color="green-4" />
-          <span>Strikes: {{ bowling.totalStrikes }}</span>
-        </div>
-        <div v-if="bowling.perfectGames > 0" class="progress-stat">
-          <q-icon name="star" size="sm" color="amber-5" />
-          <span>Perfect games: {{ bowling.perfectGames }}</span>
-        </div>
+      <!-- one-line progress strip -->
+      <div v-if="bowling.games > 0" class="progress-line">
+        <span>🏆 Best {{ bowling.bestScore }}</span>
+        <span v-if="bowling.totalStrikes > 0">⚡ {{ bowling.totalStrikes }} strikes</span>
+        <span v-if="bowling.rivalWins > 0">🤜 {{ bowling.rivalWins }} rival wins</span>
+        <span v-if="bowling.perfectGames > 0">⭐ {{ bowling.perfectGames }}×300</span>
       </div>
     </div>
     <q-dialog v-model="showRivals">
@@ -153,7 +106,7 @@ const { bowling } = storeToRefs(progressStore)
 const haptics = useHaptics()
 
 const showRivals = ref(false)
-const selectedAlleyName = computed(() => alleyById(settings.settings.selectedAlley).name)
+const selectedAlleyObj = computed(() => alleyById(settings.settings.selectedAlley))
 const nextTournamentRival = computed(() => rivalById(TOURNAMENT[Math.min(2, bowling.value.tournamentStage)]) || rivals[1])
 
 function pickAlley(id) {
@@ -170,9 +123,12 @@ function playTournament() {
   router.push({ name: 'bowl', query: { vs: nextTournamentRival.value.id, tour: 1 } })
 }
 
-function playAlley(id) {
-  haptics.medium()
+function selectAlley(id) {
+  haptics.light()
   settings.updateSetting('selectedAlley', id)
+}
+function playSelected() {
+  haptics.medium()
   router.push({ name: 'bowl' })
 }
 
@@ -270,10 +226,76 @@ function openSettings() {
 .menu-buttons {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
   max-width: 400px;
   animation: fadeInUp 0.8s ease-out 0.2s backwards;
+}
+
+.alley-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.alley-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 4px 10px;
+  border-radius: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.alley-tile.sel {
+  border-color: #6ee07a;
+  background: rgba(110, 224, 122, 0.14);
+  box-shadow: 0 0 18px rgba(110, 224, 122, 0.35);
+}
+.tile-icon { font-size: 1.6rem; line-height: 1; }
+.tile-name { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.01em; }
+
+.alley-tagline {
+  min-height: 2.2em;
+  text-align: center;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.75);
+  padding: 0 8px;
+}
+
+.bowl-btn {
+  border-radius: 16px;
+  padding: 16px 12px;
+  background: linear-gradient(120deg, rgba(123, 47, 240, 0.85), rgba(40, 120, 254, 0.85)) !important;
+  box-shadow: 0 8px 30px rgba(123, 47, 240, 0.45);
+}
+.bowl-label { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
+
+.pair-row { display: flex; gap: 10px; }
+.pair-btn {
+  flex: 1;
+  border-radius: 12px;
+  padding: 10px 6px;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.pair-btn.pair-quiet { background: transparent !important; border: none; opacity: 0.85; }
+.pair-content { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 600; }
+.pair-content small { opacity: 0.7; font-weight: 400; }
+.pair-icon { font-size: 1.1rem; }
+
+.progress-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+  animation: fadeInUp 0.8s ease-out 0.4s backwards;
 }
 
 .menu-btn {

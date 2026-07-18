@@ -1,38 +1,22 @@
 <template>
   <transition name="fade-screen">
-    <div
-      v-if="isLoading || isTransitioning"
-      class="loading-screen"
-      :style="{ background: isTransitioning ? 'transparent' : themeStore.colors.gradient }"
-    >
+    <div v-if="isLoading || isTransitioning" class="loading-screen" :class="{ ghosting: isTransitioning }">
       <div class="loading-content">
-        <!-- Logo with Animation -->
+        <!-- the sign flickers on while the house warms up -->
         <div v-if="!isTransitioning" class="logo-container">
           <h1 class="app-title">
-            <span class="title-emphasis">Alley Nights</span>
+            <span class="neon-word">ALLEY</span>
+            <span class="neon-word neon-word-alt">NIGHTS</span>
           </h1>
           <div class="tagline">Wind up, hook it, strike</div>
         </div>
 
-        <!-- Animated Zen Circle (Enso) - instantly hide during transition -->
-        <div v-if="!isTransitioning" class="zen-circle-container">
-          <svg class="zen-circle" viewBox="0 0 100 100" width="120" height="120">
-            <circle
-              cx="50"
-              cy="50"
-              r="45"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-dasharray="280"
-              stroke-dashoffset="280"
-              class="circle-path"
-            />
-          </svg>
+        <!-- a little ball rolls the strip; the pins hop when it lands -->
+        <div v-if="!isTransitioning" class="lane-loader">
+          <span class="ll-ball" />
+          <span v-for="p in 3" :key="p" class="ll-pin" :style="{ animationDelay: 0.1 * p + 's' }" />
         </div>
 
-        <!-- Loading Text - instantly hide during transition -->
         <div v-if="!isTransitioning" class="loading-text">
           {{ loadingMessage }}
         </div>
@@ -43,25 +27,22 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useThemeStore } from 'src/stores/theme'
 
-const themeStore = useThemeStore()
 const isLoading = ref(true)
 const isTransitioning = ref(false)
-const loadingMessage = ref('Mowing the greens...')
+const loadingMessage = ref('Oiling the lane…')
 
 const loadingMessages = [
-  'Mowing the greens...',
-  'Planting the flags...',
-  'Cutting the cups...',
-  'Teeing up...',
+  'Oiling the lane…',
+  'Racking the pins…',
+  'Warming up the neon…',
+  'Lacing the rentals…',
 ]
 
 let messageIndex = 0
 let messageInterval = null
 
 onMounted(() => {
-  // Cycle through loading messages
   messageInterval = setInterval(() => {
     messageIndex = (messageIndex + 1) % loadingMessages.length
     loadingMessage.value = loadingMessages[messageIndex]
@@ -70,48 +51,22 @@ onMounted(() => {
 
 // Function to hide loading screen (will be called from parent)
 function hide() {
-  if (messageInterval) {
-    clearInterval(messageInterval)
-  }
-
-  // Start transition - fade out circle and text, move title up
+  if (messageInterval) clearInterval(messageInterval)
   isTransitioning.value = true
-
-  // After the transition completes, hide the loading screen completely
   setTimeout(() => {
     isLoading.value = false
     isTransitioning.value = false
-  }, 850) // 800ms transition + 50ms overlap
+  }, 850)
 }
 
-// Once the initial transition is complete, never show the loading screen again
-// The route watcher is removed - loading screen only shows on initial app load
-
-// Expose hide method to parent
 defineExpose({ hide })
 </script>
 
 <style lang="scss" scoped>
-// Fade transitions for elements (faster fade out)
-.fade-enter-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-leave-active {
-  transition: opacity 0.15s ease; // Faster fade out
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-// Fade transition for entire screen
 .fade-screen-enter-active,
 .fade-screen-leave-active {
   transition: opacity 0.5s ease;
 }
-
 .fade-screen-enter-from,
 .fade-screen-leave-to {
   opacity: 0;
@@ -119,185 +74,131 @@ defineExpose({ hide })
 
 .loading-screen {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.5s ease;
-  pointer-events: none; // Allow clicks to pass through
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 70% at 50% 110%, rgba(123, 47, 240, 0.4), transparent 62%),
+    linear-gradient(180deg, #060410 0%, #150f2e 60%, #241b4a 100%);
+
+  &.ghosting {
+    background: transparent;
+  }
 }
 
 .loading-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 32px;
+  gap: 30px;
   width: 100%;
 }
 
 .logo-container {
   text-align: center;
-  position: relative;
-
-  // Initial fade in
   opacity: 0;
-  animation: fadeIn 1s ease-out forwards;
-}
-
-.title-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 500px;
-  height: 150px;
-  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 70%);
-  filter: blur(40px);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 0; // Above background but below text
-
-  &.glow-active {
-    animation: glowInOut 3s ease 0.8s forwards; // Wait 0.8s for title to reach position, then glow
-  }
-}
-
-@keyframes glowInOut {
-  0% {
-    opacity: 0;
-  }
-  15% {
-    opacity: 1; // Fade in over 0.45s
-  }
-  65% {
-    opacity: 1; // Stay at full glow
-  }
-  100% {
-    opacity: 0; // Fade out over 1.05s
-  }
-}
-
-@keyframes glowFadeOut {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: fadeIn 0.9s ease-out forwards;
 }
 
 .app-title {
   font-family: 'Quicksand', sans-serif;
-  font-size: 4rem;
-  font-weight: 600;
-  margin: 0;
-  padding: 0;
-  letter-spacing: -0.02em;
-  color: white;
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  line-height: 1;
+  font-size: 3.2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+}
 
-  .title-emphasis {
-    color: white;
-  }
+/* the same neon sign that hangs over the menu */
+.neon-word {
+  color: #ffe9fd;
+  text-shadow:
+    0 0 6px #ff3df0,
+    0 0 18px #ff3df0,
+    0 0 42px rgba(255, 61, 240, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+}
+.neon-word-alt {
+  color: #eafcff;
+  text-shadow:
+    0 0 6px #28d7fe,
+    0 0 18px #28d7fe,
+    0 0 42px rgba(40, 215, 254, 0.7),
+    0 2px 4px rgba(0, 0, 0, 0.6);
+  animation: neonflicker 4.5s linear infinite;
+}
+@keyframes neonflicker {
+  0%, 56%, 60.5%, 100% { opacity: 1; }
+  56.5%, 57.4% { opacity: 0.35; }
+  57.5%, 58.4% { opacity: 0.85; }
+  58.5%, 59.4% { opacity: 0.45; }
 }
 
 .tagline {
-  font-size: 1.1rem;
-  font-weight: 400;
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.04em;
 }
 
-.zen-circle-container {
+/* the loader: ball rolls the strip, pins hop */
+.lane-loader {
   position: relative;
-  animation: fadeIn 1s ease-out 0.5s backwards;
+  width: 210px;
+  height: 44px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 22px -10px rgba(123, 47, 240, 0.8);
+  overflow: hidden;
+  opacity: 0;
+  animation: fadeIn 0.9s ease-out 0.2s forwards;
 }
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.ll-ball {
+  position: absolute;
+  bottom: 2px;
+  left: -26px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #6f9fe0, #2a5db0 60%, #142c56);
+  animation: llroll 1.5s cubic-bezier(0.35, 0, 0.7, 1) infinite;
 }
-
-.zen-circle {
-  color: rgba(255, 255, 255, 0.9);
-  filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5));
+@keyframes llroll {
+  0% { transform: translateX(0) rotate(0); }
+  100% { transform: translateX(236px) rotate(540deg); }
 }
-
-.circle-path {
-  animation: drawCircle 2s ease-in-out infinite;
+.ll-pin {
+  position: absolute;
+  bottom: 2px;
+  width: 8px;
+  height: 22px;
+  border-radius: 4px 4px 3px 3px;
+  background: #f4f0ff;
+  box-shadow: 0 0 8px rgba(244, 240, 255, 0.7);
+  animation: llhop 1.5s ease-in-out infinite;
 }
-
-@keyframes drawCircle {
-  0% {
-    stroke-dashoffset: 280;
-    opacity: 0.5;
-  }
-  50% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  100% {
-    stroke-dashoffset: -280;
-    opacity: 0.5;
-  }
+.ll-pin:nth-child(2) { right: 34px; }
+.ll-pin:nth-child(3) { right: 22px; }
+.ll-pin:nth-child(4) { right: 10px; }
+@keyframes llhop {
+  0%, 78%, 100% { transform: translateY(0) rotate(0); }
+  86% { transform: translateY(-14px) rotate(18deg); }
+  93% { transform: translateY(-4px) rotate(-8deg); }
 }
 
 .loading-text {
-  font-size: 14px;
+  font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.7);
-  letter-spacing: 1px;
-  animation: pulse 2s ease-in-out infinite;
-  text-align: center;
+  letter-spacing: 0.03em;
+  opacity: 0;
+  animation: fadeIn 0.9s ease-out 0.35s forwards;
 }
 
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-// Mobile responsiveness
-@media (max-width: 600px) {
-  .app-title {
-    font-size: 48px !important;
-  }
-
-  .tagline {
-    font-size: 14px;
-  }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

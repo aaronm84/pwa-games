@@ -1,7 +1,7 @@
 <template>
   <q-page class="how-to-play-page">
-    <!-- Dynamic Background -->
-    <DynamicBackground />
+    <!-- the house at night -->
+    <AlleyBackdrop />
 
     <!-- Content -->
     <div class="content-wrapper">
@@ -109,7 +109,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useHaptics } from 'src/composables/useHaptics'
-import DynamicBackground from 'src/components/DynamicBackground.vue'
+import AlleyBackdrop from 'src/components/AlleyBackdrop.vue'
 
 const router = useRouter()
 const haptics = useHaptics()
