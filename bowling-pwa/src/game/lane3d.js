@@ -563,22 +563,20 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
     rope.position.set(mx, 1.96, mz)
     put(rope, '#5f3d1c')
 
-    // the plaque: a tall rounded board, sometimes with an arched top
-    const plaque = MeshBuilder.CreateBox('mPlaque', { width: 0.56, height: 0.92, depth: 0.14 }, scene)
+    // the plaque: a rounded lozenge (capsule), like a carved palm bole —
+    // no corners anywhere; some masks run wider in the belly
+    const plaque = MeshBuilder.CreateCapsule('mPlaque', { radius: 0.28, height: 1.0, orientation: new Vector3(0, 1, 0), tessellation: 20, capSubdivisions: 8 }, scene)
+    plaque.scaling.z = 0.25
+    if (rnd() < 0.5) plaque.scaling.x = 1.04 + rnd() * 0.14
     plaque.position.set(mx, my, mz)
     put(plaque, wood)
-    if (rnd() < 0.6) {
-      const arch = MeshBuilder.CreateCylinder('mArch', { diameter: 0.56, height: 0.14, tessellation: 20 }, scene)
-      arch.rotation.x = Math.PI / 2
-      arch.position.set(mx, my + 0.46, mz)
-      put(arch, wood)
-    }
 
     // ---- eyes: a goggle band or two big rims, cream lenses, dark pupils ----
     const eyeY = my + 0.22
     const glowingPupils = rnd() < 0.5
     if (rnd() < 0.5) {
-      const band = MeshBuilder.CreateBox('mBand', { width: 0.56, height: 0.17, depth: 0.03 }, scene)
+      const band = MeshBuilder.CreateCapsule('mBand', { radius: 0.085, height: 0.56, orientation: new Vector3(1, 0, 0), tessellation: 14, capSubdivisions: 6 }, scene)
+      band.scaling.z = 0.3
       band.position.set(mx, eyeY, zf - 0.02)
       put(band, accentA)
     } else {
@@ -590,54 +588,47 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
       }
     }
     for (const sd of [-1, 1]) {
-      const lens = MeshBuilder.CreateCylinder('mLens', { diameter: 0.14, height: 0.03, tessellation: 16 }, scene)
-      lens.rotation.x = Math.PI / 2
+      const lens = MeshBuilder.CreateSphere('mLens', { diameterX: 0.15, diameterY: 0.13, diameterZ: 0.05, segments: 14 }, scene)
       lens.position.set(mx + sd * 0.135, eyeY, zf)
       put(lens, CREAM)
-      const pupil = MeshBuilder.CreateCylinder('mPupil', { diameter: 0.055, height: 0.03, tessellation: 12 }, scene)
-      pupil.rotation.x = Math.PI / 2
-      pupil.position.set(mx + sd * 0.135, eyeY, zf + 0.02)
+      const pupil = MeshBuilder.CreateSphere('mPupil', { diameterX: 0.06, diameterY: 0.065, diameterZ: 0.04, segments: 10 }, scene)
+      pupil.position.set(mx + sd * 0.135, eyeY, zf + 0.025)
       put(pupil, glowingPupils ? '#ffab3a' : DARK, glowingPupils)
     }
 
     // nose: a little wedge between the eyes
-    const nose = MeshBuilder.CreateCylinder('mNose', { diameterTop: 0, diameterBottom: 0.1, height: 0.14, tessellation: 4 }, scene)
-    nose.rotation.x = -Math.PI / 2
-    nose.position.set(mx, my + 0.05, zf)
+    const nose = MeshBuilder.CreateSphere('mNose', { diameterX: 0.09, diameterY: 0.17, diameterZ: 0.08, segments: 12 }, scene)
+    nose.position.set(mx, my + 0.04, zf)
     put(nose, pick([accentB, wood]))
 
     // ---- the mouth: HUGE, lipped, toothy — the whole lower half ----
     const mw = 0.4 + rnd() * 0.06
     const mh = 0.2 + rnd() * 0.08
     const mouY = my - 0.21
-    const inner = MeshBuilder.CreateBox('mMouth', { width: mw, height: mh, depth: 0.03 }, scene)
-    inner.position.set(mx, mouY, zf - 0.01)
+    const inner = MeshBuilder.CreateSphere('mMouth', { diameterX: mw, diameterY: mh, diameterZ: 0.045, segments: 16 }, scene)
+    inner.position.set(mx, mouY, zf - 0.005)
     put(inner, rnd() < 0.5 ? CREAM : DARK)
     const lipC = pick([accentA, '#e8342f'])
-    const lipT = MeshBuilder.CreateBox('mLipT', { width: mw + 0.09, height: 0.05, depth: 0.045 }, scene)
-    lipT.position.set(mx, mouY + mh / 2 + 0.02, zf)
-    put(lipT, lipC)
-    const lipB = MeshBuilder.CreateBox('mLipB', { width: mw + 0.09, height: 0.05, depth: 0.045 }, scene)
-    lipB.position.set(mx, mouY - mh / 2 - 0.02, zf)
-    put(lipB, lipC)
-    for (const sd of [-1, 1]) {
-      const lipS = MeshBuilder.CreateBox('mLipS', { width: 0.05, height: mh + 0.09, depth: 0.045 }, scene)
-      lipS.position.set(mx + sd * (mw / 2 + 0.02), mouY, zf)
-      put(lipS, lipC)
-    }
+    // one fat lip ring: a torus squashed into the mouth's oval
+    const lip = MeshBuilder.CreateTorus('mLip', { diameter: mw, thickness: 0.06, tessellation: 26 }, scene)
+    lip.rotation.x = Math.PI / 2
+    lip.scaling.z = mh / mw // torus lies in xz after the rotation; z is mouth height
+    lip.position.set(mx, mouY, zf)
+    put(lip, lipC)
     // teeth: a row hanging from the top lip, sometimes rising from the bottom
     const nTeeth = 3 + Math.floor(rnd() * 2)
+    const span = mw * 0.62
     for (let t = 0; t < nTeeth; t++) {
-      const tx = mx - mw / 2 + (t + 0.5) * (mw / nTeeth)
-      const tooth = MeshBuilder.CreateCylinder('mTooth', { diameterTop: 0.06, diameterBottom: 0, height: 0.09, tessellation: 4 }, scene)
-      tooth.position.set(tx, mouY + mh / 2 - 0.045, zf + 0.005)
+      const tx = mx - span / 2 + (t + 0.5) * (span / nTeeth)
+      const tooth = MeshBuilder.CreateCylinder('mTooth', { diameterTop: 0.055, diameterBottom: 0, height: 0.085, tessellation: 12 }, scene)
+      tooth.position.set(tx, mouY + mh / 2 - 0.05, zf + 0.01)
       put(tooth, CREAM)
     }
     if (rnd() < 0.5) {
       for (let t = 0; t < nTeeth - 1; t++) {
-        const tx = mx - mw / 2 + (t + 1) * (mw / nTeeth)
-        const tooth = MeshBuilder.CreateCylinder('mToothB', { diameterTop: 0, diameterBottom: 0.055, height: 0.08, tessellation: 4 }, scene)
-        tooth.position.set(tx, mouY - mh / 2 + 0.04, zf + 0.005)
+        const tx = mx - span / 2 + (t + 1) * (span / nTeeth)
+        const tooth = MeshBuilder.CreateCylinder('mToothB', { diameterTop: 0, diameterBottom: 0.05, height: 0.075, tessellation: 12 }, scene)
+        tooth.position.set(tx, mouY - mh / 2 + 0.045, zf + 0.01)
         put(tooth, CREAM)
       }
     } else if (rnd() < 0.5) {
@@ -654,7 +645,7 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
       const n = 5 + Math.floor(rnd() * 3)
       for (let f = 0; f < n; f++) {
         const k = f - (n - 1) / 2
-        const spike = MeshBuilder.CreateCylinder('mSpike', { diameterTop: 0, diameterBottom: 0.07, height: 0.2 + (1 - Math.abs(k) / n) * 0.14, tessellation: 4 }, scene)
+        const spike = MeshBuilder.CreateCylinder('mSpike', { diameterTop: 0, diameterBottom: 0.07, height: 0.2 + (1 - Math.abs(k) / n) * 0.14, tessellation: 12 }, scene)
         spike.position.set(mx + k * 0.08, topY + 0.06, mz)
         spike.rotation.z = -k * 0.3
         put(spike, f % 2 ? accentA : accentB)
@@ -681,7 +672,8 @@ function buildMaskWall(scene, totalW, track, freeze, mats) {
 
     // ---- painted band or leaf skirt along the chin ----
     if (rnd() < 0.55) {
-      const bandB = MeshBuilder.CreateBox('mBase', { width: 0.56, height: 0.1, depth: 0.03 }, scene)
+      const bandB = MeshBuilder.CreateCapsule('mBase', { radius: 0.055, height: 0.5, orientation: new Vector3(1, 0, 0), tessellation: 12, capSubdivisions: 5 }, scene)
+      bandB.scaling.z = 0.4
       bandB.position.set(mx, my - 0.4, zf - 0.02)
       put(bandB, pick([accentB, ...GREENS]))
     } else {
