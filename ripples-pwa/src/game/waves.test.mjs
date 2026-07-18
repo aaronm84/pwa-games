@@ -1,0 +1,127 @@
+// Headless checks for the pure wave model + level generator: node src/game/waves.test.mjs
+import {
+  TAP_CONFIGS,
+  createRipple,
+  ripplePower,
+  stepRipples,
+  collideRipples,
+  powerAt,
+  updateLotus,
+  surfaceHeight,
+  strengthFor,
+} from './waves.js'
+import { generateLevel } from './levels.js'
+
+let failed = 0
+function check(name, cond) {
+  if (!cond) {
+    failed++
+    console.error('✗', name)
+  } else {
+    console.log('✓', name)
+  }
+}
+
+// hold-duration → strength buckets
+check('short hold is light', strengthFor(80) === 'light')
+check('normal hold is medium', strengthFor(250) === 'medium')
+check('long hold is strong', strengthFor(600) === 'strong')
+
+// the power curve: born weak, peaks at peakRadius, dead past 2.33×
+{
+  const { peakRadius, peakPower } = TAP_CONFIGS.medium
+  check('power at birth is tiny', ripplePower(0.01, peakRadius, peakPower) < 0.01)
+  check('power peaks at peakRadius', Math.abs(ripplePower(peakRadius, peakRadius, peakPower) - peakPower) < 1e-9)
+  check('power dies past 2.33×peak', ripplePower(peakRadius * 2.4, peakRadius, peakPower) === 0)
+  const mid = ripplePower(peakRadius * 0.5, peakRadius, peakPower)
+  check('rise zone is between birth and peak', mid > 0.2 * peakPower && mid < peakPower)
+}
+
+// wavefronts advance with dt and expire at maxRadius
+{
+  let ripples = [createRipple(0, 0, 'light', () => 0.5)]
+  const r = ripples[0]
+  const speed = r.speed
+  ripples = stepRipples(ripples, 0.5)
+  check('radius advances by speed*dt', Math.abs(r.radius - speed * 0.5) < 1e-9)
+  for (let i = 0; i < 100; i++) ripples = stepRipples(ripples, 0.5)
+  check('expired wavefronts drop out', ripples.length === 0)
+}
+
+// stones reflect once; lily pads absorb once
+{
+  const ripple = createRipple(0, 0, 'medium', () => 0.5)
+  ripple.radius = 3
+  const stones = [{ id: 's1', x: 3, z: 0, radius: 0.7 }]
+  const pads = [{ id: 'p1', x: 0, z: 3, radius: 1.1 }]
+  const before = ripple.peakPower
+  const born = collideRipples([ripple], stones, pads)
+  check('stone reflection spawns a child wavefront', born.length === 1)
+  check('child is weaker', born[0].peakPower < before)
+  check('child originates at the stone face', Math.abs(born[0].x - (3 - 0.7)) < 1e-9)
+  check('pad absorption halves power', Math.abs(ripple.peakPower - before * 0.5) < 1e-9)
+  const born2 = collideRipples([ripple], stones, pads)
+  check('reflection and absorption fire once per obstacle', born2.length === 0 && ripple.peakPower === before * 0.5)
+}
+
+// interference: two coincident wavefronts beat one
+{
+  const a = createRipple(-3.75, 0, 'medium', () => 0.5)
+  const b = createRipple(3.75, 0, 'medium', () => 0.5)
+  a.radius = 3.75
+  b.radius = 3.75
+  const single = powerAt(0, 0, [a])
+  const both = powerAt(0, 0, [a, b])
+  check('two wavefronts exceed 2× one (constructive bonus)', both > single * 2)
+}
+
+// a passing peak wave activates a lotus instantly; accumulation also works
+{
+  const lotus = { x: 0, z: 0, threshold: 0.7, isActivated: false, accumulatedPower: 0 }
+  const r = createRipple(-TAP_CONFIGS.medium.peakRadius, 0, 'medium', () => 0.5)
+  r.radius = TAP_CONFIGS.medium.peakRadius
+  check('peak wavefront activates instantly', updateLotus(lotus, [r], 1 / 60) && lotus.isActivated)
+
+  const slow = { x: 0, z: 0, threshold: 0.7, isActivated: false, accumulatedPower: 0 }
+  const weak = createRipple(-TAP_CONFIGS.medium.peakRadius, 0, 'medium', () => 0.5)
+  weak.radius = TAP_CONFIGS.medium.peakRadius
+  weak.peakPower = 0.5 // below threshold — must accumulate
+  let frames = 0
+  while (!slow.isActivated && frames < 2000) {
+    updateLotus(slow, [weak], 1 / 60)
+    frames++
+  }
+  check('weak waves accumulate to activation', slow.isActivated && frames > 5)
+}
+
+// the water surface: displaced at the wavefront, calm far away
+{
+  const r = createRipple(0, 0, 'strong', () => 0.5)
+  r.radius = 4
+  const atFront = Math.abs(surfaceHeight(4, 0, [r], 0))
+  const farAway = Math.abs(surfaceHeight(20, 20, [r], 0)) // beyond packet + swell ~0.024
+  check('surface moves at the wavefront', atFront > 0.02)
+  check('surface is calm far from the wavefront', farAway < 0.03)
+}
+
+// levels: deterministic, in-bounds, curve matches the 2D tuning
+{
+  const a = generateLevel(7)
+  const b = generateLevel(7)
+  check('same level number → same pond', JSON.stringify(a) === JSON.stringify(b))
+  check('level 1 has 2 flowers', generateLevel(1).lotus.length === 2)
+  check('level 20 caps at 5 flowers', generateLevel(20).lotus.length === 5)
+  check('level 1 has no stones', generateLevel(1).stones.length === 0)
+  check('level 10 has stones', generateLevel(10).stones.length > 0)
+  check('level 10 has drifting pads', generateLevel(10).pads.length > 0)
+  const lv = generateLevel(15)
+  const inBounds = [...lv.lotus, ...lv.stones].every((o) => Math.hypot(o.x, o.z) < lv.R)
+  check('everything sits inside the pond', inBounds)
+  check('taps allowed ≥ optimal', lv.tapsAllowed >= lv.optimalTaps)
+}
+
+if (failed) {
+  console.error(`\n${failed} check(s) failed`)
+  process.exit(1)
+}
+console.log('\nall wave checks passed')
