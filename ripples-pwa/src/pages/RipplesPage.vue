@@ -331,6 +331,7 @@ async function boot() {
       lotus: level.lotus.map((l) => ({ x: l.x, z: l.z, on: l.isActivated, sink: l.sinkProgress || 0 })),
       pads: pads.items.map((p) => ({ x: p.mesh.position.x, z: p.mesh.position.z })),
       backend: backend.value,
+      aim: aimAngle,
       won: showWinDialog.value,
       lost: showLoseDialog.value,
       throw: (power, angle, curve) => doThrow(power ?? 0.8, angle ?? 0, curve ?? 0),
@@ -355,6 +356,7 @@ function buildLevel() {
   lotuses = buildLotuses(scene, shadow, level.lotus, pal)
   pads = buildDriftingPads(scene, shadow, level.pads, level.R)
   skipper = buildSkipper(scene, shadow, pal, thrower)
+  glow?.addExcludedMesh(skipper.guideMesh) // an aim guide, not a laser
   skipper.rest(0, aimAngle)
   skipper.setAiming(true, 0)
 }
@@ -397,7 +399,9 @@ function onSwing(g) {
   }
   if (gestureMode === 'aim') {
     // slide to sweep the line across the pond
-    aimAngle = Math.max(-0.45, Math.min(0.45, aimAtSwingStart + g.ndx * 1.5))
+    // screen-right is world -x in this view, so the finger's dx is negated:
+    // slide right, aim right, stone goes right
+    aimAngle = Math.max(-0.45, Math.min(0.45, aimAtSwingStart - g.ndx * 1.5))
     skipper.rest(0, aimAngle)
   } else if (gestureMode === 'swing') {
     windupK = Math.max(0, Math.min(1, g.dy / 240))
@@ -449,14 +453,14 @@ function onRelease() {
     Math.min(1, backswing * 0.5 + Math.min(1, snapPx / 300) * 0.3 + Math.min(1, snapSpeed / 1.5) * 0.35),
   )
   // lateral drift during the snap bends the flight
-  const curve = Math.max(-3, Math.min(3, ((end.dx - bottom.dx) / snapMs) * 4))
+  const curve = Math.max(-3, Math.min(3, (-(end.dx - bottom.dx) / snapMs) * 4)) // snap right bends right
 
   doThrow(power, aimAngle, curve)
 }
 
 function doThrow(power, angle, curve) {
   if (!canThrow()) return
-  flyingStone = throwStone(thrower.x, thrower.z, { angle, power, curve })
+  flyingStone = throwStone(thrower.x, thrower.z - 3.0, { angle, power, curve })
   stonesRemaining.value--
   stonesUsed.value++
   gameStarted.value = true

@@ -156,12 +156,16 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('aim angle steers the throw', aimed.stone.x > 1)
 }
 
-// skip ripples scale with impact speed
+// skip ripples scale with impact speed — and big waves are EARNED
 {
-  const fast = skipRipple(0, 0, 14)
+  const fast = skipRipple(0, 0, 17)
+  const mid = skipRipple(0, 0, 11)
   const slow = skipRipple(0, 0, 4)
   check('a hard smack out-ripples a tired hop', fast.peakPower > slow.peakPower && fast.peakRadius > slow.peakRadius)
   check('skip ripples die at their natural radius', Math.abs(fast.maxRadius - fast.peakRadius * 2.33) < 1e-9)
+  check('only a crisp early skip makes a full-power wave', fast.peakPower >= 0.95)
+  check('a mid-flight hop cannot wake a flower alone', mid.peakPower < 0.65)
+  check('a dying hop barely stirs the water', slow.peakPower <= 0.3)
 }
 
 if (failed) {
