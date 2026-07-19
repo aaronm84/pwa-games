@@ -767,27 +767,28 @@ function buildWaterfall(scene, shadow, wf, pal) {
   // the shelf: three tiers of boulders stacked into a spill
   const rockMat = pbr(scene, { color: '#8f8574', rough: 0.95, name: 'fallsRockMat' })
   mats.push(rockMat)
-  const tiers = [
-    { h: 1.35 * s, off: 0.75, w: 1.9 },
-    { h: 0.8 * s, off: 0.35, w: 2.3 },
-    { h: 0.32 * s, off: -0.05, w: 2.7 },
-  ]
+  // the shelf: a rock crest with a NOTCH the water spills through. The
+  // sheet's top edge hides behind the crest stones, so the fall visibly
+  // originates from the rocks — never from thin air above them.
   const bits = []
-  for (const tier of tiers) {
-    for (let i = 0; i < 3; i++) {
-      const lat = (i - 1) * tier.w * 0.42 + (rnd() - 0.5) * 0.3
-      const d = 0.8 + rnd() * 0.5
-      const b = MeshBuilder.CreateIcoSphere('fallsBoulder', { radius: d / 2, subdivisions: 1, flat: true }, scene)
-      b.scaling.set(1.2 + rnd() * 0.4, 0.75 + rnd() * 0.3, 1 + rnd() * 0.4)
-      b.rotation.y = rnd() * Math.PI * 2
-      b.position.set(
-        wf.x + nx * tier.off + tx * lat,
-        tier.h * 0.55,
-        wf.z + nz * tier.off + tz * lat,
-      )
-      bits.push(b)
-    }
+  const stone = (lat, off, y, d) => {
+    const b = MeshBuilder.CreateIcoSphere('fallsBoulder', { radius: d / 2, subdivisions: 1, flat: true }, scene)
+    b.scaling.set(1.15 + rnd() * 0.4, 0.7 + rnd() * 0.3, 1 + rnd() * 0.4)
+    b.rotation.y = rnd() * Math.PI * 2
+    b.position.set(wf.x + nx * off + tx * lat, y, wf.z + nz * off + tz * lat)
+    bits.push(b)
   }
+  // crest flanking the notch
+  stone(-0.8 * s, 0.5, 0.88 * s, 0.95 * s)
+  stone(0.82 * s, 0.45, 0.85 * s, 0.95 * s)
+  // the tall back stone the spill emerges in front of
+  stone(0, 0.9, 0.75 * s, 1.25 * s)
+  // aprons of lower boulders breaking the fall
+  stone(-0.85 * s, 0.15, 0.38 * s, 0.9 * s)
+  stone(0.9 * s, 0.1, 0.34 * s, 0.85 * s)
+  stone(-0.5 * s, -0.1, 0.12 * s, 0.7 * s)
+  stone(0.55 * s, -0.05, 0.1 * s, 0.75 * s)
+  stone(0.05 * s, 0.35, 0.3 * s, 0.85 * s)
   const shelf = Mesh.MergeMeshes(bits, true, true)
   if (shelf) {
     shelf.material = rockMat
@@ -848,7 +849,8 @@ function buildWaterfall(scene, shadow, wf, pal) {
       const v = r / rows
       const y = h * (1 - v)
       const out = bend * (0.1 + 0.8 * Math.pow(v, 1.7)) // hugs the lip, flares at the base
-      const width = w * (1 - 0.22 * v)
+      // narrow at the notch, widening as the water falls and sprays
+      const width = w * (0.55 + 0.5 * v)
       for (let c = 0; c <= cols; c++) {
         const u = c / cols
         const lat = (u - 0.5) * width
@@ -878,16 +880,18 @@ function buildWaterfall(scene, shadow, wf, pal) {
     return mesh
   }
 
-  const sheet = makeCurvedSheet('fallsSheet', 1.05 * s, 1.5 * s, 0.75, sheetMat)
-  sheet.position.set(wf.x - nx * 0.28, 0.02, wf.z - nz * 0.28)
+  // the sheet tops out just below the crest stones' shoulders, in front of
+  // the tall back stone — the water reads as coming out of the rocks
+  const sheet = makeCurvedSheet('fallsSheet', 1.05 * s, 0.98 * s, 0.7, sheetMat)
+  sheet.position.set(wf.x - nx * 0.2, 0.02, wf.z - nz * 0.2)
   sheet.rotation.y = yaw
   meshes.push(sheet)
 
   const sheet2Mat = sheetMat.clone('fallsSheet2Mat')
   sheet2Mat.alpha = 0.5
   mats.push(sheet2Mat)
-  const sheet2 = makeCurvedSheet('fallsSheet2', 0.5 * s, 1.15 * s, 0.9, sheet2Mat)
-  sheet2.position.set(wf.x - nx * 0.34 + tx * 0.32, 0.02, wf.z - nz * 0.34 + tz * 0.32)
+  const sheet2 = makeCurvedSheet('fallsSheet2', 0.5 * s, 0.8 * s, 0.85, sheet2Mat)
+  sheet2.position.set(wf.x - nx * 0.26 + tx * 0.18, 0.02, wf.z - nz * 0.26 + tz * 0.18)
   sheet2.rotation.y = yaw
   meshes.push(sheet2)
 
