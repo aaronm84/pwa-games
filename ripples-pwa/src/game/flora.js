@@ -225,6 +225,75 @@ export function buildLettuces(scene, shadow, lettuces) {
   }
 }
 
+// ---- canna stands: broad upright leaves under an orange bloom spike --------
+// Bank plants for the rock garden — they don't ride the water, they just
+// breathe in the breeze beside the falls.
+export function buildCannas(scene, shadow, cannas) {
+  if (!cannas?.length) return { update() {}, dispose() {} }
+  const leafMat = pbr(scene, { color: '#3f7d2f', rough: 0.7, name: 'cannaLeaf' })
+  leafMat.backFaceCulling = false
+  const bloomMat = pbr(scene, { color: '#e8722a', rough: 0.55, name: 'cannaBloom' })
+  bloomMat.emissiveColor = Color3.FromHexString('#e8722a').scale(0.16)
+  const stemMat = pbr(scene, { color: '#4a7a30', rough: 0.8, name: 'cannaStem' })
+  const items = []
+  for (const C of cannas) {
+    const out = { positions: [], indices: [], sway: [] }
+    const leaves = 5 + Math.floor((C.seed * 10) % 2)
+    for (let i = 0; i < leaves; i++) {
+      const a = C.seed + (i / leaves) * Math.PI * 2 + Math.sin(i * 5.1) * 0.3
+      const dir = { x: Math.cos(a), z: Math.sin(a) }
+      const h = C.scale * (0.85 + ((i * 31) % 7) / 14)
+      addRibbon(out, { x: 0, z: 0 }, dir, {
+        length: C.scale * 0.32,
+        height: h,
+        tipDrop: 0.8, // broad blades stand tall, tips barely nod
+        widthFn: (t) => Math.sin(Math.min(1, 0.18 + t * 0.9) * Math.PI) * C.scale * 0.15 + 0.012,
+        cup: 0.32,
+        segments: 7,
+        phase: C.seed + i * 1.7,
+        sway: 0,
+      })
+    }
+    const stand = buildMeshFromRibbons(scene, 'canna', out, leafMat)
+    stand.position.set(C.x, 0.3, C.z)
+    shadow?.addShadowCaster(stand)
+
+    // the bloom spike: a tall stem carrying a cluster of flame-orange florets
+    const spikeH = C.scale * 1.35
+    const stem = MeshBuilder.CreateCylinder('cannaSpike', { height: spikeH, diameterBottom: 0.045, diameterTop: 0.028, tessellation: 6 }, scene)
+    stem.material = stemMat
+    stem.parent = stand
+    stem.position.y = spikeH / 2
+    stem.isPickable = false
+    const nF = 3 + (C.blooms || 2)
+    for (let i = 0; i < nF; i++) {
+      const f = MeshBuilder.CreateSphere('cannaFloret', { diameterX: 0.14 * C.scale, diameterY: 0.2 * C.scale, diameterZ: 0.14 * C.scale, segments: 6 }, scene)
+      const fa = C.seed + i * 2.4
+      const fr = i === 0 ? 0 : 0.07 * C.scale
+      f.position.set(Math.cos(fa) * fr, spikeH + (i / nF) * 0.22 * C.scale, Math.sin(fa) * fr)
+      f.material = bloomMat
+      f.parent = stand
+      f.isPickable = false
+    }
+    shadow?.addShadowCaster(stem)
+    items.push({ stand, C })
+  }
+  return {
+    update(t) {
+      for (const it of items) {
+        it.stand.rotation.z = Math.sin(t * 0.6 + it.C.seed * 3) * 0.02
+        it.stand.rotation.x = Math.sin(t * 0.45 + it.C.seed * 7) * 0.015
+      }
+    },
+    dispose() {
+      for (const it of items) it.stand.dispose(false, true)
+      leafMat.dispose()
+      bloomMat.dispose()
+      stemMat.dispose()
+    },
+  }
+}
+
 // ---- water hyacinth: rounded paddle leaves around a violet bloom -----------
 export function buildHyacinths(scene, shadow, hyacinths) {
   const leafMat = pbr(scene, { color: '#5d9c3e', rough: 0.6, name: 'hyacinthLeaf' })

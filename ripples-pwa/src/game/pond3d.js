@@ -14,8 +14,8 @@ import {
   Scene,
   pbr,
 } from 'src/engine'
-import { surfaceHeight, ripplePower } from './waves.js'
-import { buildTufts, buildLettuces, buildHyacinths, warpPadMesh } from './flora.js'
+import { surfaceHeight, ripplePower, stepRipples } from './waves.js'
+import { buildTufts, buildLettuces, buildHyacinths, buildCannas, warpPadMesh } from './flora.js'
 
 // Time-of-day palettes for the pond (the page picks by theme period key).
 // Beyond material colors, each period carries its sky (a vertical gradient
@@ -666,6 +666,324 @@ function buildFringePads(scene, fringePads) {
   }
 }
 
+// ---- boulder banks: the rock-garden rim ------------------------------------
+// Two rows of flat-shaded boulders replace the smooth earthen lip: a
+// shoulder-height outer row on the bank crest, and a half-submerged inner
+// row at the waterline. Merged per tone to keep draw calls flat.
+function buildRockBanks(scene, R) {
+  const tones = ['#8a8578', '#9a8468', '#a08578']
+  let seed = 41
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const groups = [[], [], []]
+  const drop = (x, z, d, y, squash) => {
+    const b = MeshBuilder.CreateIcoSphere('boulder', { radius: d / 2, subdivisions: 1, flat: true }, scene)
+    b.scaling.set(1 + rnd() * 0.5, squash, 1 + rnd() * 0.5)
+    b.rotation.y = rnd() * Math.PI * 2
+    b.position.set(x, y, z)
+    groups[Math.floor(rnd() * 3)].push(b)
+  }
+  // outer row: the crest boulders
+  for (let i = 0; i < 36; i++) {
+    const a = rnd() * Math.PI * 2
+    const rr = R + 0.35 + rnd() * 1.1
+    const x = Math.cos(a) * rr
+    const z = Math.sin(a) * rr
+    if (z > R - 4.5 && Math.abs(x) < 5) continue // throw corridor stays clear
+    drop(x, z, 0.55 + rnd() * 0.65, 0.3 + rnd() * 0.12, 0.55 + rnd() * 0.35)
+  }
+  // inner row: smaller stones half in the water
+  for (let i = 0; i < 22; i++) {
+    const a = rnd() * Math.PI * 2
+    const rr = R - 0.25 - rnd() * 0.5
+    const x = Math.cos(a) * rr
+    const z = Math.sin(a) * rr
+    if (z > R - 5 && Math.abs(x) < 5) continue
+    drop(x, z, 0.3 + rnd() * 0.35, 0.02 + rnd() * 0.05, 0.5 + rnd() * 0.3)
+  }
+  const out = []
+  const mats = []
+  groups.forEach((g, i) => {
+    if (!g.length) return
+    const merged = Mesh.MergeMeshes(g, true, true)
+    if (!merged) return
+    const m = pbr(scene, { color: tones[i], rough: 0.95, name: `boulderMat${i}` })
+    merged.material = m
+    merged.receiveShadows = true
+    merged.isPickable = false
+    merged.freezeWorldMatrix()
+    out.push(merged)
+    mats.push(m)
+  })
+  return {
+    dispose() {
+      for (const m of out) m.dispose()
+      for (const m of mats) m.dispose()
+    },
+  }
+}
+
+// ---- the waterfall ---------------------------------------------------------
+// A boulder shelf on the far bank spilling two scrolling water sheets into a
+// foam ring. It keeps its own little wavefronts — perpetual gentle ripples
+// at the base that the pond surface rides but gameplay never feels (they die
+// ~3 units short of the throw fan, and live outside the page's ripple list).
+function buildWaterfall(scene, shadow, wf, pal) {
+  if (!wf) return null
+  const meshes = []
+  const mats = []
+  const len = Math.hypot(wf.x, wf.z)
+  const nx = wf.x / len // outward from pond center
+  const nz = wf.z / len
+  const tx = -nz // tangent along the bank
+  const tz = nx
+  const s = wf.scale
+  const yaw = Math.atan2(nx, nz)
+
+  let seed = Math.max(2, Math.floor(wf.seed * 1000) % 1000)
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+
+  // the shelf: three tiers of boulders stacked into a spill
+  const rockMat = pbr(scene, { color: '#8f8574', rough: 0.95, name: 'fallsRockMat' })
+  mats.push(rockMat)
+  const tiers = [
+    { h: 1.35 * s, off: 0.75, w: 1.9 },
+    { h: 0.8 * s, off: 0.35, w: 2.3 },
+    { h: 0.32 * s, off: -0.05, w: 2.7 },
+  ]
+  const bits = []
+  for (const tier of tiers) {
+    for (let i = 0; i < 3; i++) {
+      const lat = (i - 1) * tier.w * 0.42 + (rnd() - 0.5) * 0.3
+      const d = 0.8 + rnd() * 0.5
+      const b = MeshBuilder.CreateIcoSphere('fallsBoulder', { radius: d / 2, subdivisions: 1, flat: true }, scene)
+      b.scaling.set(1.2 + rnd() * 0.4, 0.75 + rnd() * 0.3, 1 + rnd() * 0.4)
+      b.rotation.y = rnd() * Math.PI * 2
+      b.position.set(
+        wf.x + nx * tier.off + tx * lat,
+        tier.h * 0.55,
+        wf.z + nz * tier.off + tz * lat,
+      )
+      bits.push(b)
+    }
+  }
+  const shelf = Mesh.MergeMeshes(bits, true, true)
+  if (shelf) {
+    shelf.material = rockMat
+    shelf.receiveShadows = true
+    shelf.isPickable = false
+    shelf.freezeWorldMatrix()
+    shadow?.addShadowCaster(shelf)
+    meshes.push(shelf)
+  }
+
+  // the falling water: vertical streaks on a scrolling texture, drawn twice
+  // (a broad slow sheet and a narrow fast one) as additive light
+  const tex = new DynamicTexture('fallsTex', { width: 64, height: 256 }, scene, false)
+  const ctx = tex.getContext()
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, 64, 256)
+  for (let i = 0; i < 26; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.5})`
+    const x = rnd() * 64
+    const w = 1 + rnd() * 2.5
+    const y0 = rnd() * 256
+    const h = 60 + rnd() * 196
+    ctx.fillRect(x, y0, w, h)
+    if (y0 + h > 256) ctx.fillRect(x, 0, w, y0 + h - 256) // wrap the streak
+  }
+  tex.update()
+  tex.wrapV = 1
+  mats.push(tex)
+
+  const sheetMat = new StandardMaterial('fallsSheetMat', scene)
+  sheetMat.emissiveTexture = tex
+  sheetMat.emissiveColor = Color3.FromHexString(mixHex('#dff2ff', pal.glitter, 0.35))
+  sheetMat.opacityTexture = tex
+  sheetMat.disableLighting = true
+  sheetMat.alpha = 0.62
+  sheetMat.backFaceCulling = false
+  mats.push(sheetMat)
+  const sheet = MeshBuilder.CreatePlane('fallsSheet', { width: 1.15 * s, height: 1.62 * s }, scene)
+  sheet.position.set(wf.x - nx * 0.42, 0.82 * s, wf.z - nz * 0.42)
+  sheet.rotation.y = yaw
+  sheet.rotation.x = -0.06 // the spill leans out over its base
+  sheet.material = sheetMat
+  sheet.isPickable = false
+  meshes.push(sheet)
+
+  const sheet2Mat = sheetMat.clone('fallsSheet2Mat')
+  sheet2Mat.alpha = 0.4
+  mats.push(sheet2Mat)
+  const sheet2 = MeshBuilder.CreatePlane('fallsSheet2', { width: 0.55 * s, height: 1.3 * s }, scene)
+  sheet2.position.set(wf.x - nx * 0.55 + tx * 0.35, 0.62 * s, wf.z - nz * 0.55 + tz * 0.35)
+  sheet2.rotation.y = yaw
+  sheet2.rotation.x = -0.06
+  sheet2.material = sheet2Mat
+  sheet2.isPickable = false
+  meshes.push(sheet2)
+
+  // churned foam where the fall meets the pond
+  const foamMat = unlit(scene, 'fallsFoamMat', '#e8f4ff', { alpha: 0.3, fog: true, add: true })
+  mats.push(foamMat)
+  const foam = MeshBuilder.CreateDisc('fallsFoam', { radius: 0.72 * s, tessellation: 24 }, scene)
+  foam.rotation.x = Math.PI / 2
+  const bx = wf.x - nx * 1.05
+  const bz = wf.z - nz * 1.05
+  foam.position.set(bx, 0.045, bz)
+  foam.scaling.z = 0.7
+  foam.material = foamMat
+  foam.isPickable = false
+  meshes.push(foam)
+
+  // a soft mist plume rising off the base
+  const mistMat = unlit(scene, 'fallsMistMat', '#dceaf4', { alpha: 0.05, fog: true, add: true })
+  mats.push(mistMat)
+  const mist = MeshBuilder.CreateSphere('fallsMist', { diameterX: 0.9 * s, diameterY: 0.45 * s, diameterZ: 0.5 * s, segments: 6 }, scene)
+  mist.position.set(bx, 0.18 * s, bz)
+  mist.material = mistMat
+  mist.isPickable = false
+  meshes.push(mist)
+
+  // the perpetual gentle wavefronts at the base — pond-only, never gameplay
+  let ambient = []
+  let emitAcc = 0.9
+  let n = 0
+  return {
+    step(t, dt) {
+      tex.vOffset = (tex.vOffset - dt * (0.85 + Math.sin(t * 2.3) * 0.06)) % 1
+      foamMat.alpha = 0.26 + Math.sin(t * 3.1) * 0.05 + Math.sin(t * 7.3) * 0.03
+      mistMat.alpha = 0.045 + Math.sin(t * 1.7 + 1) * 0.015
+      mist.scaling.setAll(1 + Math.sin(t * 1.3) * 0.06)
+      emitAcc += dt
+      if (emitAcc > 1.05) {
+        emitAcc = 0
+        n++
+        ambient.push({
+          id: `falls_${n}`,
+          group: `falls_${n}`,
+          x: bx + Math.sin(t * 2.7) * 0.3,
+          z: bz + Math.cos(t * 1.9) * 0.3,
+          radius: 0.05,
+          speed: 1.5,
+          peakRadius: 0.8,
+          peakPower: 0.14,
+          maxRadius: 1.9,
+        })
+      }
+      ambient = stepRipples(ambient, dt)
+      return ambient
+    },
+    dispose() {
+      for (const m of meshes) m.dispose()
+      for (const m of mats) m.dispose()
+    },
+  }
+}
+
+// ---- pad colonies: dense carpets of small lily pads ------------------------
+// Each colony is one merged mesh of hand-sized pads that bobs as a raft;
+// the first colony carries a little magenta bloom.
+function buildPadColonies(scene, colonies) {
+  const mats = [
+    pbr(scene, { color: '#3f7a32', rough: 0.85, name: 'colonyMat0' }),
+    pbr(scene, { color: '#568a3a', rough: 0.85, name: 'colonyMat1' }),
+  ]
+  const bloomMat = pbr(scene, { color: '#d0348e', rough: 0.5, name: 'colonyBloomMat' })
+  bloomMat.emissiveColor = Color3.FromHexString('#d0348e').scale(0.2)
+  const heartMat = pbr(scene, { color: '#f2d34a', rough: 0.6, name: 'colonyHeartMat' })
+  const items = []
+  for (const col of colonies) {
+    const bits = []
+    for (const leaf of col.leaves) {
+      const p = MeshBuilder.CreateCylinder('colonyPad', { diameter: leaf.r * 2, height: 0.035, tessellation: 12, arc: 0.92, enclose: true }, scene)
+      warpPadMesh(p, col.seed + leaf.rot, 0.02)
+      p.position.set(leaf.dx, 0, leaf.dz)
+      p.rotation.y = leaf.rot
+      bits.push(p)
+    }
+    const mesh = Mesh.MergeMeshes(bits, true, true)
+    if (!mesh) continue
+    mesh.material = mats[Math.floor((col.seed * 100) % 2)]
+    mesh.position.set(col.x, 0.035, col.z)
+    mesh.isPickable = false
+    if (col.bloom && col.leaves.length) {
+      const at = col.leaves[0]
+      const bloom = MeshBuilder.CreateSphere('colonyBloom', { diameterX: 0.2, diameterY: 0.13, diameterZ: 0.2, segments: 6 }, scene)
+      bloom.position.set(at.dx, 0.08, at.dz)
+      bloom.material = bloomMat
+      bloom.parent = mesh
+      bloom.isPickable = false
+      const heart = MeshBuilder.CreateSphere('colonyHeart', { diameter: 0.06, segments: 4 }, scene)
+      heart.position.set(at.dx, 0.14, at.dz)
+      heart.material = heartMat
+      heart.parent = mesh
+      heart.isPickable = false
+    }
+    items.push({ mesh, col })
+  }
+  return {
+    update(t, ripples) {
+      for (const it of items) {
+        const y = surfaceHeight(it.col.x, it.col.z, ripples, t)
+        it.mesh.position.y = 0.035 + y
+        it.mesh.rotation.z = y * 0.5
+        it.mesh.rotation.y = Math.sin(t * 0.3 + it.col.seed * 6) * 0.03
+      }
+    },
+    dispose() {
+      for (const it of items) it.mesh.dispose(false, true)
+      for (const m of mats) m.dispose()
+      bloomMat.dispose()
+      heartMat.dispose()
+    },
+  }
+}
+
+// ---- flower drifts: planted sweeps between the far-bank boulders -----------
+function buildFlowerDrifts(scene, drifts) {
+  const colors = ['#d84a66', '#cf3f92', '#8a5ad8', '#e8c25a']
+  const out = []
+  const mats = []
+  const leafMat = pbr(scene, { color: '#31552a', rough: 0.95, name: 'driftLeafMat' })
+  mats.push(leafMat)
+  for (const d of drifts) {
+    let seed = Math.max(2, Math.floor(d.seed * 1000) % 1000)
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    // the foliage mound under the blooms
+    const mound = MeshBuilder.CreateSphere('driftMound', { diameterX: d.spread * 2.2, diameterY: 0.45, diameterZ: d.spread * 1.6, segments: 6 }, scene)
+    mound.position.set(d.x, 0.3, d.z)
+    mound.rotation.y = d.seed
+    mound.material = leafMat
+    mound.isPickable = false
+    mound.freezeWorldMatrix()
+    out.push(mound)
+    // the color: a merged scatter of small heads
+    const heads = []
+    for (let i = 0; i < d.count; i++) {
+      const a = rnd() * Math.PI * 2
+      const rr = Math.sqrt(rnd()) * d.spread
+      const h = MeshBuilder.CreateSphere('driftHead', { diameter: 0.1 + rnd() * 0.08, segments: 5 }, scene)
+      h.position.set(d.x + Math.cos(a) * rr, 0.46 + rnd() * 0.14, d.z + Math.sin(a) * rr * 0.72)
+      heads.push(h)
+    }
+    const merged = Mesh.MergeMeshes(heads, true, true)
+    if (!merged) continue
+    const m = pbr(scene, { color: colors[d.hue % 4], rough: 0.7, name: `driftMat${d.hue}` })
+    m.emissiveColor = Color3.FromHexString(colors[d.hue % 4]).scale(0.13)
+    merged.material = m
+    merged.isPickable = false
+    merged.freezeWorldMatrix()
+    out.push(merged)
+    mats.push(m)
+  }
+  return {
+    dispose() {
+      for (const m of out) m.dispose()
+      for (const m of mats) m.dispose()
+    },
+  }
+}
+
 export function buildPond(scene, shadow, level, pal) {
   const R = level.R
   const disposables = []
@@ -743,6 +1061,11 @@ export function buildPond(scene, shadow, level, pal) {
   const flowers = buildBankFlowers(scene, R)
   const lettuces = buildLettuces(scene, shadow, level.lettuces || [])
   const hyacinths = buildHyacinths(scene, shadow, level.hyacinths || [])
+  const rockBanks = buildRockBanks(scene, R)
+  const falls = buildWaterfall(scene, shadow, level.waterfall, pal)
+  const colonies = buildPadColonies(scene, level.padColonies || [])
+  const drifts = buildFlowerDrifts(scene, level.flowerDrifts || [])
+  const cannas = buildCannas(scene, shadow, level.cannas || [])
 
   // per-frame water displacement
   const vb = water.getVerticesData('position')
@@ -753,22 +1076,29 @@ export function buildPond(scene, shadow, level, pal) {
   return {
     water,
     update(t, dt, ripples) {
+      // the waterfall's ambient wavefronts join the gameplay ripples for
+      // everything that reads the water — but never enter the page's list,
+      // so win/lose logic and the glowing rings stay gameplay-only
+      const ambient = falls ? falls.step(t, dt) : null
+      const all = ambient && ambient.length ? ripples.concat(ambient) : ripples
       for (let i = 0; i < positions.length; i += 3) {
-        positions[i + 1] = surfaceHeight(positions[i], positions[i + 2], ripples, t)
+        positions[i + 1] = surfaceHeight(positions[i], positions[i + 2], all, t)
       }
       VertexData.ComputeNormals(positions, indices, normals)
       water.updateVerticesData('position', positions, false, false)
       water.updateVerticesData('normal', normals, false, false)
       rings.update(ripples, 0)
-      reeds.update(t, ripples)
-      fish.update(t, dt, ripples)
+      reeds.update(t, all)
+      fish.update(t, dt, all)
       dragonflies.update(t)
-      fringe.update(t, ripples)
+      fringe.update(t, all)
       glitter.update(t)
       motes.update(t)
       lanterns.update(t)
-      lettuces.update(t, ripples)
-      hyacinths.update(t, ripples)
+      lettuces.update(t, all)
+      hyacinths.update(t, all)
+      colonies.update(t, all)
+      cannas.update(t)
     },
     dispose() {
       rings.dispose()
@@ -784,6 +1114,11 @@ export function buildPond(scene, shadow, level, pal) {
       flowers.dispose()
       lettuces.dispose()
       hyacinths.dispose()
+      rockBanks.dispose()
+      falls?.dispose()
+      colonies.dispose()
+      drifts.dispose()
+      cannas.dispose()
       for (const d of disposables) d.dispose()
     },
   }

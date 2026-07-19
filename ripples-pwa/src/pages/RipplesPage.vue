@@ -356,8 +356,10 @@ function buildLevel() {
   gameStarted.value = false
 
   pond = buildPond(scene, shadow, level, pal)
-  // clouds are emissive (unlit) but must not bloom like the sun does
-  if (glow) for (const m of scene.meshes) if (m.name === 'cloud') glow.addExcludedMesh(m)
+  // clouds and the waterfall are emissive (unlit) but must not bloom like
+  // the sun does — the falls should read as water, not as a light source
+  if (glow) for (const m of scene.meshes) if (m.name === 'cloud' || m.name.startsWith('falls')) glow.addExcludedMesh(m)
+  if (level.waterfall) sfx.fallsStart()
   stones3d = buildStones(scene, shadow, level.stones)
   lotuses = buildLotuses(scene, shadow, level.lotus, pal)
   pads = buildDriftingPads(scene, shadow, level.pads, level.R)
@@ -368,6 +370,7 @@ function buildLevel() {
 }
 
 function disposeLevel() {
+  sfx.fallsStop()
   pond?.dispose()
   stones3d?.dispose()
   lotuses?.dispose()

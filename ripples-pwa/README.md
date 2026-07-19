@@ -29,6 +29,11 @@ alongside Mini Golf 3D and Alley Nights:
 - **An expansive, living pond** — a low camera behind the thrower, distance
   haze, a ragged tree line, dragonflies, koi that scurry from wavefronts,
   fringe pads bobbing on the swell.
+- **A rock garden around the water** — boulder-rimmed banks, a waterfall
+  spilling over the far shore (its steady wash on the synth, its perpetual
+  gentle ripples on the surface — kept out of the gameplay wave list), dense
+  colonies of hand-sized lily pads, canna stands and planted flower drifts
+  between the rocks.
 - **Kit everything else** — `Stage` (WebGL2, adaptive resolution), `Gestures`
   driving the swing, `outdoorLight` + PBR + GlowLayer + FXAA, sample-free
   synth SFX, kit haptics.
@@ -48,7 +53,7 @@ it: wake flowers from beside, not above. Finish at the optimal stone count for
 - Wave-physics puzzling: reflection, absorption, interference, accumulation.
 - Time-of-day theming — water, light and sky follow your clock (or a manual theme).
 - Ambient pond life: koi beneath the surface that scurry from wavefronts,
-  swaying reeds, pebbled banks.
+  swaying reeds, boulder banks, a waterfall with sound and ripples of its own.
 - Stars, totals and level progress saved locally.
 
 ## Develop / build
