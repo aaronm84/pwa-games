@@ -54,7 +54,9 @@ it: wake flowers from beside, not above. Finish at the optimal stone count for
 - Time-of-day theming — water, light and sky follow your clock (or a manual theme).
 - Ambient pond life: koi beneath the surface that scurry from wavefronts,
   swaying reeds, boulder banks, a waterfall with sound and ripples of its own.
-- Stars, totals and level progress saved locally.
+- Stars, totals and level progress saved locally — replay any unlocked pond
+  from the level picker.
+- Loading screen and dialogs dressed in the pond's own time-of-day palette.
 
 ## Develop / build
 

@@ -315,7 +315,9 @@ export function generateLevel(levelNum, R = 13) {
         lotus.every((l) => dist(c, l) > 3) &&
         stones.every((s) => dist(c, s) > 2.2) &&
         pads.every((pd) => dist(c, pd) > 2.4) &&
-        padColonies.every((pc) => dist(c, pc) > 2.6)
+        padColonies.every((pc) => dist(c, pc) > 2.6) &&
+        lettuces.every((lt) => dist(c, lt) > 2) &&
+        hyacinths.every((h) => dist(c, h) > 2)
       if (clear) {
         p = c
         break

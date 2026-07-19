@@ -335,8 +335,28 @@ function mixHex(a, b, k) {
 // toward the sun (or moon), shimmering slowly. The single strongest cue of
 // the reference paintings, at the cost of one quad.
 function buildGlitter(scene, pal, R) {
-  const mat = unlit(scene, 'glitterMat', pal.glitter, { alpha: 0.1, fog: true, add: true })
-  const streak = MeshBuilder.CreatePlane('glitter', { width: 2.3, height: R * 1.7 }, scene)
+  // a soft elongated falloff, not a hard-edged quad — the light path should
+  // melt into the water, never read as a band laid on top of it
+  const tex = new DynamicTexture('glitterTex', { width: 128, height: 512 }, scene, false)
+  const ctx = tex.getContext()
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, 128, 512)
+  ctx.save()
+  ctx.translate(64, 256)
+  ctx.scale(1, 4)
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 64)
+  g.addColorStop(0, 'rgba(255,255,255,0.85)')
+  g.addColorStop(0.45, 'rgba(255,255,255,0.3)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(-64, -64, 128, 128)
+  ctx.restore()
+  tex.update()
+  tex.hasAlpha = false
+
+  const mat = unlit(scene, 'glitterMat', pal.glitter, { alpha: 0.09, fog: true, add: true })
+  mat.emissiveTexture = tex
+  const streak = MeshBuilder.CreatePlane('glitter', { width: 2.6, height: R * 1.7 }, scene)
   streak.rotation.x = Math.PI / 2
   streak.rotation.y = -0.17 // toward the celestial azimuth
   streak.position.set(-2.1, 0.02, -R * 0.28)
@@ -344,11 +364,12 @@ function buildGlitter(scene, pal, R) {
   streak.isPickable = false
   return {
     update(t) {
-      mat.alpha = 0.055 + Math.sin(t * 1.1) * 0.016 + Math.sin(t * 3.7) * 0.01
+      mat.alpha = 0.055 + Math.sin(t * 1.1) * 0.015 + Math.sin(t * 3.7) * 0.01
       streak.scaling.x = 1 + Math.sin(t * 0.7) * 0.1
     },
     dispose() {
       streak.dispose()
+      tex.dispose()
       mat.dispose()
     },
   }
@@ -649,14 +670,15 @@ function buildFringePads(scene, fringePads) {
     m.rotation.y = p.rotation
     m.material = mat
     m.isPickable = false
-    items.push({ mesh: m, p })
+    items.push({ mesh: m, p, sy: 0 })
   }
   return {
-    update(t, ripples) {
+    update(t, dt, ripples) {
       for (const it of items) {
         const y = surfaceHeight(it.p.x, it.p.z, ripples, t)
-        it.mesh.position.y = 0.03 + y
-        it.mesh.rotation.z = y * 0.8
+        it.sy += (y - it.sy) * Math.min(1, dt * 6)
+        it.mesh.position.y = 0.03 + it.sy
+        it.mesh.rotation.z += (it.sy * 0.4 - it.mesh.rotation.z) * Math.min(1, dt * 3)
       }
     },
     dispose() {
@@ -776,64 +798,120 @@ function buildWaterfall(scene, shadow, wf, pal) {
     meshes.push(shelf)
   }
 
-  // the falling water: vertical streaks on a scrolling texture, drawn twice
-  // (a broad slow sheet and a narrow fast one) as additive light
+  // the falling water: vertical streaks on a scrolling texture. Dark pixels
+  // are transparent (getAlphaFromRGB), streaks are broken and fade at the
+  // sheet's edges and lip, so it reads as falling water, not a lit rectangle
   const tex = new DynamicTexture('fallsTex', { width: 64, height: 256 }, scene, false)
   const ctx = tex.getContext()
   ctx.fillStyle = '#000000'
   ctx.fillRect(0, 0, 64, 256)
-  for (let i = 0; i < 26; i++) {
-    ctx.fillStyle = `rgba(255,255,255,${0.2 + rnd() * 0.5})`
+  for (let i = 0; i < 30; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.18 + rnd() * 0.45})`
     const x = rnd() * 64
-    const w = 1 + rnd() * 2.5
+    const w = 1 + rnd() * 2.2
     const y0 = rnd() * 256
-    const h = 60 + rnd() * 196
+    const h = 40 + rnd() * 150
     ctx.fillRect(x, y0, w, h)
     if (y0 + h > 256) ctx.fillRect(x, 0, w, y0 + h - 256) // wrap the streak
   }
+  // feather the flanks so the sheet has no hard vertical edges
+  const edge = ctx.createLinearGradient(0, 0, 64, 0)
+  edge.addColorStop(0, 'rgba(0,0,0,1)')
+  edge.addColorStop(0.22, 'rgba(0,0,0,0)')
+  edge.addColorStop(0.78, 'rgba(0,0,0,0)')
+  edge.addColorStop(1, 'rgba(0,0,0,1)')
+  ctx.fillStyle = edge
+  ctx.fillRect(0, 0, 64, 256)
   tex.update()
   tex.wrapV = 1
+  tex.getAlphaFromRGB = true // dark = see-through, streaks = water
   mats.push(tex)
 
   const sheetMat = new StandardMaterial('fallsSheetMat', scene)
   sheetMat.emissiveTexture = tex
-  sheetMat.emissiveColor = Color3.FromHexString(mixHex('#dff2ff', pal.glitter, 0.35))
+  sheetMat.emissiveColor = Color3.FromHexString(mixHex('#cfe6f2', pal.glitter, 0.25))
   sheetMat.opacityTexture = tex
   sheetMat.disableLighting = true
-  sheetMat.alpha = 0.62
+  sheetMat.alpha = 0.85
   sheetMat.backFaceCulling = false
   mats.push(sheetMat)
-  const sheet = MeshBuilder.CreatePlane('fallsSheet', { width: 1.15 * s, height: 1.62 * s }, scene)
-  sheet.position.set(wf.x - nx * 0.42, 0.82 * s, wf.z - nz * 0.42)
+
+  // the sheet itself is CURVED: it hugs the lip, bellies out on the way
+  // down and flares into the pond — built as a small bent grid, not a plane
+  const makeCurvedSheet = (name, w, h, bend, mat) => {
+    const rows = 9
+    const cols = 5
+    const positions = []
+    const uvs = []
+    const indices = []
+    for (let r = 0; r <= rows; r++) {
+      const v = r / rows
+      const y = h * (1 - v)
+      const out = bend * (0.1 + 0.8 * Math.pow(v, 1.7)) // hugs the lip, flares at the base
+      const width = w * (1 - 0.22 * v)
+      for (let c = 0; c <= cols; c++) {
+        const u = c / cols
+        const lat = (u - 0.5) * width
+        // a slight lateral wave so the sheet isn't a machined ribbon
+        const wob = Math.sin(v * 5 + u * 3) * 0.03 * w
+        positions.push(lat + wob, y, -out)
+        uvs.push(u, 1 - v)
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const a = r * (cols + 1) + c
+        indices.push(a, a + 1, a + cols + 1, a + 1, a + cols + 2, a + cols + 1)
+      }
+    }
+    const normals = []
+    VertexData.ComputeNormals(positions, indices, normals)
+    const mesh = new Mesh(name, scene)
+    const vd = new VertexData()
+    vd.positions = new Float32Array(positions)
+    vd.indices = indices
+    vd.normals = new Float32Array(normals)
+    vd.uvs = new Float32Array(uvs)
+    vd.applyToMesh(mesh, false)
+    mesh.material = mat
+    mesh.isPickable = false
+    return mesh
+  }
+
+  const sheet = makeCurvedSheet('fallsSheet', 1.05 * s, 1.5 * s, 0.75, sheetMat)
+  sheet.position.set(wf.x - nx * 0.28, 0.02, wf.z - nz * 0.28)
   sheet.rotation.y = yaw
-  sheet.rotation.x = -0.06 // the spill leans out over its base
-  sheet.material = sheetMat
-  sheet.isPickable = false
   meshes.push(sheet)
 
   const sheet2Mat = sheetMat.clone('fallsSheet2Mat')
-  sheet2Mat.alpha = 0.4
+  sheet2Mat.alpha = 0.5
   mats.push(sheet2Mat)
-  const sheet2 = MeshBuilder.CreatePlane('fallsSheet2', { width: 0.55 * s, height: 1.3 * s }, scene)
-  sheet2.position.set(wf.x - nx * 0.55 + tx * 0.35, 0.62 * s, wf.z - nz * 0.55 + tz * 0.35)
+  const sheet2 = makeCurvedSheet('fallsSheet2', 0.5 * s, 1.15 * s, 0.9, sheet2Mat)
+  sheet2.position.set(wf.x - nx * 0.34 + tx * 0.32, 0.02, wf.z - nz * 0.34 + tz * 0.32)
   sheet2.rotation.y = yaw
-  sheet2.rotation.x = -0.06
-  sheet2.material = sheet2Mat
-  sheet2.isPickable = false
   meshes.push(sheet2)
 
-  // churned foam where the fall meets the pond
-  const foamMat = unlit(scene, 'fallsFoamMat', '#e8f4ff', { alpha: 0.3, fog: true, add: true })
-  mats.push(foamMat)
-  const foam = MeshBuilder.CreateDisc('fallsFoam', { radius: 0.72 * s, tessellation: 24 }, scene)
-  foam.rotation.x = Math.PI / 2
+  // churned foam where the fall meets the pond: a few overlapping patches
+  // pulsing on their own clocks, not one printed ellipse
   const bx = wf.x - nx * 1.05
   const bz = wf.z - nz * 1.05
-  foam.position.set(bx, 0.045, bz)
-  foam.scaling.z = 0.7
-  foam.material = foamMat
-  foam.isPickable = false
-  meshes.push(foam)
+  const foams = []
+  const foamSpots = [
+    { dx: 0, dz: 0, r: 0.42, ph: 0, sp: 2.6 },
+    { dx: tx * 0.38 - nx * 0.12, dz: tz * 0.38 - nz * 0.12, r: 0.26, ph: 2.1, sp: 3.4 },
+    { dx: -tx * 0.34 - nx * 0.2, dz: -tz * 0.34 - nz * 0.2, r: 0.3, ph: 4.2, sp: 3.0 },
+  ]
+  for (const f of foamSpots) {
+    const fm = unlit(scene, 'fallsFoamMat', '#e8f4ff', { alpha: 0.2, fog: true, add: true })
+    mats.push(fm)
+    const disc = MeshBuilder.CreateDisc('fallsFoam', { radius: f.r * s, tessellation: 20 }, scene)
+    disc.rotation.x = Math.PI / 2
+    disc.position.set(bx + f.dx, 0.04, bz + f.dz)
+    disc.material = fm
+    disc.isPickable = false
+    meshes.push(disc)
+    foams.push({ mat: fm, mesh: disc, ph: f.ph, sp: f.sp })
+  }
 
   // a soft mist plume rising off the base
   const mistMat = unlit(scene, 'fallsMistMat', '#dceaf4', { alpha: 0.05, fog: true, add: true })
@@ -851,7 +929,10 @@ function buildWaterfall(scene, shadow, wf, pal) {
   return {
     step(t, dt) {
       tex.vOffset = (tex.vOffset - dt * (0.85 + Math.sin(t * 2.3) * 0.06)) % 1
-      foamMat.alpha = 0.26 + Math.sin(t * 3.1) * 0.05 + Math.sin(t * 7.3) * 0.03
+      for (const f of foams) {
+        f.mat.alpha = 0.16 + Math.max(0, Math.sin(t * f.sp + f.ph)) * 0.09
+        f.mesh.scaling.setAll(1 + Math.sin(t * f.sp * 0.7 + f.ph) * 0.12)
+      }
       mistMat.alpha = 0.045 + Math.sin(t * 1.7 + 1) * 0.015
       mist.scaling.setAll(1 + Math.sin(t * 1.3) * 0.06)
       emitAcc += dt
@@ -919,14 +1000,15 @@ function buildPadColonies(scene, colonies) {
       heart.parent = mesh
       heart.isPickable = false
     }
-    items.push({ mesh, col })
+    items.push({ mesh, col, sy: 0 })
   }
   return {
-    update(t, ripples) {
+    update(t, dt, ripples) {
       for (const it of items) {
         const y = surfaceHeight(it.col.x, it.col.z, ripples, t)
-        it.mesh.position.y = 0.035 + y
-        it.mesh.rotation.z = y * 0.5
+        it.sy += (y - it.sy) * Math.min(1, dt * 4)
+        it.mesh.position.y = 0.035 + it.sy
+        it.mesh.rotation.z += (it.sy * 0.25 - it.mesh.rotation.z) * Math.min(1, dt * 3)
         it.mesh.rotation.y = Math.sin(t * 0.3 + it.col.seed * 6) * 0.03
       }
     },
@@ -1091,13 +1173,13 @@ export function buildPond(scene, shadow, level, pal) {
       reeds.update(t, all)
       fish.update(t, dt, all)
       dragonflies.update(t)
-      fringe.update(t, all)
+      fringe.update(t, dt, all)
       glitter.update(t)
       motes.update(t)
       lanterns.update(t)
-      lettuces.update(t, all)
-      hyacinths.update(t, all)
-      colonies.update(t, all)
+      lettuces.update(t, dt, all)
+      hyacinths.update(t, dt, all)
+      colonies.update(t, dt, all)
       cannas.update(t)
     },
     dispose() {

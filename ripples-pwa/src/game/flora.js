@@ -207,14 +207,18 @@ export function buildLettuces(scene, shadow, lettuces) {
     mesh.position.set(L.x, 0.04, L.z)
     mesh.rotation.y = L.seed * 7
     shadow?.addShadowCaster(mesh)
-    items.push({ mesh, L })
+    items.push({ mesh, L, sy: 0 })
   }
   return {
-    update(t, ripples) {
+    // floaters don't snap to the surface — they ease toward it, the way a
+    // buoyant rosette actually rides a wave (jerk-free even when a sharp
+    // wavefront passes underneath)
+    update(t, dt, ripples) {
       for (const it of items) {
         const y = surfaceHeight(it.L.x, it.L.z, ripples, t)
-        it.mesh.position.y = 0.04 + y
-        it.mesh.rotation.z = y * 0.7
+        it.sy += (y - it.sy) * Math.min(1, dt * 5)
+        it.mesh.position.y = 0.04 + it.sy
+        it.mesh.rotation.z += (it.sy * 0.35 - it.mesh.rotation.z) * Math.min(1, dt * 3)
         it.mesh.rotation.x = Math.sin(t * 0.8 + it.L.seed * 9) * 0.02
       }
     },
@@ -345,14 +349,15 @@ export function buildHyacinths(scene, shadow, hyacinths) {
       florets.push(f)
     }
     shadow?.addShadowCaster(stem)
-    items.push({ rosette, H })
+    items.push({ rosette, H, sy: 0 })
   }
   return {
-    update(t, ripples) {
+    update(t, dt, ripples) {
       for (const it of items) {
         const y = surfaceHeight(it.H.x, it.H.z, ripples, t)
-        it.rosette.position.y = 0.05 + y
-        it.rosette.rotation.z = y * 0.6
+        it.sy += (y - it.sy) * Math.min(1, dt * 5)
+        it.rosette.position.y = 0.05 + it.sy
+        it.rosette.rotation.z += (it.sy * 0.3 - it.rosette.rotation.z) * Math.min(1, dt * 3)
         it.rosette.rotation.y = Math.sin(t * 0.4 + it.H.seed * 5) * 0.05
       }
     },
