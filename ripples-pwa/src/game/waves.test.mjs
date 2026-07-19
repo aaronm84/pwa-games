@@ -256,6 +256,21 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('a rock reflection starts its own wave train', born.length === 1 && born[0].group !== parent.group)
 }
 
+// a stone landed on a pad still thumps out a muffled but USABLE wave
+{
+  const pad = { id: 'padX', x: 0, z: 0, radius: 1.1 }
+  const thump = skipRipple(0, 0, 17 * 0.55, 'throw_p') // first-skip pace, pad-muffled
+  check('a pad landing still makes a usable wave', thump.peakPower >= 0.4)
+  thump.absorbedBy.push(pad.id) // the page pre-marks the pad it was born under
+  const before = thump.peakPower
+  collideRipples([thump], [], [pad])
+  check('the thump wave is not re-muffled by its own pad', thump.peakPower === before)
+  const other = skipRipple(3, 0, 12, 'throw_q')
+  other.radius = 2.0 // crossing the pad now
+  collideRipples([other], [], [pad])
+  check('other pads still absorb as before', other.peakPower < skipRipple(3, 0, 12).peakPower)
+}
+
 // skip ripples scale with impact speed — and big waves are EARNED
 {
   const fast = skipRipple(0, 0, 17)

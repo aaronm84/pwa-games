@@ -126,7 +126,7 @@
             <p>• A short flick skims flat; <b>follow through past where you started</b> to loft the stone — a high lob won't skip, but it plunges exactly where you place it</p>
             <p>• Every skip sends out a ripple — harder skips, bigger ripples</p>
             <p>• A sideways snap bends the stone's flight</p>
-            <p>• Stones reflect ripples; drifting lily pads swallow stone and wave alike</p>
+            <p>• Stones reflect ripples; drifting lily pads swallow stone and wave alike — though a landed stone still thumps out a muffled wave</p>
             <p>• The calm circle around a flower hushes any skip inside it</p>
             <p>• Wake every flower before you run out of stones</p>
           </div>
@@ -627,8 +627,15 @@ function handleContact(e) {
     ;(window.__skipLog = window.__skipLog || []).push({ ...e, ctx })
   }
   if (ctx === 'pad') {
-    // a lily pad swallows the stone — no ripple, just a soft thud
+    // the pad swallows the stone, but the THUMP still stirs the water: the
+    // pad dips and drifts from the blow, and a muffled wave rolls out from
+    // under it — a stone landed on a pad is never a total loss
+    const padHit = pads.thump(e.x, e.z, e.speed, flyingStone.vx, flyingStone.vz)
     groundStone(flyingStone)
+    const r = skipRipple(e.x, e.z, e.speed * 0.55, flyingStone.group)
+    if (padHit) r.absorbedBy.push(padHit.data.id) // born under this pad — don't muffle twice
+    ripples.push(r)
+    skipper.splashAt(e.x, e.z, e.speed * 0.35)
     sfx.thud()
     haptics.light()
     skipper.sunk()
