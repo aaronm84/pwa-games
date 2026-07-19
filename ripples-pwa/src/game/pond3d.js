@@ -39,8 +39,8 @@ export function paletteFor(periodKey) {
 // model every frame. A polar grid keeps the rim exactly circular under the
 // bank, and gives even radial resolution for the ring-shaped wavefronts.
 function buildWater(scene, R, pal) {
-  const RINGS = 44
-  const SECTORS = 88
+  const RINGS = 60
+  const SECTORS = 112
   const positions = [0, 0, 0]
   const indices = []
   for (let ri = 1; ri <= RINGS; ri++) {
@@ -599,12 +599,17 @@ function buildTrees(scene, trees, pal) {
   for (const t of trees) {
     const mat = mats[Math.floor(t.tone * 3)]
     if (t.kind === 'conifer') {
-      const cone = MeshBuilder.CreateCylinder('tree', { height: t.height, diameterBottom: t.width, diameterTop: 0.02, tessellation: 7 }, scene)
-      cone.position.set(t.x, t.height / 2 - 0.18, t.z)
-      cone.material = mat
-      cone.isPickable = false
-      cone.freezeWorldMatrix()
-      meshes.push(cone)
+      const lower = MeshBuilder.CreateCylinder('tree', { height: t.height * 0.7, diameterBottom: t.width, diameterTop: t.width * 0.28, tessellation: 7 }, scene)
+      lower.position.set(t.x, t.height * 0.35 - 0.18, t.z)
+      lower.material = mat
+      const upper = MeshBuilder.CreateCylinder('tree', { height: t.height * 0.5, diameterBottom: t.width * 0.62, diameterTop: 0.02, tessellation: 7 }, scene)
+      upper.position.set(t.x, t.height * 0.78 - 0.18, t.z)
+      upper.material = mat
+      for (const m of [lower, upper]) {
+        m.isPickable = false
+        m.freezeWorldMatrix()
+        meshes.push(m)
+      }
     } else {
       const trunk = MeshBuilder.CreateCylinder('trunk', { height: t.height * 0.5, diameter: t.width * 0.16, tessellation: 6 }, scene)
       trunk.position.set(t.x, t.height * 0.25 - 0.18, t.z)
@@ -612,7 +617,10 @@ function buildTrees(scene, trees, pal) {
       const crown = MeshBuilder.CreateSphere('crown', { diameterX: t.width, diameterY: t.height * 0.7, diameterZ: t.width, segments: 7 }, scene)
       crown.position.set(t.x, t.height * 0.62 - 0.18, t.z)
       crown.material = mat
-      for (const m of [trunk, crown]) {
+      const crown2 = MeshBuilder.CreateSphere('crown2', { diameterX: t.width * 0.6, diameterY: t.height * 0.4, diameterZ: t.width * 0.6, segments: 6 }, scene)
+      crown2.position.set(t.x + t.width * 0.34, t.height * 0.5 - 0.18, t.z + t.width * 0.1)
+      crown2.material = mats[Math.min(2, Math.floor(t.tone * 3) + 1)]
+      for (const m of [trunk, crown, crown2]) {
         m.isPickable = false
         m.freezeWorldMatrix()
         meshes.push(m)
@@ -690,7 +698,7 @@ function buildFringePads(scene, fringePads) {
   const items = []
   const mat = pbr(scene, { color: '#35682c', rough: 0.85, name: 'fringePadMat' })
   for (const p of fringePads) {
-    const m = MeshBuilder.CreateCylinder('fringe', { diameter: p.radius * 2, height: 0.05, tessellation: 16 }, scene)
+    const m = MeshBuilder.CreateCylinder('fringe', { diameter: p.radius * 2, height: 0.05, tessellation: 18, arc: 0.9, enclose: true }, scene)
     m.position.set(p.x, 0.03, p.z)
     m.rotation.y = p.rotation
     m.material = mat

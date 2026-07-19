@@ -17,6 +17,7 @@ import '@babylonjs/core/Meshes/Builders/planeBuilder'
 import '@babylonjs/core/Meshes/Builders/polygonBuilder' // CreatePolygon (uses earcut)
 import '@babylonjs/core/Meshes/Builders/torusBuilder'
 import '@babylonjs/core/Meshes/Builders/discBuilder' // CreateDisc
+import '@babylonjs/core/Meshes/Builders/icoSphereBuilder' // CreateIcoSphere (faceted rocks)
 import '@babylonjs/core/Meshes/Builders/latheBuilder' // CreateLathe (bowling pins)
 import '@babylonjs/core/Meshes/Builders/capsuleBuilder' // CreateCapsule (hazard props: limbs, soles)
 import '@babylonjs/core/Meshes/Builders/linesBuilder' // CreateLines (path traces)
