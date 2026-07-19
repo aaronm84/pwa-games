@@ -7,7 +7,9 @@
       <q-btn fab-mini flat icon="arrow_back" color="white" @click="goBack" />
 
       <div class="level-badge">
-        <div class="text-caption text-white text-center q-mb-xs">Level {{ currentLevel }}</div>
+        <div class="text-caption text-white text-center q-mb-xs">
+          Pond {{ pondNumber }} · Level {{ currentLevel }}
+        </div>
         <div class="level-stats">
           <div class="stat-item">
             <q-icon name="lens" color="blue-grey-3" size="14px" />
@@ -71,7 +73,7 @@
     <div v-if="!gameStarted && showTapHint && !booting" class="tap-hint">
       <q-icon name="swipe_vertical" color="white" size="lg" />
       <div class="text-white text-subtitle1 q-mt-sm text-center">
-        Slide to aim<br />drag down, snap forward to skip
+        Slide to aim · drag down, snap forward to skip<br />follow through high to lob
       </div>
     </div>
 
@@ -87,18 +89,23 @@
       <q-card class="levels-card">
         <q-card-section>
           <div class="text-h6 q-mb-md text-white">Choose a Pond</div>
-          <div class="levels-grid">
-            <q-btn
-              v-for="n in levelChoices"
-              :key="n"
-              dense
-              unelevated
-              :label="n <= maxUnlocked ? String(n) : undefined"
-              :icon="n > maxUnlocked ? 'lock' : undefined"
-              :disable="n > maxUnlocked"
-              :class="['level-chip', { 'level-chip-current': n === currentLevel }]"
-              @click="pickLevel(n)"
-            />
+          <div class="ponds-list">
+            <div v-for="p in pondRows" :key="p.n" class="pond-row">
+              <div class="pond-row-label">Pond {{ p.n }}</div>
+              <div class="pond-row-chips">
+                <q-btn
+                  v-for="n in p.levels"
+                  :key="n"
+                  dense
+                  unelevated
+                  :label="n <= maxUnlocked ? String(n) : undefined"
+                  :icon="n > maxUnlocked ? 'lock' : undefined"
+                  :disable="n > maxUnlocked"
+                  :class="['level-chip', { 'level-chip-current': n === currentLevel }]"
+                  @click="pickLevel(n)"
+                />
+              </div>
+            </div>
           </div>
         </q-card-section>
         <q-card-actions align="right">
@@ -116,6 +123,7 @@
             <p>• Skip stones across the pond to wake the lotus flowers</p>
             <p>• <b>Slide sideways</b> to aim your line</p>
             <p>• <b>Drag down</b> to wind up, <b>snap forward</b> to throw</p>
+            <p>• A short flick skims flat; <b>follow through past where you started</b> to loft the stone — a high lob won't skip, but it plunges exactly where you place it</p>
             <p>• Every skip sends out a ripple — harder skips, bigger ripples</p>
             <p>• A sideways snap bends the stone's flight</p>
             <p>• Stones reflect ripples; drifting lily pads swallow stone and wave alike</p>
@@ -279,6 +287,18 @@ watch(
 
 const maxUnlocked = computed(() => Math.max(progressStore.ripples.currentLevel, currentLevel.value))
 const levelChoices = computed(() => maxUnlocked.value + 4) // a peek past the frontier
+const pondNumber = computed(() => Math.floor((currentLevel.value - 1) / 3) + 1)
+// the picker groups levels three to a pond, matching the world structure
+const pondRows = computed(() => {
+  const rows = []
+  for (let start = 1; start <= levelChoices.value; start += 3) {
+    rows.push({
+      n: Math.floor((start - 1) / 3) + 1,
+      levels: [start, start + 1, start + 2].filter((l) => l <= levelChoices.value),
+    })
+  }
+  return rows
+})
 
 // scene state
 let stage = null
@@ -407,7 +427,7 @@ async function boot() {
       rocks: level.stones.map((s) => ({ x: s.x, z: s.z, r: s.radius })),
       won: showWinDialog.value,
       lost: showLoseDialog.value,
-      throw: (power, angle, curve) => doThrow(power ?? 0.8, angle ?? 0, curve ?? 0),
+      throw: (power, angle, curve, loft) => doThrow(power ?? 0.8, angle ?? 0, curve ?? 0, loft ?? 0),
     })
   }
 }
@@ -531,13 +551,18 @@ function onRelease() {
   )
   // lateral drift during the snap bends the flight
   const curve = Math.max(-3, Math.min(3, (-(end.dx - bottom.dx) / snapMs) * 4)) // snap right bends right
+  // FOLLOW-THROUGH sets the vertical angle: a flick that stops near where
+  // the drag began stays flat and skims; carrying the snap well PAST the
+  // start point lofts the stone into a high lob that plunges where it lands
+  const loft = Math.max(0, Math.min(1, -end.dy / 220))
+  if (import.meta.env.DEV) Object.assign(window.__swingDebug, { loft })
 
-  doThrow(power, aimAngle, curve)
+  doThrow(power, aimAngle, curve, loft)
 }
 
-function doThrow(power, angle, curve) {
+function doThrow(power, angle, curve, loft = 0) {
   if (!canThrow()) return
-  flyingStone = throwStone(thrower.x, thrower.z - 3.0, { angle, power, curve })
+  flyingStone = throwStone(thrower.x, thrower.z - 3.0, { angle, power, curve, loft })
   flyingStone.group = `throw_${stonesUsed.value}`
   stonesRemaining.value--
   stonesUsed.value++
@@ -1033,12 +1058,35 @@ function pickLevel(n) {
   }
 }
 
-.levels-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+.ponds-list {
   max-height: 46vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pond-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pond-row-label {
+  width: 62px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.pond-row-chips {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+
+  .level-chip {
+    flex: 1;
+  }
 }
 
 .level-chip {

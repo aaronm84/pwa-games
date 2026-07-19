@@ -17,14 +17,18 @@ const MIN_POP = 1.1 // a skip always pops at least this much (little hops die ou
 
 // power 0..1 → a throw. angle is radians off straight-ahead (0 = toward -z),
 // curve is sidespin: a lateral acceleration that bends the flight.
-export function throwStone(x, z, { angle = 0, power = 0.6, curve = 0 } = {}) {
-  const h = 6 + power * 15 // horizontal pace — full power spans the pond
+// loft 0..1 tips the launch vertical: 0 is a flat skimming release, 1 is a
+// high lob that trades distance and skips for a steep plunge you can place —
+// sometimes the only way past a wall of rocks or pads.
+export function throwStone(x, z, { angle = 0, power = 0.6, curve = 0, loft = 0 } = {}) {
+  const k = Math.max(0, Math.min(1, loft))
+  const h = (6 + power * 15) * (1 - k * 0.5) // lofting steals pace from the flat
   return {
     x,
     y: 0.35,
     z,
     vx: Math.sin(angle) * h + curve * 0.4,
-    vy: 0.8 + power * 0.7, // a flat launch: skimming, not lobbing
+    vy: 0.8 + power * 0.7 + k * (3.4 + power * 2.6), // flat skim → high arc
     vz: -Math.cos(angle) * h,
     curve, // lateral accel from sidespin, decays with each skip
     spin: 10 + power * 18, // visual roll rate
