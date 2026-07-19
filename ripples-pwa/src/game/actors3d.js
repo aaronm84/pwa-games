@@ -426,12 +426,29 @@ export function buildDriftingPads(scene, shadow, pads, R) {
     m.isPickable = false
     shadow?.addShadowCaster(m)
 
-    items.push({ mesh: m, proxy, agg, data: P, yaw: P.rotation, unstick: 0 })
+    items.push({ mesh: m, proxy, agg, data: P, yaw: P.rotation, unstick: 0, dip: 0, dipT: 0 })
   }
 
   const tmp = new Vector3()
   return {
     items,
+    // a stone landing on a pad: the pad takes the blow — an impulse along
+    // the stone's line, and a dip-and-recover bob the follow code plays out
+    thump(x, z, speed, vx = 0, vz = 0) {
+      for (const it of items) {
+        const p = it.proxy.position
+        if (Math.hypot(x - p.x, z - p.z) <= it.data.radius * 1.05) {
+          const hv = Math.hypot(vx, vz)
+          const k = Math.min(1.4, 0.25 + speed * 0.05)
+          tmp.set(hv > 0.01 ? (vx / hv) * k : 0, 0, hv > 0.01 ? (vz / hv) * k : 0)
+          it.agg.body.applyImpulse(tmp, p)
+          it.dip = Math.min(0.16, 0.05 + speed * 0.007)
+          it.dipT = 0
+          return it
+        }
+      }
+      return null
+    },
     update(dt, ripples, t = 0) {
       for (const it of items) {
         const body = it.agg.body
@@ -489,7 +506,13 @@ export function buildDriftingPads(scene, shadow, pads, R) {
         // the visible pad: proxy's spot in the plane, the water's height and
         // lean — Havok never sees these writes, so nothing quivers
         it.yaw += av.y * dt
-        const h = surfaceHeight(p.x, p.z, ripples, t)
+        let h = surfaceHeight(p.x, p.z, ripples, t)
+        // a thumped pad dips under the stone's weight and bobs back up
+        if (it.dip > 0.002) {
+          it.dipT += dt
+          h -= it.dip * (0.65 + 0.35 * Math.cos(it.dipT * 12))
+          it.dip *= Math.exp(-dt * 3.2)
+        }
         const hx = surfaceHeight(p.x + 0.4, p.z, ripples, t)
         const hz = surfaceHeight(p.x, p.z + 0.4, ripples, t)
         it.mesh.position.set(p.x, PAD_Y + h, p.z)
