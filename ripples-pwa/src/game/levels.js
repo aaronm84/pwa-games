@@ -35,6 +35,10 @@ export function generateLevel(levelNum, R = 13) {
   // a seeded point in the playable fan: in front of the thrower, off the
   // banks, inside the camera's wedge (the fan widens with distance, like a
   // lane), reachable by a skipping stone
+  // the camera's visible wedge — anything meant to be SEEN must live inside
+  // it (side banks never enter the frame; only the far bank arc does)
+  const wedgeHalf = (z) => 1.8 + (R - 0.8 - z) * 0.16
+
   const playSpot = () => {
     for (let tries = 0; tries < 50; tries++) {
       // stay in the band where a throw's fast, wave-making skips land —
@@ -163,8 +167,31 @@ export function generateLevel(levelNum, R = 13) {
 
   // ---- ambient pond life (visual only) ----
 
-  // reeds ring the banks, thicker on the sides and far shore
+  // reeds ring the banks, thicker on the sides and far shore — plus a
+  // guaranteed tuft on each near flank so the foreground sways too
   const reeds = []
+  // emergent grass stands rise from the shallows inside the wedge margins,
+  // like the reference's mid-pond tufts — foreground sway the camera can see
+  for (const side of [-1, 1]) {
+    let p = null
+    for (let tries = 0; tries < 12; tries++) {
+      const z = -1.5 + rng() * 5
+      const c = { x: side * (0.62 + rng() * 0.2) * wedgeHalf(z), z }
+      if (lotus.every((l) => dist(c, l) < 2.6 === false) && stones.every((st) => dist(c, st) > 1.6)) {
+        p = c
+        break
+      }
+    }
+    if (!p) continue
+    reeds.push({
+      x: p.x,
+      z: p.z,
+      height: 1.1 + rng() * 0.7,
+      lean: (rng() - 0.5) * 0.25,
+      blades: 3 + Math.floor(rng() * 2),
+      seed: rng() * Math.PI * 2,
+    })
+  }
   const reedCount = 12 + Math.floor(rng() * 6)
   for (let i = 0; i < reedCount; i++) {
     const a = rng() * Math.PI * 2
@@ -231,6 +258,35 @@ export function generateLevel(levelNum, R = 13) {
     })
   }
 
+  // water lettuce rosettes colonize the shallows (visual only), with a few
+  // small ones drifting mid-pond
+  // water lettuce colonies float mid-water along the wedge margins, the way
+  // the reference ponds scatter their floaters — visual only
+  const lettuces = []
+  const lettuceCount = 8 + Math.floor(rng() * 3)
+  for (let i = 0; i < lettuceCount; i++) {
+    const z = -5 + rng() * 12
+    const side = rng() > 0.5 ? 1 : -1
+    const x = side * (0.5 + rng() * 0.38) * wedgeHalf(z)
+    const p = { x, z }
+    if (lotus.some((l) => dist(p, l) < 2.8)) continue
+    if (stones.some((st) => dist(p, st) < 1.8)) continue
+    if (pads.some((pd) => dist(p, pd) < 1.8)) continue
+    lettuces.push({ x: p.x, z: p.z, scale: 0.4 + rng() * 0.45, seed: rng() * Math.PI * 2 })
+  }
+
+  // one or two water hyacinths — violet accents in the foreground water
+  const hyacinths = []
+  const hyCount = 1 + Math.floor(rng() * 2)
+  for (let i = 0; i < hyCount; i++) {
+    const z = 1 + rng() * 4.5
+    const side = i === 0 ? (rng() > 0.5 ? 1 : -1) : -1
+    const x = side * (0.55 + rng() * 0.28) * wedgeHalf(z)
+    const p = { x, z }
+    if (lotus.some((l) => dist(p, l) < 3)) continue
+    hyacinths.push({ x: p.x, z: p.z, scale: 0.8 + rng() * 0.4, seed: rng() * Math.PI * 2 })
+  }
+
   // dragonflies hover over the shallows, darting now and then
   const dragonflies = []
   const flyCount = 2 + Math.floor(rng() * 2)
@@ -253,6 +309,8 @@ export function generateLevel(levelNum, R = 13) {
     pads,
     reeds,
     fringePads,
+    lettuces,
+    hyacinths,
     trees,
     fish,
     dragonflies,

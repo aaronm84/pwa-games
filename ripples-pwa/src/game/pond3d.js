@@ -15,6 +15,7 @@ import {
   pbr,
 } from 'src/engine'
 import { surfaceHeight, ripplePower } from './waves.js'
+import { buildTufts, buildLettuces, buildHyacinths, warpPadMesh } from './flora.js'
 
 // Time-of-day palettes for the pond (the page picks by theme period key).
 // Beyond material colors, each period carries its sky (a vertical gradient
@@ -123,62 +124,6 @@ function buildRippleRings(scene, glowLayer, pal, max = 14) {
         m.material.dispose()
         m.dispose()
       }
-    },
-  }
-}
-
-// A reed cluster: tapered blades leaning out of the shallows, some with a
-// cattail head. Blades pivot at the waterline so they can sway.
-function buildReeds(scene, shadow, reeds, pal) {
-  const clusters = []
-  const bladeMat = pbr(scene, { color: '#3f7a35', rough: 0.85, name: 'reedMat' })
-  const headMat = pbr(scene, { color: '#5e4322', rough: 0.9, name: 'cattailMat' })
-  for (const rd of reeds) {
-    const blades = []
-    for (let b = 0; b < rd.blades; b++) {
-      const h = rd.height * (0.75 + (b / rd.blades) * 0.5)
-      const blade = MeshBuilder.CreateCylinder(
-        'reed',
-        { height: h, diameterBottom: 0.06, diameterTop: 0.015, tessellation: 5 },
-        scene,
-      )
-      blade.material = bladeMat
-      // bake the pivot to the base so rotation sways the tip, not the middle
-      blade.setPivotPoint(new Vector3(0, -h / 2, 0))
-      blade.position.set(rd.x + (b - rd.blades / 2) * 0.14, h / 2 - 0.15, rd.z + ((b * 37) % 3) * 0.07)
-      const baseLean = rd.lean + (b - rd.blades / 2) * 0.09
-      blade.rotation.z = baseLean
-      shadow?.addShadowCaster(blade)
-      let head = null
-      if (b === Math.floor(rd.blades / 2) && rd.height > 1.2) {
-        head = MeshBuilder.CreateCapsule('cattail', { height: 0.34, radius: 0.055 }, scene)
-        head.material = headMat
-        head.parent = blade
-        head.position.y = h / 2 - 0.16
-      }
-      blades.push({ mesh: blade, baseLean, phase: rd.seed + b * 1.3 })
-    }
-    clusters.push({ x: rd.x, z: rd.z, blades })
-  }
-  return {
-    update(t, ripples) {
-      for (const c of clusters) {
-        // a passing wavefront leans the whole cluster; otherwise a lazy sway
-        let push = 0
-        for (const r of ripples) {
-          const d = Math.hypot(c.x - r.x, c.z - r.z)
-          const off = Math.abs(d - r.radius)
-          if (off < 2) push += ripplePower(r.radius, r.peakRadius, r.peakPower) * (1 - off / 2) * 0.2
-        }
-        for (const b of c.blades) {
-          b.mesh.rotation.z = b.baseLean + Math.sin(t * 1.1 + b.phase) * 0.045 + push
-        }
-      }
-    },
-    dispose() {
-      bladeMat.dispose()
-      headMat.dispose()
-      for (const c of clusters) for (const b of c.blades) b.mesh.dispose()
     },
   }
 }
@@ -699,6 +644,7 @@ function buildFringePads(scene, fringePads) {
   const mat = pbr(scene, { color: '#35682c', rough: 0.85, name: 'fringePadMat' })
   for (const p of fringePads) {
     const m = MeshBuilder.CreateCylinder('fringe', { diameter: p.radius * 2, height: 0.05, tessellation: 18, arc: 0.9, enclose: true }, scene)
+    warpPadMesh(m, p.seed, 0.04)
     m.position.set(p.x, 0.03, p.z)
     m.rotation.y = p.rotation
     m.material = mat
@@ -784,7 +730,7 @@ export function buildPond(scene, shadow, level, pal) {
     disposables.push(peb)
   }
 
-  const reeds = buildReeds(scene, shadow, level.reeds, pal)
+  const reeds = buildTufts(scene, shadow, level.reeds, pal)
   const fish = buildFish(scene, level.fish, R)
   const rings = buildRippleRings(scene, null, pal, 20)
   const trees = buildTrees(scene, level.trees, pal)
@@ -795,6 +741,8 @@ export function buildPond(scene, shadow, level, pal) {
   const motes = buildMotes(scene, pal, R)
   const lanterns = buildLanterns(scene, pal, R)
   const flowers = buildBankFlowers(scene, R)
+  const lettuces = buildLettuces(scene, shadow, level.lettuces || [])
+  const hyacinths = buildHyacinths(scene, shadow, level.hyacinths || [])
 
   // per-frame water displacement
   const vb = water.getVerticesData('position')
@@ -819,6 +767,8 @@ export function buildPond(scene, shadow, level, pal) {
       glitter.update(t)
       motes.update(t)
       lanterns.update(t)
+      lettuces.update(t, ripples)
+      hyacinths.update(t, ripples)
     },
     dispose() {
       rings.dispose()
@@ -832,6 +782,8 @@ export function buildPond(scene, shadow, level, pal) {
       motes.dispose()
       lanterns.dispose()
       flowers.dispose()
+      lettuces.dispose()
+      hyacinths.dispose()
       for (const d of disposables) d.dispose()
     },
   }

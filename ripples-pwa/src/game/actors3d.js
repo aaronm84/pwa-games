@@ -19,6 +19,7 @@ import {
   PhysicsShapeType,
 } from 'src/engine'
 import { surfaceHeight, ripplePower } from './waves.js'
+import { warpPadMesh } from './flora.js'
 
 const PAD_Y = 0.05 // resting height of anything floating on the water
 
@@ -65,8 +66,12 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
     root.isVisible = false
     root.position.set(L.x, PAD_Y, L.z)
 
-    const padMat = pbr(scene, { color: '#2f6a2a', rough: 0.75, name: `${L.id}_padMat` })
+    // some pads run green, some flush burgundy like the reference lilies
+    const burgundy = L.hue > 0.78
+    const padMat = pbr(scene, { color: burgundy ? '#5a3a34' : '#2f6a2a', rough: 0.75, name: `${L.id}_padMat` })
+    if (!burgundy) padMat.albedoColor = padMat.albedoColor.scale(0.85 + L.hue * 0.35)
     const pad = MeshBuilder.CreateCylinder(`${L.id}_pad`, { diameter: L.padRadius * 2, height: 0.07, tessellation: 28, arc: 0.92, enclose: true }, scene)
+    warpPadMesh(pad, L.rotation, 0.05)
     pad.rotation.y = L.rotation
     pad.material = padMat
     pad.parent = root
@@ -181,6 +186,7 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
           f.root.position.y = PAD_Y + y
           f.root.rotation.z = Math.sin(t * 0.9 + f.bobPhase) * 0.02 + y * 0.6
           f.root.rotation.x = Math.cos(t * 0.7 + f.bobPhase) * 0.02
+          f.root.scaling.setAll(1 + Math.sin(t * 0.7 + f.bobPhase) * 0.01) // breathing, not frozen
           // charge glow: the petals light toward gold as power builds
           const charge = Math.min(1, (L.currentPower || 0) / L.threshold)
           const acc = Math.min(1, (L.accumulatedPower || 0) / (L.threshold * 0.8))
@@ -386,6 +392,7 @@ export function buildSkipper(scene, shadow, pal, thrower) {
 export function buildDriftingPads(scene, shadow, pads, R) {
   const items = []
   const padMat = pbr(scene, { color: '#397630', rough: 0.8, name: 'driftPadMat' })
+  const padMats = [padMat]
   for (const P of pads) {
     // the physics PROXY: an invisible collider Havok fully owns. We never
     // write its transform (no feedback loop with the solver), only nudge it
@@ -407,8 +414,15 @@ export function buildDriftingPads(scene, shadow, pads, R) {
     // the VISIBLE pad: no physics — it follows the proxy across the plane
     // and takes its height and lean from the displaced water
     const m = MeshBuilder.CreateCylinder(P.id, { diameter: P.radius * 2, height: 0.07, tessellation: 24, arc: 0.9, enclose: true }, scene)
+    warpPadMesh(m, P.rotation, 0.055)
     m.position.set(P.x, PAD_Y, P.z)
-    m.material = padMat
+    // every pad its own shade; the odd one flushes red-brown
+    const tint = padMat.clone(`${P.id}_mat`)
+    tint.albedoColor = ((P.rotation * 100) % 7 < 1)
+      ? Color3.FromHexString('#5f4034')
+      : Color3.FromHexString('#397630').scale(0.8 + ((P.rotation * 50) % 4) / 10)
+    padMats.push(tint)
+    m.material = tint
     m.isPickable = false
     shadow?.addShadowCaster(m)
 
@@ -490,7 +504,7 @@ export function buildDriftingPads(scene, shadow, pads, R) {
         it.proxy.dispose()
         it.mesh.dispose()
       }
-      padMat.dispose()
+      for (const m of padMats) m.dispose()
     },
   }
 }
