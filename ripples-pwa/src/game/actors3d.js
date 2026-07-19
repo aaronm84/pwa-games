@@ -29,10 +29,11 @@ export function buildStones(scene, shadow, stones) {
   for (const s of stones) {
     const mat = pbr(scene, { color: '#7d7a74', rough: 0.85, name: `stoneMat_${s.id}` })
     mat.albedoColor = mat.albedoColor.scale(0.85 + ((s.radius * 100) % 30) / 100)
-    const m = MeshBuilder.CreateSphere(s.id, { diameter: s.radius * 2, segments: 10 }, scene)
-    m.scaling.y = s.squash
+    const m = MeshBuilder.CreateIcoSphere(s.id, { radius: s.radius, subdivisions: 2 }, scene)
+    m.scaling.set(1 + (s.rotation % 0.3), s.squash, 1 + ((s.rotation * 1.7) % 0.25))
     m.position.set(s.x, s.radius * s.squash * 0.35, s.z)
     m.rotation.y = s.rotation
+    m.convertToFlatShadedMesh() // faceted like a river boulder
     m.material = mat
     m.isPickable = false
     shadow?.addShadowCaster(m)
@@ -65,7 +66,8 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
     root.position.set(L.x, PAD_Y, L.z)
 
     const padMat = pbr(scene, { color: '#2f6a2a', rough: 0.75, name: `${L.id}_padMat` })
-    const pad = MeshBuilder.CreateCylinder(`${L.id}_pad`, { diameter: L.padRadius * 2, height: 0.07, tessellation: 26 }, scene)
+    const pad = MeshBuilder.CreateCylinder(`${L.id}_pad`, { diameter: L.padRadius * 2, height: 0.07, tessellation: 28, arc: 0.92, enclose: true }, scene)
+    pad.rotation.y = L.rotation
     pad.material = padMat
     pad.parent = root
     shadow?.addShadowCaster(pad)
@@ -83,7 +85,7 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
 
     const parts = [pad]
     const mkPetal = (ring, i, n) => {
-      const p = MeshBuilder.CreateSphere(`${L.id}_p${ring}_${i}`, { diameter: 1, segments: 8 }, scene)
+      const p = MeshBuilder.CreateSphere(`${L.id}_p${ring}_${i}`, { diameter: 1, segments: 10 }, scene)
       const s = L.scale * (ring === 0 ? 1 : 0.62)
       p.scaling.set(0.34 * s, 0.1 * s, 0.6 * s)
       const a = (i / n) * Math.PI * 2 + L.rotation + ring * 0.5
@@ -96,14 +98,23 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
       parts.push(p)
       return p
     }
-    for (let i = 0; i < 6; i++) mkPetal(0, i, 6)
-    for (let i = 0; i < 5; i++) mkPetal(1, i, 5)
+    for (let i = 0; i < 8; i++) mkPetal(0, i, 8)
+    for (let i = 0; i < 6; i++) mkPetal(1, i, 6)
 
     const heart = MeshBuilder.CreateSphere(`${L.id}_heart`, { diameter: 0.22 * L.scale, segments: 8 }, scene)
     heart.position.y = 0.16
     heart.material = heartMat
     heart.parent = root
     parts.push(heart)
+    // a ring of stamens around the heart
+    for (let i = 0; i < 6; i++) {
+      const st = MeshBuilder.CreateSphere(`${L.id}_st${i}`, { diameter: 0.05 * L.scale, segments: 5 }, scene)
+      const sa = (i / 6) * Math.PI * 2
+      st.position.set(Math.cos(sa) * 0.13 * L.scale, 0.185, Math.sin(sa) * 0.13 * L.scale)
+      st.material = heartMat
+      st.parent = root
+      parts.push(st)
+    }
     for (const p of parts) {
       p.isPickable = false
       shadow?.addShadowCaster(p)
@@ -229,7 +240,9 @@ export function buildLotuses(scene, shadow, lotusData, pal) {
 // pure skip.js model; this just draws it.
 export function buildSkipper(scene, shadow, pal, thrower) {
   const stoneMat = pbr(scene, { color: '#8a857c', rough: 0.6, name: 'skipStoneMat' })
-  const stone = MeshBuilder.CreateSphere('skipStone', { diameterX: 0.46, diameterY: 0.17, diameterZ: 0.38, segments: 10 }, scene)
+  const stone = MeshBuilder.CreateIcoSphere('skipStone', { radius: 0.23, subdivisions: 2 }, scene)
+  stone.scaling.set(1, 0.38, 0.85)
+  stone.convertToFlatShadedMesh() // a flat river pebble, not a marble
   stone.material = stoneMat
   stone.isPickable = false
   shadow?.addShadowCaster(stone)
@@ -263,7 +276,16 @@ export function buildSkipper(scene, shadow, pal, thrower) {
     m.material = splashMat.clone(`skipSplashMat${i}`)
     m.isVisible = false
     m.isPickable = false
-    splashes.push({ mesh: m, t: -1, k: 1 })
+    // each splash carries a handful of droplets that pop up and fall back
+    const drops = []
+    for (let d = 0; d < 4; d++) {
+      const dm = MeshBuilder.CreateSphere(`drop${i}_${d}`, { diameter: 0.05, segments: 4 }, scene)
+      dm.material = m.material
+      dm.isVisible = false
+      dm.isPickable = false
+      drops.push({ mesh: dm, vx: 0, vy: 0, vz: 0 })
+    }
+    splashes.push({ mesh: m, drops, t: -1, k: 1 })
   }
 
   return {
@@ -303,6 +325,14 @@ export function buildSkipper(scene, shadow, pal, thrower) {
       free.t = 0
       free.k = Math.min(1.2, 0.5 + speed / 14)
       free.mesh.position.set(x, 0.05, z)
+      for (const dr of free.drops) {
+        const a = Math.random() * Math.PI * 2
+        const sp = 0.6 + Math.random() * 0.9 * free.k
+        dr.mesh.position.set(x, 0.06, z)
+        dr.vx = Math.cos(a) * sp * 0.5
+        dr.vz = Math.sin(a) * sp * 0.5
+        dr.vy = 1.2 + Math.random() * 1.4 * free.k
+      }
     },
     update(dt) {
       for (const sp of splashes) {
@@ -312,6 +342,7 @@ export function buildSkipper(scene, shadow, pal, thrower) {
         if (sp.t >= life) {
           sp.t = -1
           sp.mesh.isVisible = false
+          for (const dr of sp.drops) dr.mesh.isVisible = false
           continue
         }
         const p = sp.t / life
@@ -319,6 +350,14 @@ export function buildSkipper(scene, shadow, pal, thrower) {
         const r = (0.35 + p * 1.6) * sp.k
         sp.mesh.scaling.set(r, 1, r)
         sp.mesh.material.alpha = 0.6 * (1 - p) * sp.k
+        for (const dr of sp.drops) {
+          dr.vy -= 9.8 * dt
+          const dp = dr.mesh.position
+          dp.x += dr.vx * dt
+          dp.y += dr.vy * dt
+          dp.z += dr.vz * dt
+          dr.mesh.isVisible = dp.y > 0.02
+        }
       }
     },
     dispose() {
@@ -328,6 +367,7 @@ export function buildSkipper(scene, shadow, pal, thrower) {
       guide.dispose()
       splashMat.dispose()
       for (const sp of splashes) {
+        for (const dr of sp.drops) dr.mesh.dispose()
         sp.mesh.material.dispose()
         sp.mesh.dispose()
       }
@@ -366,7 +406,7 @@ export function buildDriftingPads(scene, shadow, pads, R) {
 
     // the VISIBLE pad: no physics — it follows the proxy across the plane
     // and takes its height and lean from the displaced water
-    const m = MeshBuilder.CreateCylinder(P.id, { diameter: P.radius * 2, height: 0.07, tessellation: 22 }, scene)
+    const m = MeshBuilder.CreateCylinder(P.id, { diameter: P.radius * 2, height: 0.07, tessellation: 24, arc: 0.9, enclose: true }, scene)
     m.position.set(P.x, PAD_Y, P.z)
     m.material = padMat
     m.isPickable = false

@@ -292,8 +292,8 @@ async function boot() {
 
   // the bowling view, on water: low behind the thrower on the near bank,
   // looking out across the pond into the haze
-  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.2, 9.5, new Vector3(0, 0.7, 3.4), scene)
-  cam.fov = 0.95
+  cam = new ArcRotateCamera('cam', Math.PI / 2, 1.2, 13.2, new Vector3(0, 0.6, 2.6), scene)
+  cam.fov = 0.92
   if (sharp) {
     const fxaa = new FxaaPostProcess('fxaa', 1.0, cam)
     fxaa.samples = 2
