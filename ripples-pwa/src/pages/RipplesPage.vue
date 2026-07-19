@@ -1,5 +1,5 @@
 <template>
-  <q-page class="ripples-page" :style="{ background: themeStore.colors.gradient }">
+  <q-page class="ripples-page" :style="pageStyle">
     <canvas ref="gameCanvas" class="game-canvas"></canvas>
 
     <!-- Game Header -->
@@ -33,12 +33,22 @@
         <transition-group name="menu-fade" tag="div" class="menu-buttons-container">
           <q-btn
             v-if="showMenu"
+            key="levels"
+            fab-mini
+            flat
+            icon="grid_view"
+            color="white"
+            class="menu-item menu-item-1"
+            @click="openLevels"
+          />
+          <q-btn
+            v-if="showMenu"
             key="refresh"
             fab-mini
             flat
             icon="refresh"
             color="white"
-            class="menu-item menu-item-1"
+            class="menu-item menu-item-2"
             @click="restartLevel"
           />
           <q-btn
@@ -48,7 +58,7 @@
             flat
             icon="help_outline"
             color="white"
-            class="menu-item menu-item-2"
+            class="menu-item menu-item-3"
             @click="openInstructions"
           />
         </transition-group>
@@ -65,11 +75,37 @@
       </div>
     </div>
 
-    <!-- Boot overlay -->
+    <!-- Boot overlay: dressed in the pond's own time-of-day palette -->
     <div v-if="booting" class="boot">
+      <div class="boot-lotus">🪷</div>
       <div class="boot-ring" />
       <div class="boot-text">Stilling the water…</div>
     </div>
+
+    <!-- Level Select Dialog -->
+    <q-dialog v-model="showLevelSelect">
+      <q-card class="levels-card">
+        <q-card-section>
+          <div class="text-h6 q-mb-md text-white">Choose a Pond</div>
+          <div class="levels-grid">
+            <q-btn
+              v-for="n in levelChoices"
+              :key="n"
+              dense
+              unelevated
+              :label="n <= maxUnlocked ? String(n) : undefined"
+              :icon="n > maxUnlocked ? 'lock' : undefined"
+              :disable="n > maxUnlocked"
+              :class="['level-chip', { 'level-chip-current': n === currentLevel }]"
+              @click="pickLevel(n)"
+            />
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat color="white" label="Close" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Instructions Dialog -->
     <q-dialog v-model="showInstructions">
@@ -213,6 +249,36 @@ const showInstructions = ref(false)
 const showWinDialog = ref(false)
 const showLoseDialog = ref(false)
 const showMenu = ref(false)
+const showLevelSelect = ref(false)
+
+// the pond's palette leaks into the chrome: loading screen, dialogs and
+// level picker all wear the current time-of-day colors as CSS variables
+const palUi = ref(paletteFor(themeStore.period.key))
+const pageStyle = computed(() => ({
+  background: themeStore.colors.gradient,
+  '--pond-top': palUi.value.skyTop,
+  '--pond-horizon': palUi.value.skyHorizon,
+  '--pond-water': palUi.value.water,
+  '--pond-deep': palUi.value.deep,
+  '--pond-ring': palUi.value.ring,
+}))
+// Quasar teleports dialogs to <body>, outside the page element — so the
+// palette vars must also live on the document root for them to be themed
+watch(
+  palUi,
+  (p) => {
+    const root = document.documentElement.style
+    root.setProperty('--pond-top', p.skyTop)
+    root.setProperty('--pond-horizon', p.skyHorizon)
+    root.setProperty('--pond-water', p.water)
+    root.setProperty('--pond-deep', p.deep)
+    root.setProperty('--pond-ring', p.ring)
+  },
+  { immediate: true },
+)
+
+const maxUnlocked = computed(() => Math.max(progressStore.ripples.currentLevel, currentLevel.value))
+const levelChoices = computed(() => maxUnlocked.value + 4) // a peek past the frontier
 
 // scene state
 let stage = null
@@ -267,6 +333,7 @@ onBeforeUnmount(() => {
 
 async function boot() {
   pal = paletteFor(devParam('theme') || themeStore.period.key)
+  palUi.value = pal
   const sharp = settingsStore.settings.sharpRender !== false
   stage = new Stage(gameCanvas.value, { clear: hexToRgba(pal.clear), webgpu: false, maxDpr: sharp ? 3 : 2 })
   await stage.init()
@@ -392,6 +459,7 @@ function canThrow() {
     !showWinDialog.value &&
     !showLoseDialog.value &&
     !showInstructions.value &&
+    !showLevelSelect.value &&
     stonesRemaining.value > 0 &&
     (!flyingStone || flyingStone.done)
   )
@@ -577,7 +645,7 @@ function tick(dt) {
   dt = Math.min(Math.max(dt || 1 / 60, 0.001), 0.05)
   t += dt
 
-  const paused = showWinDialog.value || showLoseDialog.value
+  const paused = showWinDialog.value || showLoseDialog.value || showLevelSelect.value
 
   if (!paused) {
     stepFlight(dt)
@@ -693,6 +761,22 @@ function openInstructions() {
   haptics.light()
   showMenu.value = false
   showInstructions.value = true
+}
+
+function openLevels() {
+  haptics.light()
+  showMenu.value = false
+  showLevelSelect.value = true
+}
+
+function pickLevel(n) {
+  if (n > maxUnlocked.value) return
+  haptics.light()
+  showLevelSelect.value = false
+  if (n !== currentLevel.value) {
+    currentLevel.value = n
+    resetLevel()
+  }
 }
 </script>
 
@@ -841,6 +925,15 @@ function openInstructions() {
     transition-delay: 50ms;
   }
   &.menu-fade-leave-active {
+    transition-delay: 50ms;
+  }
+}
+
+.menu-item-3 {
+  &.menu-fade-enter-active {
+    transition-delay: 100ms;
+  }
+  &.menu-fade-leave-active {
     transition-delay: 0ms;
   }
 }
@@ -881,8 +974,18 @@ function openInstructions() {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(6px);
+  background: linear-gradient(
+    180deg,
+    var(--pond-top, #2a7fd4) 0%,
+    var(--pond-horizon, #bfe4ee) 52%,
+    var(--pond-water, #1a6a8a) 78%,
+    var(--pond-deep, #062435) 100%
+  );
+}
+
+.boot-lotus {
+  font-size: 2.6rem;
+  animation: pulse 2.4s ease-in-out infinite;
 }
 
 .boot-ring {
@@ -890,7 +993,7 @@ function openInstructions() {
   height: 56px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.25);
-  border-top-color: rgba(255, 255, 255, 0.9);
+  border-top-color: var(--pond-ring, rgba(255, 255, 255, 0.9));
   animation: spin 1.1s linear infinite;
 }
 
@@ -908,17 +1011,51 @@ function openInstructions() {
 
 .instructions-card,
 .win-card,
-.lose-card {
+.lose-card,
+.levels-card {
   min-width: 300px;
   max-width: 400px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.15);
+  // pond-tinted glass: the dialogs wear the same dusk/dawn/midday colors
+  // as the water behind them
+  background: linear-gradient(168deg, var(--pond-top, #234), var(--pond-water, #135) 65%, var(--pond-deep, #012));
+  background: linear-gradient(
+    168deg,
+    color-mix(in srgb, var(--pond-top, #234) 82%, transparent),
+    color-mix(in srgb, var(--pond-water, #135) 86%, transparent) 65%,
+    color-mix(in srgb, var(--pond-deep, #012) 88%, transparent)
+  );
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
 
   :deep(*) {
     color: white !important;
   }
+}
+
+.levels-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.level-chip {
+  min-height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-weight: 600;
+
+  &.disabled {
+    opacity: 0.35 !important;
+  }
+}
+
+.level-chip-current {
+  background: color-mix(in srgb, var(--pond-ring, #9fd8ff) 35%, transparent);
+  border-color: var(--pond-ring, #9fd8ff);
 }
 
 .stars-container {

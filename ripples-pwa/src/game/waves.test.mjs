@@ -128,6 +128,10 @@ check('long hold is strong', strengthFor(600) === 'strong')
     check('dense pad colonies carpet the mid-water', l.padColonies.length >= 2 && l.padColonies.every((c) => c.leaves.length >= 8))
     check('one colony carries the magenta bloom', l.padColonies.filter((c) => c.bloom).length === 1)
     check('colonies keep clear of the flowers', l.padColonies.every((c) => l.lotus.every((lo) => Math.hypot(c.x - lo.x, c.z - lo.z) > 2.5)))
+    check('colonies keep clear of the lettuce rosettes', [3, 8, 15].every((n) => {
+      const lv2 = generateLevel(n)
+      return lv2.padColonies.every((c) => lv2.lettuces.every((lt) => Math.hypot(c.x - lt.x, c.z - lt.z) > 1.99))
+    }))
     check('canna stands flank the falls on the bank', l.cannas.length >= 1 && l.cannas.every((c) => Math.hypot(c.x, c.z) > l.R && Math.hypot(c.x - wf.x, c.z - wf.z) < 5))
     check('flower drifts sweep the far bank between the rocks', l.flowerDrifts.length >= 3 && l.flowerDrifts.every((d) => d.z < -9))
   }
