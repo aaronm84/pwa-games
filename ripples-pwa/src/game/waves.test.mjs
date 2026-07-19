@@ -117,23 +117,43 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('level 10 has stones', generateLevel(10).stones.length > 0)
   check('level 10 has drifting pads', generateLevel(10).pads.length > 0)
   check('ponds come alive: trees, fringe pads, dragonflies', (() => { const l = generateLevel(3); return l.trees.length > 5 && l.fringePads.length > 3 && l.dragonflies.length >= 2 })())
-  check('lettuce colonies and a hyacinth accent grow in', (() => { const l = generateLevel(3); return l.lettuces.length >= 5 && l.hyacinths.length >= 1 })())
-  // the rock garden: waterfall on the visible far arc, colonies, cannas, drifts
+  check('lettuce accents grow in every pond', [1, 4, 7, 10].every((n) => generateLevel(n).lettuces.length >= 1))
+  // the pond system: every 3 levels share one place; ponds differ from
+  // one another; the rock garden obeys its bounds wherever it appears
   {
+    const firstLevels = []
+    for (let n = 1; n <= 28; n += 3) firstLevels.push(generateLevel(n))
+    const withFalls = firstLevels.filter((l) => l.waterfall)
+    const stills = firstLevels.filter((l) => !l.waterfall)
+    check('some ponds have waterfalls, some are still water', withFalls.length >= 3 && stills.length >= 1)
+    check('every waterfall sits on the visible far arc, screen-right', withFalls.every((l) => {
+      const wf = l.waterfall
+      return Math.hypot(wf.x, wf.z) > l.R - 1 && wf.z < -9 && wf.x < 0 && wf.x > -7
+    }))
+    check("falls' ambient ripples die short of the throw fan", withFalls.every((l) => l.waterfall.z + 2.5 < -6.5))
+    check('waterfalls land in different spots pond to pond', new Set(withFalls.map((l) => l.waterfall.x.toFixed(2))).size >= 3)
+    check('tree lines differ pond to pond', new Set(firstLevels.map((l) => JSON.stringify(l.trees))).size === firstLevels.length)
+
+    const a = generateLevel(4)
+    const b = generateLevel(5)
+    const c = generateLevel(6)
+    check('a pond keeps its environment across its 3 levels', (() => {
+      const env = (l) => JSON.stringify([{ ...l.pond, levelInPond: 0 }, l.waterfall, l.trees, l.cannas, l.flowerDrifts, l.reeds.slice(-6)])
+      return env(a) === env(b) && env(b) === env(c)
+    })())
+    check('the 3 levels of a pond still differ in gameplay', JSON.stringify(a.lotus) !== JSON.stringify(b.lotus))
+    check('pond numbering: levels 4-6 are pond 2', a.pond.number === 2 && c.pond.number === 2 && generateLevel(3).pond.number === 1)
+
     const l = generateLevel(3)
-    const wf = l.waterfall
-    check('a waterfall spills over the far bank', Math.hypot(wf.x, wf.z) > l.R - 1 && wf.z < -9)
-    check('the falls sit inside the visible arc, screen-right', wf.x < 0 && wf.x > -6)
-    check("the falls' ambient ripples die short of the throw fan", wf.z + 2.5 < -6.5)
-    check('dense pad colonies carpet the mid-water', l.padColonies.length >= 2 && l.padColonies.every((c) => c.leaves.length >= 8))
-    check('one colony carries the magenta bloom', l.padColonies.filter((c) => c.bloom).length === 1)
-    check('colonies keep clear of the flowers', l.padColonies.every((c) => l.lotus.every((lo) => Math.hypot(c.x - lo.x, c.z - lo.z) > 2.5)))
+    check('pad colonies carpet the mid-water', l.padColonies.length >= 1 && l.padColonies.every((cc) => cc.leaves.length >= 8))
+    check('the magenta bloom rides the first colony', l.padColonies.filter((cc) => cc.bloom).length === (l.padColonies.length ? 1 : 0))
+    check('colonies keep clear of the flowers', l.padColonies.every((cc) => l.lotus.every((lo) => Math.hypot(cc.x - lo.x, cc.z - lo.z) > 2.5)))
     check('colonies keep clear of the lettuce rosettes', [3, 8, 15].every((n) => {
       const lv2 = generateLevel(n)
-      return lv2.padColonies.every((c) => lv2.lettuces.every((lt) => Math.hypot(c.x - lt.x, c.z - lt.z) > 1.99))
+      return lv2.padColonies.every((cc) => lv2.lettuces.every((lt) => Math.hypot(cc.x - lt.x, cc.z - lt.z) > 1.99))
     }))
-    check('canna stands flank the falls on the bank', l.cannas.length >= 1 && l.cannas.every((c) => Math.hypot(c.x, c.z) > l.R && Math.hypot(c.x - wf.x, c.z - wf.z) < 5))
-    check('flower drifts sweep the far bank between the rocks', l.flowerDrifts.length >= 3 && l.flowerDrifts.every((d) => d.z < -9))
+    check('canna stands flank the garden anchor on the bank', withFalls.every((wl) => wl.cannas.length >= 1 && wl.cannas.every((cn) => Math.hypot(cn.x, cn.z) > wl.R && Math.hypot(cn.x - wl.waterfall.x, cn.z - wl.waterfall.z) < 5.5)))
+    check('flower drifts sweep the far bank between the rocks', firstLevels.every((fl) => fl.flowerDrifts.length >= 2 && fl.flowerDrifts.every((d) => d.z < -9)))
   }
   const lv = generateLevel(15)
   check('gameplay actors stay in the throw fan', lv.lotus.every((o) => o.z < lv.R - 7))
@@ -172,6 +192,20 @@ check('long hold is strong', strengthFor(600) === 'strong')
 
   const aimed = run({ power: 0.8, angle: 0.3 })
   check('aim angle steers the throw', aimed.stone.x > 1)
+
+  // loft: trading skips for a placeable plunge
+  const flat = run({ power: 0.8 })
+  const lob = run({ power: 0.8, loft: 1 })
+  const half = run({ power: 0.8, loft: 0.5 })
+  const lobSkips = lob.events.filter((e) => e.type === 'skip').length
+  const halfSkips = half.events.filter((e) => e.type === 'skip').length
+  const flatSkips = flat.events.filter((e) => e.type === 'skip').length
+  check('a full lob plunges without skipping', lobSkips === 0)
+  check('a half loft skips less than a flat skim', halfSkips < flatSkips)
+  check('lofting shortens the carry', lob.stone.z > flat.stone.z + 2)
+  check('a lob still clears the near water', lob.stone.z < 6)
+  const lobSink = lob.events.find((e) => e.type === 'sink')
+  check('a lob lands with real impact speed', lobSink.speed > 6)
 }
 
 // rocks are solid at flight height — no stone sails through one

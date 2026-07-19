@@ -32,6 +32,39 @@ function pointToSegment(p, a, b) {
 export function generateLevel(levelNum, R = 13) {
   const rng = seededRandom(levelNum * 12345)
 
+  // ---- the pond: every 3 levels share one ----
+  // A pond is a place: its waterfall (or stillness), its boulder tones, its
+  // tree line, its planted garden. The puzzle inside changes level to level;
+  // the place doesn't. pondRng draws are all made here, in fixed order, so
+  // the three levels of a pond agree about their world.
+  const pondNum = Math.floor((levelNum - 1) / 3) + 1
+  // minstd (prime modulus) — the level LCG's related seeds stay correlated
+  // for many draws, which would give every pond the same falls and stones
+  let pondState = (pondNum * 16807 + 12345) % 2147483647
+  const pondRng = () => ((pondState = (pondState * 16807) % 2147483647) / 2147483647)
+  pondRng()
+  pondRng()
+  const pond = {
+    number: pondNum,
+    levelInPond: ((levelNum - 1) % 3) + 1,
+    hasFalls: pondRng() < 0.72,
+    fallsAngle: 4.3 + pondRng() * 0.42, // also the garden's anchor when still
+    fallsScale: 0.9 + pondRng() * 0.45,
+    fallsSeed: pondRng() * Math.PI * 2,
+    boulderTone: Math.floor(pondRng() * 3), // river gray / sandstone / mossy slate
+    coniferBias: 0.25 + pondRng() * 0.5,
+    treeCount: 11 + Math.floor(pondRng() * 7),
+    reedCount: 9 + Math.floor(pondRng() * 9),
+    lettuceCount: 5 + Math.floor(pondRng() * 7),
+    colonyCount: 1 + Math.floor(pondRng() * 3),
+    hyCount: Math.floor(pondRng() * 3),
+    cannaCount: 1 + Math.floor(pondRng() * 2),
+    driftCount: 2 + Math.floor(pondRng() * 3),
+    driftHueBias: Math.floor(pondRng() * 4),
+    fishCount: 2 + Math.floor(pondRng() * 3),
+    flyCount: 2 + Math.floor(pondRng() * 3),
+  }
+
   // a seeded point in the playable fan: in front of the thrower, off the
   // banks, inside the camera's wedge (the fan widens with distance, like a
   // lane), reachable by a skipping stone
@@ -192,61 +225,49 @@ export function generateLevel(levelNum, R = 13) {
       seed: rng() * Math.PI * 2,
     })
   }
-  const reedCount = 12 + Math.floor(rng() * 6)
-  for (let i = 0; i < reedCount; i++) {
-    const a = rng() * Math.PI * 2
-    const r = R - 0.4 - rng() * 1.2
+  for (let i = 0; i < pond.reedCount; i++) {
+    const a = pondRng() * Math.PI * 2
+    const r = R - 0.4 - pondRng() * 1.2
     const p = { x: Math.cos(a) * r, z: Math.sin(a) * r }
+    const h = 0.9 + pondRng() * 1.1
+    const lean = (pondRng() - 0.5) * 0.25
+    const blades = 2 + Math.floor(pondRng() * 3)
+    const seed = pondRng() * Math.PI * 2
     if (p.z > R - 4.5 && Math.abs(p.x) < 4) continue // keep the throw corridor clear
-    reeds.push({
-      x: p.x,
-      z: p.z,
-      height: 0.9 + rng() * 1.1,
-      lean: (rng() - 0.5) * 0.25,
-      blades: 2 + Math.floor(rng() * 3),
-      seed: rng() * Math.PI * 2,
-    })
+    reeds.push({ x: p.x, z: p.z, height: h, lean, blades, seed })
   }
 
   // decorative fringe pads hugging the banks (no gameplay effect)
   const fringePads = []
-  const fringeCount = 9 + Math.floor(rng() * 4)
+  const fringeCount = 9 + Math.floor(pondRng() * 4)
   for (let i = 0; i < fringeCount; i++) {
-    const a = rng() * Math.PI * 2
-    const r = R - 0.8 - rng() * 1.4
+    const a = pondRng() * Math.PI * 2
+    const r = R - 0.8 - pondRng() * 1.4
     const p = { x: Math.cos(a) * r, z: Math.sin(a) * r }
+    const radius = 0.5 + pondRng() * 0.55
+    const rotation = pondRng() * Math.PI * 2
+    const seed = pondRng() * Math.PI * 2
     if (p.z > R - 5 && Math.abs(p.x) < 5) continue
     if (lotus.some((l) => dist(p, l) < 3)) continue
-    fringePads.push({
-      x: p.x,
-      z: p.z,
-      radius: 0.5 + rng() * 0.55,
-      rotation: rng() * Math.PI * 2,
-      seed: rng() * Math.PI * 2,
-    })
+    fringePads.push({ x: p.x, z: p.z, radius, rotation, seed })
   }
 
   // a ragged tree line beyond the banks — the world past the water
   const trees = []
-  const treeCount = 12 + Math.floor(rng() * 5)
-  for (let i = 0; i < treeCount; i++) {
-    const a = (i / treeCount) * Math.PI * 2 + (rng() - 0.5) * 0.3
-    const r = R + 3.5 + rng() * 5
+  for (let i = 0; i < pond.treeCount; i++) {
+    const a = (i / pond.treeCount) * Math.PI * 2 + (pondRng() - 0.5) * 0.3
+    const r = R + 3.5 + pondRng() * 5
     const p = { x: Math.cos(a) * r, z: Math.sin(a) * r }
+    const height = 2.6 + pondRng() * 2.8
+    const width = 1.3 + pondRng() * 1.3
+    const tone = pondRng()
+    const kind = pondRng() < pond.coniferBias ? 'conifer' : 'broadleaf'
     if (p.z > R + 1) continue // not behind the camera
-    trees.push({
-      x: p.x,
-      z: p.z,
-      height: 2.6 + rng() * 2.8,
-      width: 1.3 + rng() * 1.3,
-      tone: rng(),
-      kind: rng() > 0.6 ? 'conifer' : 'broadleaf',
-    })
+    trees.push({ x: p.x, z: p.z, height, width, tone, kind })
   }
 
   const fish = []
-  const fishCount = 2 + Math.floor(rng() * 2)
-  for (let i = 0; i < fishCount; i++) {
+  for (let i = 0; i < pond.fishCount; i++) {
     const p = playSpot()
     fish.push({
       x: p.x,
@@ -263,8 +284,7 @@ export function generateLevel(levelNum, R = 13) {
   // water lettuce colonies float mid-water along the wedge margins, the way
   // the reference ponds scatter their floaters — visual only
   const lettuces = []
-  const lettuceCount = 8 + Math.floor(rng() * 3)
-  for (let i = 0; i < lettuceCount; i++) {
+  for (let i = 0; i < pond.lettuceCount; i++) {
     const z = -5 + rng() * 12
     const side = rng() > 0.5 ? 1 : -1
     const x = side * (0.5 + rng() * 0.38) * wedgeHalf(z)
@@ -277,8 +297,7 @@ export function generateLevel(levelNum, R = 13) {
 
   // one or two water hyacinths — violet accents in the foreground water
   const hyacinths = []
-  const hyCount = 1 + Math.floor(rng() * 2)
-  for (let i = 0; i < hyCount; i++) {
+  for (let i = 0; i < pond.hyCount; i++) {
     const z = 1 + rng() * 4.5
     const side = i === 0 ? (rng() > 0.5 ? 1 : -1) : -1
     const x = side * (0.55 + rng() * 0.28) * wedgeHalf(z)
@@ -289,23 +308,25 @@ export function generateLevel(levelNum, R = 13) {
 
   // ---- the rock garden (visual only) ----
 
-  // a waterfall spills over the far bank, screen-right of center (world -x),
-  // always inside the camera's visible far-bank arc. Its ambient ripples die
-  // long before the gameplay fan (which ends at z = -6.5).
-  const fallsAngle = 4.34 + rng() * 0.24
-  const waterfall = {
-    x: Math.cos(fallsAngle) * (R - 0.1),
-    z: Math.sin(fallsAngle) * (R - 0.1),
-    angle: fallsAngle,
-    scale: 1 + rng() * 0.25,
-    seed: rng() * Math.PI * 2,
-  }
+  // some ponds have a waterfall spilling over the far bank, screen-right of
+  // center (world -x), always inside the camera's visible arc; others are
+  // still water. Either way the garden clusters around the same anchor.
+  // Falls ambient ripples die long before the gameplay fan (ends z = -6.5).
+  const fallsAngle = pond.fallsAngle
+  const waterfall = pond.hasFalls
+    ? {
+        x: Math.cos(fallsAngle) * (R - 0.1),
+        z: Math.sin(fallsAngle) * (R - 0.1),
+        angle: fallsAngle,
+        scale: pond.fallsScale,
+        seed: pond.fallsSeed,
+      }
+    : null
 
   // dense colonies of small lily pads — the reference ponds' carpets of
   // pads the size of a hand, one colony carrying a magenta bloom
   const padColonies = []
-  const colonyCount = 2 + Math.floor(rng() * 2)
-  for (let i = 0; i < colonyCount; i++) {
+  for (let i = 0; i < pond.colonyCount; i++) {
     let p = null
     for (let tries = 0; tries < 24; tries++) {
       const z = -8.5 + rng() * 4.5
@@ -343,41 +364,38 @@ export function generateLevel(levelNum, R = 13) {
   // canna stands flank the falls on the bank — broad upright leaves under
   // an orange bloom spike
   const cannas = []
-  const cannaCount = 1 + Math.floor(rng() * 2)
-  for (let i = 0; i < cannaCount; i++) {
-    const a = fallsAngle + (i === 0 ? -1 : 1) * (0.16 + rng() * 0.1)
-    const r = R + 0.3 + rng() * 0.5
+  for (let i = 0; i < pond.cannaCount; i++) {
+    const a = fallsAngle + (i === 0 ? -1 : 1) * (0.16 + pondRng() * 0.1)
+    const r = R + 0.3 + pondRng() * 0.5
     cannas.push({
       x: Math.cos(a) * r,
       z: Math.sin(a) * r,
-      scale: 0.85 + rng() * 0.45,
-      seed: rng() * Math.PI * 2,
-      blooms: 2 + Math.floor(rng() * 2),
+      scale: 0.85 + pondRng() * 0.45,
+      seed: pondRng() * Math.PI * 2,
+      blooms: 2 + Math.floor(pondRng() * 2),
     })
   }
 
   // flower drifts tucked between the far-bank boulders — each patch one
   // color, like the reference gardens' planted sweeps
   const flowerDrifts = []
-  const driftCount = 3 + Math.floor(rng() * 2)
-  for (let i = 0; i < driftCount; i++) {
-    let a = 4.26 + (i / driftCount) * 0.86 + rng() * 0.1
+  for (let i = 0; i < pond.driftCount; i++) {
+    let a = 4.26 + (i / pond.driftCount) * 0.86 + pondRng() * 0.1
     if (Math.abs(a - fallsAngle) < 0.2) a += 0.32
-    const r = R + 0.25 + rng() * 0.9
+    const r = R + 0.25 + pondRng() * 0.9
     flowerDrifts.push({
       x: Math.cos(a) * r,
       z: Math.sin(a) * r,
-      hue: Math.floor(rng() * 4),
-      count: 8 + Math.floor(rng() * 6),
-      spread: 0.7 + rng() * 0.5,
-      seed: rng() * Math.PI * 2,
+      hue: (pond.driftHueBias + i + Math.floor(pondRng() * 2)) % 4,
+      count: 8 + Math.floor(pondRng() * 6),
+      spread: 0.7 + pondRng() * 0.5,
+      seed: pondRng() * Math.PI * 2,
     })
   }
 
   // dragonflies hover over the shallows, darting now and then
   const dragonflies = []
-  const flyCount = 2 + Math.floor(rng() * 2)
-  for (let i = 0; i < flyCount; i++) {
+  for (let i = 0; i < pond.flyCount; i++) {
     const a = rng() * Math.PI * 2
     const r = 3 + rng() * (R - 5)
     dragonflies.push({
@@ -391,6 +409,7 @@ export function generateLevel(levelNum, R = 13) {
 
   return {
     R,
+    pond,
     lotus,
     stones,
     pads,

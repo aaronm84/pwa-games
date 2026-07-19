@@ -692,9 +692,15 @@ function buildFringePads(scene, fringePads) {
 // Two rows of flat-shaded boulders replace the smooth earthen lip: a
 // shoulder-height outer row on the bank crest, and a half-submerged inner
 // row at the waterline. Merged per tone to keep draw calls flat.
-function buildRockBanks(scene, R) {
-  const tones = ['#8a8578', '#9a8468', '#a08578']
-  let seed = 41
+const BOULDER_TONE_SETS = [
+  ['#8a8578', '#9a8468', '#a08578'], // river gray
+  ['#a08c68', '#b09a74', '#8f7c5c'], // warm sandstone
+  ['#75816e', '#68755f', '#8a927c'], // mossy slate
+]
+
+function buildRockBanks(scene, R, pondStyle) {
+  const tones = BOULDER_TONE_SETS[(pondStyle?.boulderTone ?? 0) % 3]
+  let seed = 41 + (pondStyle?.number ?? 0) * 173 // each pond piles its rocks its own way
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   const groups = [[], [], []]
   const drop = (x, z, d, y, squash) => {
@@ -932,7 +938,9 @@ function buildWaterfall(scene, shadow, wf, pal) {
   let n = 0
   return {
     step(t, dt) {
-      tex.vOffset = (tex.vOffset - dt * (0.85 + Math.sin(t * 2.3) * 0.06)) % 1
+      // +v scroll carries the streaks DOWN the sheet (uv v runs 1 at the lip
+      // to 0 at the base) — the minus sign here once made the falls flow up
+      tex.vOffset = (tex.vOffset + dt * (0.85 + Math.sin(t * 2.3) * 0.06)) % 1
       for (const f of foams) {
         f.mat.alpha = 0.16 + Math.max(0, Math.sin(t * f.sp + f.ph)) * 0.09
         f.mesh.scaling.setAll(1 + Math.sin(t * f.sp * 0.7 + f.ph) * 0.12)
@@ -1147,7 +1155,7 @@ export function buildPond(scene, shadow, level, pal) {
   const flowers = buildBankFlowers(scene, R)
   const lettuces = buildLettuces(scene, shadow, level.lettuces || [])
   const hyacinths = buildHyacinths(scene, shadow, level.hyacinths || [])
-  const rockBanks = buildRockBanks(scene, R)
+  const rockBanks = buildRockBanks(scene, R, level.pond)
   const falls = buildWaterfall(scene, shadow, level.waterfall, pal)
   const colonies = buildPadColonies(scene, level.padColonies || [])
   const drifts = buildFlowerDrifts(scene, level.flowerDrifts || [])

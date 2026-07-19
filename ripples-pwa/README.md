@@ -49,7 +49,11 @@ it: wake flowers from beside, not above. Finish at the optimal stone count for
 
 ## Features
 
-- Endless seeded levels — the same level number always builds the same pond.
+- Endless seeded levels, grouped three to a pond: each pond is a distinct
+  place (its waterfall or stillness, boulder tones, tree line, planted
+  garden) that persists while the puzzle inside changes.
+- Two ways to throw: a flat snap skims and skips; following through high
+  lofts the stone into a lob that plunges exactly where you place it.
 - Wave-physics puzzling: reflection, absorption, interference, accumulation.
 - Time-of-day theming — water, light and sky follow your clock (or a manual theme).
 - Ambient pond life: koi beneath the surface that scurry from wavefronts,
