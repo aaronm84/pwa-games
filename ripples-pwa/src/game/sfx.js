@@ -5,10 +5,30 @@ import { createSynth } from 'src/engine'
 
 const synth = createSynth()
 
+// the waterfall's steady wash — a filtered-noise loop the page starts with
+// the level and stops when it tears down
+let falls = null
+let fallsLevel = 0
+
 export const sfx = {
   configure(opts) { synth.configure(opts) },
-  unlock() { synth.unlock() },
+  unlock() {
+    synth.unlock()
+    // the loop may have been requested before audio was allowed — retry now
+    if (fallsLevel > 0 && !falls) sfx.fallsStart(fallsLevel)
+  },
   get events() { return synth.events },
+
+  fallsStart(level = 0.04) {
+    fallsLevel = level
+    if (!falls) falls = synth.loop({ type: 'bandpass', freq: 820 })
+    falls?.set(level, 820, 0.8)
+  },
+  fallsStop() {
+    fallsLevel = 0
+    falls?.stop(0.4)
+    falls = null
+  },
 
   // a water plop: filtered noise splash under a sinking tone — deeper and
   // longer the harder the tap

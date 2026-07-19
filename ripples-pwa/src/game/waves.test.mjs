@@ -118,6 +118,19 @@ check('long hold is strong', strengthFor(600) === 'strong')
   check('level 10 has drifting pads', generateLevel(10).pads.length > 0)
   check('ponds come alive: trees, fringe pads, dragonflies', (() => { const l = generateLevel(3); return l.trees.length > 5 && l.fringePads.length > 3 && l.dragonflies.length >= 2 })())
   check('lettuce colonies and a hyacinth accent grow in', (() => { const l = generateLevel(3); return l.lettuces.length >= 5 && l.hyacinths.length >= 1 })())
+  // the rock garden: waterfall on the visible far arc, colonies, cannas, drifts
+  {
+    const l = generateLevel(3)
+    const wf = l.waterfall
+    check('a waterfall spills over the far bank', Math.hypot(wf.x, wf.z) > l.R - 1 && wf.z < -9)
+    check('the falls sit inside the visible arc, screen-right', wf.x < 0 && wf.x > -6)
+    check("the falls' ambient ripples die short of the throw fan", wf.z + 2.5 < -6.5)
+    check('dense pad colonies carpet the mid-water', l.padColonies.length >= 2 && l.padColonies.every((c) => c.leaves.length >= 8))
+    check('one colony carries the magenta bloom', l.padColonies.filter((c) => c.bloom).length === 1)
+    check('colonies keep clear of the flowers', l.padColonies.every((c) => l.lotus.every((lo) => Math.hypot(c.x - lo.x, c.z - lo.z) > 2.5)))
+    check('canna stands flank the falls on the bank', l.cannas.length >= 1 && l.cannas.every((c) => Math.hypot(c.x, c.z) > l.R && Math.hypot(c.x - wf.x, c.z - wf.z) < 5))
+    check('flower drifts sweep the far bank between the rocks', l.flowerDrifts.length >= 3 && l.flowerDrifts.every((d) => d.z < -9))
+  }
   const lv = generateLevel(15)
   check('gameplay actors stay in the throw fan', lv.lotus.every((o) => o.z < lv.R - 7))
   const inBounds = [...lv.lotus, ...lv.stones].every((o) => Math.hypot(o.x, o.z) < lv.R)

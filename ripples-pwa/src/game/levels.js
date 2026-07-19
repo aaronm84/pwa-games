@@ -287,6 +287,91 @@ export function generateLevel(levelNum, R = 13) {
     hyacinths.push({ x: p.x, z: p.z, scale: 0.8 + rng() * 0.4, seed: rng() * Math.PI * 2 })
   }
 
+  // ---- the rock garden (visual only) ----
+
+  // a waterfall spills over the far bank, screen-right of center (world -x),
+  // always inside the camera's visible far-bank arc. Its ambient ripples die
+  // long before the gameplay fan (which ends at z = -6.5).
+  const fallsAngle = 4.34 + rng() * 0.24
+  const waterfall = {
+    x: Math.cos(fallsAngle) * (R - 0.1),
+    z: Math.sin(fallsAngle) * (R - 0.1),
+    angle: fallsAngle,
+    scale: 1 + rng() * 0.25,
+    seed: rng() * Math.PI * 2,
+  }
+
+  // dense colonies of small lily pads — the reference ponds' carpets of
+  // pads the size of a hand, one colony carrying a magenta bloom
+  const padColonies = []
+  const colonyCount = 2 + Math.floor(rng() * 2)
+  for (let i = 0; i < colonyCount; i++) {
+    let p = null
+    for (let tries = 0; tries < 24; tries++) {
+      const z = -8.5 + rng() * 4.5
+      const side = (i + tries) % 2 === 0 ? -1 : 1
+      const c = { x: side * (0.45 + rng() * 0.35) * wedgeHalf(z), z }
+      const clear =
+        lotus.every((l) => dist(c, l) > 3) &&
+        stones.every((s) => dist(c, s) > 2.2) &&
+        pads.every((pd) => dist(c, pd) > 2.4) &&
+        padColonies.every((pc) => dist(c, pc) > 2.6)
+      if (clear) {
+        p = c
+        break
+      }
+    }
+    if (!p) continue
+    const leaves = []
+    const n = 8 + Math.floor(rng() * 7)
+    const spread = 0.85 + rng() * 0.5
+    for (let k = 0; k < n; k++) {
+      const a = rng() * Math.PI * 2
+      const d = Math.sqrt(rng()) * spread
+      leaves.push({
+        dx: Math.cos(a) * d,
+        dz: Math.sin(a) * d,
+        r: 0.12 + rng() * 0.13,
+        rot: rng() * Math.PI * 2,
+      })
+    }
+    padColonies.push({ x: p.x, z: p.z, leaves, bloom: padColonies.length === 0, seed: rng() * Math.PI * 2 })
+  }
+
+  // canna stands flank the falls on the bank — broad upright leaves under
+  // an orange bloom spike
+  const cannas = []
+  const cannaCount = 1 + Math.floor(rng() * 2)
+  for (let i = 0; i < cannaCount; i++) {
+    const a = fallsAngle + (i === 0 ? -1 : 1) * (0.16 + rng() * 0.1)
+    const r = R + 0.3 + rng() * 0.5
+    cannas.push({
+      x: Math.cos(a) * r,
+      z: Math.sin(a) * r,
+      scale: 0.85 + rng() * 0.45,
+      seed: rng() * Math.PI * 2,
+      blooms: 2 + Math.floor(rng() * 2),
+    })
+  }
+
+  // flower drifts tucked between the far-bank boulders — each patch one
+  // color, like the reference gardens' planted sweeps
+  const flowerDrifts = []
+  const driftCount = 3 + Math.floor(rng() * 2)
+  for (let i = 0; i < driftCount; i++) {
+    let a = 4.26 + (i / driftCount) * 0.86 + rng() * 0.1
+    if (Math.abs(a - fallsAngle) < 0.2) a += 0.32
+    const r = R + 0.25 + rng() * 0.9
+    flowerDrifts.push({
+      x: Math.cos(a) * r,
+      z: Math.sin(a) * r,
+      hue: Math.floor(rng() * 4),
+      count: 8 + Math.floor(rng() * 6),
+      spread: 0.7 + rng() * 0.5,
+      seed: rng() * Math.PI * 2,
+    })
+  }
+
   // dragonflies hover over the shallows, darting now and then
   const dragonflies = []
   const flyCount = 2 + Math.floor(rng() * 2)
@@ -311,6 +396,10 @@ export function generateLevel(levelNum, R = 13) {
     fringePads,
     lettuces,
     hyacinths,
+    waterfall,
+    padColonies,
+    cannas,
+    flowerDrifts,
     trees,
     fish,
     dragonflies,
