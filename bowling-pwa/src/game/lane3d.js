@@ -295,32 +295,93 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   if (style === 'igloo') buildIglooBacker(scene, track, freeze, meshesOwnMats)
   if (style === 'saloon') pitUpdate = buildSaloonBacker(scene, totalW, track, freeze, meshesOwnMats)
 
-  // lane edge lights (visual) — the page color-cycles their emissive.
-  // Default: continuous neon strips. The Midway instead gets RUNWAY lights:
-  // a row of small individual bulbs marching down each edge.
+  // lane edge lights (visual) — every house speaks its own light language:
+  //  - 'neon' (default; Disco): continuous tubes, hue-cycled by the page
+  //  - 'bulbs' (Midway, High Roller, Poolside): runway rows of little domes
+  //  - 'dashes' (Zero-G): clean docking-guide light segments
+  //  - 'embers' (Lava): a broken line of molten crust cracks — FLICKERS
+  //  - 'flames' (Tiki): a row of tiny torch flames — FLICKERS
+  //  - 'lanterns' (Timberline, Dry Gulch): campsite lights — FLICKER
+  //  - 'crystals' (Polar Nights): jagged ice shards catching the aurora
+  // Flicker styles pulse in their own warm color instead of hue-cycling;
+  // the page reads edges[i].flicker/base to decide.
   const edges = []
+  const edgeStyle = opts.edgeStyle || 'neon'
+  const span = LANE_LEN + 2
   for (const side of [-1, 1]) {
-    let e
-    if (opts.edgeBulbs) {
-      const bits = []
-      const span = LANE_LEN + 2
-      const n = 24
-      for (let i = 0; i < n; i++) {
+    const ex = side * (LANE_W / 2 + 0.03)
+    const z0 = lane.position.z + span / 2
+    const bits = []
+    let flicker = false
+    if (edgeStyle === 'bulbs') {
+      for (let i = 0; i < 24; i++) {
         const b = MeshBuilder.CreateSphere('edgeBulb', { diameter: 0.08, segments: 8 }, scene)
         b.scaling.y = 0.8 // little domes on the cap rail
-        b.position.set(side * (LANE_W / 2 + 0.03), 0.05, lane.position.z + span / 2 - (i / (n - 1)) * span)
+        b.position.set(ex, 0.05, z0 - (i / 23) * span)
         bits.push(b)
       }
+    } else if (edgeStyle === 'dashes') {
+      for (let i = 0; i < 14; i++) {
+        const d = MeshBuilder.CreateBox('edgeDash', { width: 0.05, height: 0.03, depth: 0.55 }, scene)
+        d.position.set(ex, 0.035, z0 - 0.4 - i * (span - 0.8) / 13)
+        bits.push(d)
+      }
+    } else if (edgeStyle === 'embers') {
+      // cooling crust: uneven glowing slabs with ragged gaps
+      flicker = true
+      let z = z0
+      while (z > z0 - span) {
+        const len = 0.3 + Math.random() * 0.45
+        const s = MeshBuilder.CreateBox('edgeEmber', { width: 0.07, height: 0.045, depth: len }, scene)
+        s.position.set(ex, 0.028, z - len / 2)
+        s.rotation.y = (Math.random() - 0.5) * 0.25
+        bits.push(s)
+        z -= len + 0.25 + Math.random() * 0.6
+      }
+    } else if (edgeStyle === 'flames') {
+      flicker = true
+      for (let i = 0; i < 14; i++) {
+        const h = 0.12 + ((i * 2.7) % 3) * 0.022
+        const f = MeshBuilder.CreateCylinder('edgeFlame', { diameterTop: 0, diameterBottom: 0.075, height: h, tessellation: 8 }, scene)
+        f.position.set(ex, 0.05 + h / 2, z0 - 0.6 - i * (span - 1.2) / 13)
+        bits.push(f)
+      }
+    } else if (edgeStyle === 'lanterns') {
+      flicker = true
+      for (let i = 0; i < 13; i++) {
+        const l = MeshBuilder.CreateBox('edgeLantern', { width: 0.065, height: 0.085, depth: 0.065 }, scene)
+        l.position.set(ex, 0.07, z0 - 0.7 - i * (span - 1.4) / 12)
+        bits.push(l)
+      }
+    } else if (edgeStyle === 'crystals') {
+      for (let i = 0; i < 20; i++) {
+        const h = 0.12 + ((i * 3.1) % 4) * 0.025
+        const c = MeshBuilder.CreateCylinder('edgeCrystal', { diameterTop: 0, diameterBottom: 0.06, height: h, tessellation: 5 }, scene)
+        c.position.set(ex, 0.03 + h / 2, z0 - 0.5 - i * (span - 1) / 19)
+        c.rotation.z = side * 0.14 // shards lean off the lane a touch
+        c.rotation.y = i * 1.3
+        bits.push(c)
+        if (i % 3 === 0) {
+          const c2 = MeshBuilder.CreateCylinder('edgeCrystal2', { diameterTop: 0, diameterBottom: 0.04, height: h * 0.6, tessellation: 5 }, scene)
+          c2.position.set(ex + side * 0.05, 0.03 + h * 0.3, z0 - 0.5 - i * (span - 1) / 19 + 0.07)
+          c2.rotation.z = side * 0.3
+          bits.push(c2)
+        }
+      }
+    }
+    let e
+    if (bits.length) {
       e = Mesh.MergeMeshes(bits, true, true)
     } else {
-      e = MeshBuilder.CreateBox('neon', { width: 0.06, height: 0.05, depth: LANE_LEN + 2 }, scene)
-      e.position.set(side * (LANE_W / 2 + 0.03), 0.03, lane.position.z)
+      e = MeshBuilder.CreateBox('neon', { width: 0.06, height: 0.05, depth: span }, scene)
+      e.position.set(ex, 0.03, lane.position.z)
     }
     const m = new StandardMaterial('neonMat' + side, scene)
     m.emissiveColor = Color3.FromHexString(side < 0 ? colors.laneEdgeA : colors.laneEdgeB)
     m.disableLighting = true
     e.material = m
-    edges.push({ mesh: e, mat: m })
+    // flicker styles glow in the house's warm accent on BOTH sides
+    edges.push({ mesh: e, mat: m, flicker, base: colors.sweepGlow || (side < 0 ? colors.laneEdgeA : colors.laneEdgeB) })
     track(freeze(e))
   }
 

@@ -10,6 +10,7 @@ export const alleys = [
     fx: 'discoball', // mirror ball drops the confetti on strikes
     pit: 'open', // no backer — the mirror ball hangs over the pit
     sweepStyle: 'neon', // the arm is twin neon tubes with sparkle beads
+    edgeStyle: 'neon', // the one house where neon tubes ARE the vibe
     pin: { body: '#f4f0ff', bands: [{ y: 0.66, c: '#ff3df0' }, { y: 0.735, c: '#28d7fe' }] },
     hazards: ['mirrorball', 'discoshoe'],
     colors: {
@@ -43,6 +44,7 @@ export const alleys = [
     fx: 'lava', // molten gutters pulse; gutter balls sizzle
     pit: 'volcano', // the lane dead-ends into a glowing volcano
     sweepStyle: 'drip', // basalt bar shedding glowing lava drips
+    edgeStyle: 'embers', // broken molten crust lines, pulsing
     wood: true, // grained boards on the lane floor
     pin: { body: '#fff3e6', bands: [{ y: 0.66, c: '#e8481c' }, { y: 0.735, c: '#ffb52f' }] },
     hazards: ['lavapatch', 'boulder'],
@@ -78,6 +80,7 @@ export const alleys = [
     fx: 'ufo', // a saucer buzzes the deck on strikes
     pit: 'open', // no backer — deep space behind the pins
     sweepStyle: 'laser', // stacked laser beams between emitter pods
+    edgeStyle: 'dashes', // docking-guide light segments
     pin: { body: '#eef4ff', bands: [{ y: 0.66, c: '#4dff9d' }, { y: 0.735, c: '#4d9dff' }] },
     hazards: ['saucer', 'alien'],
     colors: {
@@ -111,6 +114,7 @@ export const alleys = [
     fx: 'tiki', // torchlight flickers; strikes flare the flames
     pit: 'masks', // a row of glowing-eyed tiki masks above the pit
     sweepStyle: 'bamboo', // a thick cane with nodes and rope lashings
+    edgeStyle: 'flames', // a line of tiny torch flames, flickering
     wood: true, // grained boards on the lane floor
     pin: { body: '#c98d4e', bands: [{ y: 0.24, c: '#7a4a22' }, { y: 0.49, c: '#2e8b57' }, { y: 0.7, c: '#e8481c' }] },
     hazards: ['coconut', 'pineapple', 'tikidrink', 'fallentorch'],
@@ -145,6 +149,7 @@ export const alleys = [
     fx: 'casino', // gold sparkle; strikes hit the jackpot
     pit: 'slot', // the backer is a slot machine; the pit is the payout tray
     sweepStyle: 'plush', // button-tufted leather bumper, gold hardware
+    edgeStyle: 'bulbs', // marquee bulbs, Vegas-style
     pin: { body: '#e8c86a', bands: [{ y: 0.66, c: '#a01a2e' }, { y: 0.735, c: '#7a1522' }] },
     hazards: ['die', 'chipstack', 'cocktail'],
     colors: {
@@ -179,6 +184,7 @@ export const alleys = [
     bright: true, // full daylight rig
     pit: 'water', // no dark backstop — the deck ends over open pool water
     sweepStyle: 'noodle', // a candy-striped foam pool noodle
+    edgeStyle: 'bulbs', // deck string lights
     wood: 'soft', // sun-bleached boards, blended close in tone
     pin: { body: '#ffffff', bands: [{ y: 0.66, c: '#29b5d8' }, { y: 0.735, c: '#ff8a5a' }] },
     hazards: ['beachball', 'floaty', 'sunglasses', 'towel', 'sandal'],
@@ -213,6 +219,7 @@ export const alleys = [
     fx: 'forest', // the first DEEP backdrop: forest, campfires… and a visitor
     pit: 'forest', // a log gate frames the open view into the woods
     sweepStyle: 'log', // a pine log on the pinsetter chains
+    edgeStyle: 'lanterns', // campsite lights, flickering warm
     wood: true, // lodge boards on the lane floor
     pin: { body: '#f4ead8', bands: [{ y: 0.66, c: '#2e6b45' }, { y: 0.735, c: '#ffb46a' }] },
     hazards: ['pinecone', 'marshstick', 'canteen', 'bigfootprint'],
@@ -248,7 +255,7 @@ export const alleys = [
     pit: 'ducks', // the backer is a shooting-gallery duck row
     sweepStyle: 'marquee', // a lightbulb marquee bar, bulbs chasing
     wood: true, // boardwalk planks
-    edgeBulbs: true, // runway-style rows of little bulbs, not neon tubes
+    edgeStyle: 'bulbs', // runway rows of little marquee bulbs
     pin: { body: '#fff4e8', bands: [{ y: 0.66, c: '#ff4a5e' }, { y: 0.735, c: '#ffd23f' }] },
     hazards: ['popcorn', 'cottoncandy', 'rubberduck', 'ticketroll'],
     colors: {
@@ -282,6 +289,7 @@ export const alleys = [
     fx: 'aurora', // ribbons overhead, snowfall, icebergs on the horizon
     pit: 'igloo', // the lane ends at a warm-windowed igloo
     sweepStyle: 'icicle', // a frosted bar fringed with icicles
+    edgeStyle: 'crystals', // ice shards catching the aurora
     ice: true, // no wood — a polished ice slab with a hard gleam
     pin: { body: '#f4faff', bands: [{ y: 0.66, c: '#38b8d8' }, { y: 0.735, c: '#a88aff' }] },
     hazards: ['penguin', 'snowman', 'icepatch', 'frozenfish'],
@@ -316,6 +324,7 @@ export const alleys = [
     fx: 'west', // mesas, cacti, a sunset that never quits, tumbleweed
     pit: 'saloon', // the ball pushes through the batwing doors
     sweepStyle: 'lasso', // a rope bar, coiled ends, a loop swinging under it
+    edgeStyle: 'lanterns', // oil lamps down the lane, flickering
     wood: true, // sun-dried planks
     pin: { body: '#f2e2c8', bands: [{ y: 0.66, c: '#8a4a22' }, { y: 0.735, c: '#ffb03a' }] },
     hazards: ['cactus', 'tumbleweed', 'horseshoe', 'cowboyhat'],

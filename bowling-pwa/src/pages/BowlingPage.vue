@@ -400,7 +400,7 @@ async function boot() {
   }
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice, edgeBulbs: alley.edgeBulbs })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice, edgeStyle: alley.edgeStyle })
   environs = buildEnvirons(scene, alley, { bigfootSoon: !!devParam('bigfoot') })
 
   makeBall()
@@ -794,11 +794,19 @@ function tick(dt = 1 / 60) {
   if (deckSpot) deckSpot.intensity += ((clutch ? 2.3 : 1.5) * (alley.bright ? 0.6 : 1) - deckSpot.intensity) * 0.04
   if (ipcRef) ipcRef.vignetteWeight += ((clutch ? 2.2 : 1.5) * (alley.bright ? 0.65 : 1) - ipcRef.vignetteWeight) * 0.04
   if (laneKit) {
-    // the lane-edge strips: hot neon at night, soft pastel in the daylight
+    // the lane-edge lights: hue-cycled neon/bulbs at most houses — but the
+    // fire-lit ones (torch flames, lanterns, lava embers) FLICKER in their
+    // own warm color instead
     const edgeSat = alley.bright ? 0.3 : 0.85
     const edgeVal = alley.bright ? 0.98 : 0.85
-    laneKit.edges[0].mat.emissiveColor = Color3.FromHSV(hue, edgeSat, edgeVal)
-    laneKit.edges[1].mat.emissiveColor = Color3.FromHSV((hue + 140) % 360, edgeSat, edgeVal)
+    laneKit.edges.forEach((e, i) => {
+      if (e.flicker) {
+        const f = 0.74 + Math.sin(tickN * 0.13 + i * 2.3) * 0.16 + Math.sin(tickN * 0.043 + i * 0.9) * 0.1
+        e.mat.emissiveColor = Color3.FromHexString(e.base).scale(f)
+      } else {
+        e.mat.emissiveColor = Color3.FromHSV((hue + i * 140) % 360, edgeSat, edgeVal)
+      }
+    })
     if (laneKit.gutterMat) {
       const pulse = 0.5 + Math.sin(tickN * 0.05) * 0.3
       laneKit.gutterMat.emissiveColor = Color3.FromHexString(alley.colors.gutterGlow).scale(pulse)
