@@ -307,6 +307,7 @@ let gutterBall = false
 let sweepAt = 0
 let gutterQuipped = false
 let patchSizzled = false // the lava patch only quips once per throw
+let lastEnvEvent = null // most recent backdrop event (Bigfoot!) — for DEV checks
 let crashPlayed = false // one pin-crash sound per throw
 let strikesThisGame = 0
 let aiActAt = -1 // when the rival takes their next throw
@@ -399,8 +400,8 @@ async function boot() {
   }
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood })
-  environs = buildEnvirons(scene, alley)
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice })
+  environs = buildEnvirons(scene, alley, { bigfootSoon: !!devParam('bigfoot') })
 
   makeBall()
   pinMats = makePinMats(scene, alley.colors, alley.pin)
@@ -471,6 +472,7 @@ async function boot() {
       vs: vsRival?.id ?? null,
       hazardCount: hazards.length,
       hazardIds: hazards.map((h) => h.id),
+      envEvent: lastEnvEvent,
       replayOn: showReplay.value,
       sfxEvents: sfx.events,
       coachStep: coachStep.value,
@@ -820,7 +822,15 @@ function tick(dt = 1 / 60) {
   disco?.update(tickN)
   ufo?.update()
   environs?.update(tickN)
+  // one-shot backdrop events — a certain cryptid crossing the treeline
+  const envEvent = environs?.takeEvent?.()
+  if (envEvent) {
+    lastEnvEvent = envEvent
+    setQuip(envEvent)
+    haptics.light()
+  }
   laneKit?.sweepUpdate?.(tickN) // living sweep arms (the lava drips)
+  laneKit?.pitUpdate?.(tickN) // living backers (duck rows, batwing doors)
   for (const h of hazards) h.update?.(tickN) // living hazards (flowing lava)
   // hold-to-fast-forward: double the physics clock while the finger is down
   const pe = scene?.getPhysicsEngine?.()
@@ -877,16 +887,19 @@ function tick(dt = 1 / 60) {
         sfx.gutter()
       }
     }
-    // encroaching lava: rolling through the molten patch costs real speed
+    // lane patches: lava drags the ball, black ice slicks it along (mul > 1
+    // speeds it up a touch — capped so it can't run away)
     for (const h of hazards) {
       if (!h.patch) continue
       const dx = ball.position.x - h.patch.x
       const dz = ball.position.z - h.patch.z
       if (dx * dx + dz * dz < h.patch.r * h.patch.r) {
-        ballAgg.body.setLinearVelocity(v.scale(0.975))
+        const mul = h.patch.mul ?? 0.975
+        const speed2 = Math.hypot(v.x, v.y, v.z)
+        if (mul < 1 || speed2 < 17) ballAgg.body.setLinearVelocity(v.scale(mul))
         if (!patchSizzled) {
           patchSizzled = true
-          setQuip('Ssssizzle — right through the lava.')
+          setQuip(h.patch.quip || 'Right through the muck.')
           haptics.light()
         }
       }

@@ -237,6 +237,10 @@ function openSettings() {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+// with ten houses the last tile would dangle left — park it in the center
+.alley-tile:last-child:nth-child(3n + 1) {
+  grid-column: 2;
+}
 .alley-tile {
   display: flex;
   flex-direction: column;

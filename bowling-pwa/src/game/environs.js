@@ -1,7 +1,7 @@
 // Per-alley set dressing — the world beyond the lane. Everything static is
 // merged into single meshes and frozen so the whole environment costs a few
 // draw calls; only the small animated bits (embers, asteroids) tick.
-import { MeshBuilder, Mesh, Color3, StandardMaterial, pbr } from 'src/engine'
+import { MeshBuilder, Mesh, Vector3, Color3, StandardMaterial, pbr } from 'src/engine'
 import { makePinMesh, pinSpots, LANE_W, START_Z, DECK_END } from './lane3d'
 import { addDiePips } from './hazards'
 
@@ -137,12 +137,13 @@ function neighborLane(scene, alley, side, animated, meshes, mats) {
   })
 }
 
-export function buildEnvirons(scene, alley) {
+export function buildEnvirons(scene, alley, opts = {}) {
   const meshes = []
   const mats = []
   const track = (m) => (meshes.push(m), m)
   const tmat = (m) => (mats.push(m), m)
   const animated = []
+  const events = [] // one-shot quips the page surfaces (Bigfoot sightings…)
 
   // the rest of the house: a lane being bowled on each side
   neighborLane(scene, alley, -1, animated, meshes, mats)
@@ -474,15 +475,578 @@ export function buildEnvirons(scene, alley) {
         ring.rotation.y = t * 0.002 + seed
       })
     }
+  } else if (alley.fx === 'forest') {
+    // Timberline: the first alley with real DEPTH behind the lane — a forest
+    // floor rolls away from the pit into layered treelines, campfires flicker
+    // in the middle distance, mountains and a moon close the horizon…
+    // and once a game, something big crosses the treeline.
+    const groundMat = tmat(pbr(scene, { color: '#101c12', rough: 1, name: 'fGround' }))
+    const ground = MeshBuilder.CreateBox('fGround', { width: 44, height: 0.1, depth: 22 }, scene)
+    ground.position.set(0, -0.08, -22)
+    ground.material = groundMat
+    ground.isPickable = false
+    ground.freezeWorldMatrix()
+    track(ground)
+    const starMat = tmat(emissiveMat(scene, '#dfe8d8', { scale: 0.55 }))
+    track(starfield(scene, 60, starMat, 1.13))
+    const moon = MeshBuilder.CreateSphere('fMoon', { diameterX: 1.7, diameterY: 1.7, diameterZ: 0.4, segments: 16 }, scene)
+    moon.position.set(4.6, 6.4, -27)
+    moon.material = tmat(emissiveMat(scene, '#e8ecd8', { scale: 0.95 }))
+    moon.isPickable = false
+    moon.freezeWorldMatrix()
+    track(moon)
+    // mountains on the horizon
+    const mtnMat = tmat(pbr(scene, { color: '#0e161c', rough: 1, name: 'fMtn' }))
+    const mtnBits = []
+    for (const [mx, h, w] of [[-11, 8, 14], [1, 6.5, 12], [12, 9, 15]]) {
+      const m = MeshBuilder.CreateCylinder('fMtnC', { diameterTop: 0, diameterBottom: w, height: h, tessellation: 7 }, scene)
+      m.position.set(mx, h / 2 - 0.1, -30)
+      mtnBits.push(m)
+    }
+    const mtns = Mesh.MergeMeshes(mtnBits, true, true)
+    mtns.material = mtnMat
+    mtns.isPickable = false
+    mtns.freezeWorldMatrix()
+    track(mtns)
+    // layered treelines: darker and taller the farther back they stand
+    const pineRow = (z, hexa, n, hMin, hMax, gap) => {
+      const bits = []
+      for (let i = 0; i < n; i++) {
+        const x = -((n - 1) / 2) * gap + i * gap + ((i * 7.3) % 1.4) - 0.7
+        if (z > -15 && Math.abs(x) < 3.2) continue // keep the pit view open up close
+        const h = hMin + ((i * 3.7) % (hMax - hMin))
+        const tree = MeshBuilder.CreateCylinder('fPine', { diameterTop: 0, diameterBottom: h * 0.5, height: h, tessellation: 6 }, scene)
+        tree.position.set(x, h / 2 - 0.1, z + ((i * 5.1) % 2) - 1)
+        bits.push(tree)
+      }
+      const row = Mesh.MergeMeshes(bits, true, true)
+      row.material = tmat(pbr(scene, { color: hexa, rough: 1, name: 'fPineRow' }))
+      row.isPickable = false
+      row.freezeWorldMatrix()
+      track(row)
+    }
+    pineRow(-21, '#0d1a12', 16, 3.2, 5.2, 2.2)
+    pineRow(-16.5, '#122417', 15, 2.4, 3.8, 2.0)
+    pineRow(-12, '#16301e', 10, 2.0, 3.2, 3.1)
+    // campfires in the middle distance: crossed logs, breathing flames, embers
+    const logMat = tmat(pbr(scene, { color: '#2e2014', rough: 1, name: 'fLog' }))
+    const flameMat = tmat(emissiveMat(scene, '#ffab3a', { scale: 1.35 }))
+    const coreMat = tmat(emissiveMat(scene, '#ffe28a', { scale: 1.5 }))
+    const emberMat = tmat(emissiveMat(scene, '#ffb52f', { scale: 1.2 }))
+    for (const [fx2, fz, seed] of [[-4.6, -12.5, 0.7], [5.2, -14.5, 2.3]]) {
+      const logBits = []
+      for (const ry of [0.5, 2.1, 3.7]) {
+        const lg = MeshBuilder.CreateCylinder('fFireLog', { diameter: 0.14, height: 0.9, tessellation: 6 }, scene)
+        lg.rotation.z = Math.PI / 2 - 0.12
+        lg.rotation.y = ry
+        lg.position.set(fx2, 0.08, fz)
+        logBits.push(lg)
+      }
+      const logs = Mesh.MergeMeshes(logBits, true, true)
+      logs.material = logMat
+      logs.isPickable = false
+      logs.freezeWorldMatrix()
+      track(logs)
+      const flame = MeshBuilder.CreateSphere('fFlame', { diameterX: 0.34, diameterY: 0.55, diameterZ: 0.34, segments: 8 }, scene)
+      flame.position.set(fx2, 0.4, fz)
+      flame.material = flameMat
+      flame.isPickable = false
+      track(flame)
+      const core = MeshBuilder.CreateSphere('fFlameCore', { diameterX: 0.16, diameterY: 0.3, diameterZ: 0.16, segments: 8 }, scene)
+      core.position.set(fx2, 0.32, fz)
+      core.material = coreMat
+      core.isPickable = false
+      track(core)
+      animated.push((t) => {
+        const f = 1 + Math.sin(t * 0.19 + seed * 5) * 0.2 + Math.sin(t * 0.33 + seed) * 0.12
+        flame.scaling.set(f, f * (1 + Math.sin(t * 0.27 + seed) * 0.18), f)
+        core.scaling.setAll(1 + Math.sin(t * 0.4 + seed * 2) * 0.25)
+      })
+      for (let i = 0; i < 3; i++) {
+        const e = MeshBuilder.CreatePlane('fEmber', { size: 0.06 }, scene)
+        e.billboardMode = 7
+        e.material = emberMat
+        e.isPickable = false
+        const es = seed + i * 1.9
+        track(e)
+        animated.push((t) => {
+          const phase = ((t * 0.006) + es) % 3
+          e.position.set(fx2 + Math.sin(t * 0.02 + es) * 0.25, 0.5 + phase * 0.8, fz)
+          e.visibility = phase < 2.4 ? 1 - phase / 2.6 : 0
+        })
+      }
+    }
+    // fireflies drifting between the near trunks
+    const flyMat = tmat(emissiveMat(scene, '#d8ff6a', { scale: 1 }))
+    for (let i = 0; i < 6; i++) {
+      const fly = MeshBuilder.CreatePlane('fFly', { size: 0.05 }, scene)
+      fly.billboardMode = 7
+      fly.material = flyMat
+      fly.isPickable = false
+      const seed = i * 2.1
+      track(fly)
+      animated.push((t) => {
+        fly.position.set(Math.sin(t * 0.005 + seed * 4) * 3, 0.8 + Math.sin(t * 0.008 + seed) * 0.6, -1.5 - ((seed * 1.9) % 8))
+        fly.visibility = 0.5 + Math.sin(t * 0.045 + seed * 3) * 0.5
+      })
+    }
+    // ambient event: a shooting star over the mountains
+    const shootMat = tmat(emissiveMat(scene, '#f4f8e8', { scale: 1.3 }))
+    const shoot = MeshBuilder.CreateSphere('fShoot', { diameterX: 0.55, diameterY: 0.07, diameterZ: 0.07, segments: 6 }, scene)
+    shoot.material = shootMat
+    shoot.isPickable = false
+    shoot.setEnabled(false)
+    track(shoot)
+    let shootAt = 1000
+    animated.push((t) => {
+      const k = (t - shootAt) / 120
+      const active = k >= 0 && k < 1
+      shoot.setEnabled(active)
+      if (active) {
+        shoot.position.set(6 - k * 12, 7.2 - k * 1.6, -25)
+        shoot.rotation.z = 0.14
+        shoot.visibility = Math.min(1, 4 * Math.min(k, 1 - k))
+      }
+      if (k >= 1) shootAt = t + 1300 + Math.random() * 1100
+    })
+    // ---- the visitor: BIGFOOT crosses the treeline once per game ----------
+    // A shaggy upright walker (the classic 6-beat gait: arms counter-swing the
+    // legs, the body bobs). He strides in from one side, freezes mid-lane when
+    // he notices you noticing him, then BOLTS. Once. Blink and you miss it.
+    const bf = makeBigfootRig(scene, meshes, mats)
+    const BF_Z = -14.8
+    const fromLeft = Math.random() < 0.5
+    const dirX = fromLeft ? 1 : -1
+    const facing = fromLeft ? Math.PI / 2 : -Math.PI / 2
+    let bfState = 'waiting'
+    let bfAt = opts.bigfootSoon ? 240 : 1600 + Math.random() * 4800
+    let bfT = 0
+    let bfPause = 0
+    animated.push((t) => {
+      if (bfState === 'done') return
+      if (bfState === 'waiting') {
+        if (t < bfAt) return
+        bfState = 'walking'
+        bf.torso.setEnabled(true)
+        // dev-forced sightings enter close so headless checks don't wait out
+        // the full crossing at software-render frame rates
+        bf.torso.position.set(-dirX * (opts.bigfootSoon ? 5 : 10.5), bf.baseY, BF_Z)
+        bf.torso.rotation.y = facing
+      }
+      bfT++
+      if (bfState === 'walking' || bfState === 'fleeing') {
+        const flee = bfState === 'fleeing'
+        bf.torso.position.x += dirX * (flee ? 0.06 : 0.032)
+        const ph = bfT * (flee ? 0.28 : 0.16)
+        const sw = Math.sin(ph)
+        bf.legL.rotation.x = sw * 0.6
+        bf.legR.rotation.x = -sw * 0.6
+        bf.armL.rotation.x = -sw * (flee ? 0.7 : 0.5)
+        bf.armR.rotation.x = sw * (flee ? 0.7 : 0.5)
+        bf.torso.position.y = bf.baseY - Math.abs(Math.cos(ph)) * 0.1
+        bf.torso.rotation.x = (flee ? 0.16 : 0.08) + Math.sin(ph * 2) * 0.03
+        bf.torso.rotation.y += (facing - bf.torso.rotation.y) * 0.12
+        if (bfState === 'walking' && Math.abs(bf.torso.position.x) < 0.35) {
+          bfState = 'staring'
+          bfPause = 105
+          events.push('Wait… WAIT. Did anyone else see that?!')
+        }
+        if (Math.abs(bf.torso.position.x) > 11) {
+          bfState = 'done'
+          bf.torso.setEnabled(false)
+        }
+      } else if (bfState === 'staring') {
+        // caught mid-stride: square up to the camera, hold… hold… GO
+        bf.torso.rotation.y += (0 - bf.torso.rotation.y) * 0.12
+        bf.torso.rotation.x += (0.02 - bf.torso.rotation.x) * 0.1
+        for (const p of [bf.legL, bf.legR, bf.armL, bf.armR]) p.rotation.x *= 0.85
+        if (--bfPause <= 0) bfState = 'fleeing'
+      }
+    })
+  } else if (alley.fx === 'carnival') {
+    // The Midway: string lights chasing down the lane, a turning ferris wheel,
+    // drifting balloons, striped tent walls — and fireworks on their own clock
+    const tentA = tmat(pbr(scene, { color: '#5a1a28', rough: 0.9, name: 'tentA' }))
+    const tentB = tmat(pbr(scene, { color: '#3a2a20', rough: 0.9, name: 'tentB' }))
+    for (const side of [-1, 1]) {
+      const bitsA = []
+      const bitsB = []
+      for (let i = 0; i < 8; i++) {
+        const p = MeshBuilder.CreateBox('tent', { width: 1.3, height: 3.4, depth: 1.9 }, scene)
+        p.position.set(side * (7.6 + (i % 2) * 0.5), 1.6, 4 - i * 2.4)
+        p.rotation.y = side * 0.1
+        ;(i % 2 ? bitsB : bitsA).push(p)
+      }
+      for (const [bits, m] of [[bitsA, tentA], [bitsB, tentB]]) {
+        const wall = Mesh.MergeMeshes(bits, true, true)
+        wall.material = m
+        wall.isPickable = false
+        wall.freezeWorldMatrix()
+        track(wall)
+      }
+    }
+    // string lights: two chase groups per side, blinking in alternation
+    const bulbA = tmat(emissiveMat(scene, '#ffd23f'))
+    const bulbB = tmat(emissiveMat(scene, '#ff4a5e'))
+    for (const side of [-1, 1]) {
+      const bitsA = []
+      const bitsB = []
+      for (let i = 0; i < 10; i++) {
+        const b = MeshBuilder.CreateSphere('bulb', { diameter: 0.08, segments: 8 }, scene)
+        const z = 3.5 - i * 1.5
+        b.position.set(side * 2.85, 2.15 + Math.sin(i * 1.1) * 0.12, z)
+        ;(i % 2 ? bitsB : bitsA).push(b)
+      }
+      for (const [bits, m] of [[bitsA, bulbA], [bitsB, bulbB]]) {
+        const chain = Mesh.MergeMeshes(bits, true, true)
+        chain.material = m
+        chain.isPickable = false
+        chain.freezeWorldMatrix()
+        track(chain)
+      }
+    }
+    animated.push((t) => {
+      const ph = Math.floor(t / 24) % 2
+      bulbA.emissiveColor = Color3.FromHexString('#ffd23f').scale(ph ? 1 : 0.3)
+      bulbB.emissiveColor = Color3.FromHexString('#ff4a5e').scale(ph ? 0.3 : 1)
+    })
+    // the ferris wheel, turning all night at the end of the midway
+    const wheelRoot = MeshBuilder.CreateBox('wheelRoot', { size: 0.01 }, scene)
+    wheelRoot.isVisible = false
+    wheelRoot.position.set(5.6, 3.6, -20)
+    track(wheelRoot)
+    const rim = MeshBuilder.CreateTorus('wheelRim', { diameter: 5.6, thickness: 0.12, tessellation: 36 }, scene)
+    rim.rotation.x = Math.PI / 2
+    rim.material = tmat(emissiveMat(scene, '#ff4a5e', { scale: 0.55 }))
+    rim.parent = wheelRoot
+    rim.isPickable = false
+    track(rim)
+    const spokeMat = tmat(emissiveMat(scene, '#ffd23f', { scale: 0.4 }))
+    for (let i = 0; i < 3; i++) {
+      const spoke = MeshBuilder.CreateBox('wheelSpoke', { width: 5.5, height: 0.07, depth: 0.07 }, scene)
+      spoke.rotation.z = (i / 3) * Math.PI
+      spoke.material = spokeMat
+      spoke.parent = wheelRoot
+      spoke.isPickable = false
+      track(spoke)
+    }
+    const cabMats = [tmat(emissiveMat(scene, '#6ad8ff', { scale: 0.5 })), tmat(emissiveMat(scene, '#ffd23f', { scale: 0.5 }))]
+    const cabins = []
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2
+      const cab = MeshBuilder.CreateBox('wheelCab', { width: 0.42, height: 0.34, depth: 0.2 }, scene)
+      cab.position.set(Math.cos(a) * 2.8, Math.sin(a) * 2.8, 0)
+      cab.material = cabMats[i % 2]
+      cab.parent = wheelRoot
+      cab.isPickable = false
+      cabins.push(cab)
+      track(cab)
+    }
+    // support legs
+    const legMat = tmat(pbr(scene, { color: '#2a1a22', rough: 0.9, name: 'wheelLeg' }))
+    for (const s of [-1, 1]) {
+      const leg = MeshBuilder.CreateCylinder('wheelLegC', { diameter: 0.16, height: 4.4, tessellation: 8 }, scene)
+      leg.position.set(5.6 + s * 0.9, 1.7, -20)
+      leg.rotation.z = s * 0.22
+      leg.material = legMat
+      leg.isPickable = false
+      leg.freezeWorldMatrix()
+      track(leg)
+    }
+    animated.push((t) => {
+      wheelRoot.rotation.z = t * 0.0035
+      for (const cab of cabins) cab.rotation.z = -wheelRoot.rotation.z // gondolas hang level
+    })
+    // balloons that got away
+    const balloonMats = [tmat(pbr(scene, { color: '#ff4a5e', rough: 0.4, name: 'bal1' })), tmat(pbr(scene, { color: '#6ad8ff', rough: 0.4, name: 'bal2' })), tmat(pbr(scene, { color: '#ffd23f', rough: 0.4, name: 'bal3' }))]
+    for (let i = 0; i < 4; i++) {
+      const bal = MeshBuilder.CreateSphere('balloon', { diameterX: 0.34, diameterY: 0.42, diameterZ: 0.34, segments: 12 }, scene)
+      bal.material = balloonMats[i % 3]
+      bal.isPickable = false
+      const seed = i * 2.7
+      track(bal)
+      animated.push((t) => {
+        const rise = ((t * 0.0045) + seed) % 8
+        bal.position.set(Math.sin(seed * 3) * 4 + Math.sin(t * 0.006 + seed) * 0.4, rise - 0.5, -4 - ((seed * 2.3) % 9))
+        bal.visibility = rise < 6.5 ? 1 : Math.max(0, (8 - rise) / 1.5)
+      })
+    }
+    // ambient event: FIREWORKS over the midway
+    const fwMats = [tmat(emissiveMat(scene, '#ff6ad8', { scale: 1.5 })), tmat(emissiveMat(scene, '#ffd23f', { scale: 1.5 })), tmat(emissiveMat(scene, '#6ad8ff', { scale: 1.5 }))]
+    const fwBits = []
+    for (let i = 0; i < 14; i++) {
+      const b = MeshBuilder.CreatePlane('fw', { size: 0.15 }, scene)
+      b.billboardMode = 7
+      b.material = fwMats[i % 3]
+      b.isPickable = false
+      b.setEnabled(false)
+      track(b)
+      fwBits.push(b)
+    }
+    let fwAt = 950
+    let fwX = 0
+    animated.push((t) => {
+      const k = (t - fwAt) / 190
+      const active = k >= 0 && k < 1
+      fwBits.forEach((b, i) => {
+        b.setEnabled(active)
+        if (active) {
+          const a = (i / 14) * Math.PI * 2
+          const r = k * (1.6 + (i % 3) * 0.7)
+          b.position.set(fwX + Math.cos(a) * r, 4.8 + Math.sin(a) * r - k * k * 1.2, -17)
+          b.visibility = 1 - k
+        }
+      })
+      if (k >= 1) { fwAt = t + 1100 + Math.random() * 1000; fwX = (Math.random() - 0.5) * 8 }
+    })
+  } else if (alley.fx === 'aurora') {
+    // Polar Nights: snowfields and icebergs under breathing aurora ribbons,
+    // with snow drifting down through the lights
+    const snowGround = tmat(pbr(scene, { color: '#8fb0c8', rough: 0.9, name: 'aSnow' }))
+    const ground = MeshBuilder.CreateBox('aGround', { width: 44, height: 0.1, depth: 24 }, scene)
+    ground.position.set(0, -0.08, -22)
+    ground.material = snowGround
+    ground.isPickable = false
+    ground.freezeWorldMatrix()
+    track(ground)
+    const starMat = tmat(emissiveMat(scene, '#dfe8ff', { scale: 0.7 }))
+    track(starfield(scene, 70, starMat, 1.47))
+    // icebergs and pressure ridges on the horizon
+    const bergMat = tmat(pbr(scene, { color: '#9fc4dc', rough: 0.6, name: 'aBerg' }))
+    const bergBits = []
+    for (const [bx, bz, h, w] of [[-9, -24, 4.2, 6], [-2, -27, 2.8, 5], [7, -23, 5, 7], [13, -26, 3.4, 5]]) {
+      const berg = MeshBuilder.CreateCylinder('aBergC', { diameterTop: w * 0.25, diameterBottom: w, height: h, tessellation: 5 }, scene)
+      berg.position.set(bx, h / 2 - 0.1, bz)
+      berg.rotation.y = bx * 0.7
+      bergBits.push(berg)
+    }
+    const bergs = Mesh.MergeMeshes(bergBits, true, true)
+    bergs.convertToFlatShadedMesh()
+    bergs.material = bergMat
+    bergs.isPickable = false
+    bergs.freezeWorldMatrix()
+    track(bergs)
+    // drifted snow banks flanking the lane
+    const bankMat = tmat(pbr(scene, { color: '#c8dcea', rough: 0.95, name: 'aBank' }))
+    const bankBits = []
+    for (const [bx, bz, s] of [[-4.2, -2, 2.6], [4.5, -5, 3.2], [-4.8, -9, 2.8], [4.2, 1.5, 2.2]]) {
+      const bank = MeshBuilder.CreateSphere('aBankS', { diameterX: s, diameterY: s * 0.32, diameterZ: s * 0.8, segments: 10 }, scene)
+      bank.position.set(bx, 0, bz)
+      bankBits.push(bank)
+    }
+    const banks = Mesh.MergeMeshes(bankBits, true, true)
+    banks.material = bankMat
+    banks.isPickable = false
+    banks.freezeWorldMatrix()
+    track(banks)
+    // the aurora: three broad ribbons, breathing and drifting
+    const ribbons = []
+    const ribbonCols = ['#4ae8a0', '#a88aff', '#6ad8ff']
+    for (let i = 0; i < 3; i++) {
+      const m = new StandardMaterial('aRibbon' + i, scene)
+      m.emissiveColor = Color3.FromHexString(ribbonCols[i]).scale(0.8)
+      m.disableLighting = true
+      m.alpha = 0.18
+      m.backFaceCulling = false
+      mats.push(m)
+      const rib = MeshBuilder.CreatePlane('aRib', { width: 13 - i * 2, height: 2.6 + i * 0.5 }, scene)
+      rib.position.set(-2 + i * 3, 5.4 + i * 0.9, -25 + i * 0.5)
+      rib.rotation.z = 0.12 - i * 0.1
+      rib.material = m
+      rib.isPickable = false
+      track(rib)
+      ribbons.push({ rib, m, seed: i * 2.2, hex: ribbonCols[i] })
+    }
+    animated.push((t) => {
+      for (const { rib, m, seed, hex } of ribbons) {
+        m.alpha = 0.1 + (Math.sin(t * 0.006 + seed) * 0.5 + 0.5) * 0.14
+        m.emissiveColor = Color3.FromHexString(hex).scale(0.6 + Math.sin(t * 0.004 + seed * 3) * 0.25)
+        rib.scaling.y = 1 + Math.sin(t * 0.005 + seed * 2) * 0.18
+        rib.position.x += Math.sin(t * 0.0016 + seed) * 0.004
+      }
+    })
+    // snowfall
+    const flakeMat = tmat(emissiveMat(scene, '#eef6ff', { scale: 0.55 }))
+    for (let i = 0; i < 14; i++) {
+      const flake = MeshBuilder.CreatePlane('aFlake', { size: 0.05 + (i % 3) * 0.02 }, scene)
+      flake.billboardMode = 7
+      flake.material = flakeMat
+      flake.isPickable = false
+      const seed = i * 1.7
+      track(flake)
+      animated.push((t) => {
+        const fall = 6 - ((t * 0.008 + seed * 1.3) % 6.5)
+        flake.position.set(Math.sin(seed * 4) * 4 + Math.sin(t * 0.01 + seed) * 0.5, fall, -1 - ((seed * 2.7) % 10))
+        flake.visibility = fall > -0.2 ? 0.85 : 0
+      })
+    }
+  } else if (alley.fx === 'west') {
+    // Dry Gulch: mesas against a dying sunset, saguaros standing sentry,
+    // drifting dust — and now and then a tumbleweed bounces through the back
+    const dirtMat = tmat(pbr(scene, { color: '#5a3a24', rough: 1, name: 'wDirt' }))
+    const ground = MeshBuilder.CreateBox('wGround', { width: 44, height: 0.1, depth: 24 }, scene)
+    ground.position.set(0, -0.08, -22)
+    ground.material = dirtMat
+    ground.isPickable = false
+    ground.freezeWorldMatrix()
+    track(ground)
+    // the sun, huge and low, refusing to set
+    const sun = MeshBuilder.CreateSphere('wSun', { diameterX: 3.2, diameterY: 3.2, diameterZ: 0.4, segments: 18 }, scene)
+    sun.position.set(-2.5, 2.1, -30)
+    sun.material = tmat(emissiveMat(scene, '#ff8a4a', { scale: 1.15 }))
+    sun.isPickable = false
+    sun.freezeWorldMatrix()
+    track(sun)
+    // mesas: flat-topped slabs with lighter caprock
+    const mesaMat = tmat(pbr(scene, { color: '#4a2517', rough: 1, name: 'wMesa' }))
+    const capMat = tmat(pbr(scene, { color: '#6b3a20', rough: 1, name: 'wCap' }))
+    const mesaBits = []
+    const capBits = []
+    for (const [mx, w, h] of [[-9.5, 6.5, 3.6], [2.5, 4.5, 2.4], [11, 5.5, 4.4]]) {
+      const mesa = MeshBuilder.CreateCylinder('wMesaC', { diameterTop: w * 0.82, diameterBottom: w, height: h, tessellation: 9 }, scene)
+      mesa.position.set(mx, h / 2 - 0.1, -26)
+      mesaBits.push(mesa)
+      const cap = MeshBuilder.CreateCylinder('wCapC', { diameterTop: w * 0.8, diameterBottom: w * 0.84, height: 0.3, tessellation: 9 }, scene)
+      cap.position.set(mx, h - 0.05, -26)
+      capBits.push(cap)
+    }
+    for (const [bits, m] of [[mesaBits, mesaMat], [capBits, capMat]]) {
+      const merged = Mesh.MergeMeshes(bits, true, true)
+      merged.material = m
+      merged.isPickable = false
+      merged.freezeWorldMatrix()
+      track(merged)
+    }
+    // saguaros standing along the lane like regulars at the rail
+    const cactMat = tmat(pbr(scene, { color: '#2e5a34', rough: 0.85, name: 'wCact' }))
+    for (const [cx, cz, s] of [[-2.9, 1.5, 1], [3.1, -2.5, 1.25], [-3.4, -7, 1.1], [3.6, -10.5, 0.9]]) {
+      const bits = []
+      const trunk = MeshBuilder.CreateCapsule('wCactT', { radius: 0.11 * s, height: 1.7 * s, tessellation: 10, capSubdivisions: 4 }, scene)
+      trunk.position.set(cx, 0.85 * s, cz)
+      bits.push(trunk)
+      for (const sd of [-1, 1]) {
+        const out = MeshBuilder.CreateCapsule('wCactO', { radius: 0.07 * s, height: 0.3 * s, orientation: new Vector3(1, 0, 0), tessellation: 8, capSubdivisions: 4 }, scene)
+        out.position.set(cx + sd * 0.2 * s, (0.75 + (sd < 0 ? 0 : 0.3)) * s, cz)
+        bits.push(out)
+        const up = MeshBuilder.CreateCapsule('wCactU', { radius: 0.07 * s, height: 0.55 * s, tessellation: 8, capSubdivisions: 4 }, scene)
+        up.position.set(cx + sd * 0.32 * s, (1.0 + (sd < 0 ? 0 : 0.3)) * s, cz)
+        bits.push(up)
+      }
+      const cact = Mesh.MergeMeshes(bits, true, true)
+      cact.material = cactMat
+      cact.isPickable = false
+      cact.freezeWorldMatrix()
+      track(cact)
+    }
+    // dust motes drifting on the wind
+    const dustMat = tmat(emissiveMat(scene, '#c8a05a', { scale: 0.35, alpha: 0.5 }))
+    for (let i = 0; i < 8; i++) {
+      const d = MeshBuilder.CreatePlane('wDust', { size: 0.07 + (i % 3) * 0.03 }, scene)
+      d.billboardMode = 7
+      d.material = dustMat
+      d.isPickable = false
+      const seed = i * 2.3
+      track(d)
+      animated.push((t) => {
+        const drift = ((t * 0.01 + seed * 2) % 16) - 8
+        d.position.set(drift, 0.3 + Math.sin(t * 0.008 + seed) * 0.4, -2 - ((seed * 1.9) % 9))
+        d.visibility = Math.max(0, 0.6 - Math.abs(drift) / 14)
+      })
+    }
+    // ambient event: a tumbleweed bounces clean across the back forty
+    const weedBits = []
+    for (let i = 0; i < 4; i++) {
+      const ring = MeshBuilder.CreateTorus('wWeed', { diameter: 0.55 - (i % 2) * 0.08, thickness: 0.02, tessellation: 10 }, scene)
+      ring.rotation.set(i * 0.8, i * 1.2, i * 0.5)
+      weedBits.push(ring)
+    }
+    const weed = Mesh.MergeMeshes(weedBits, true, true)
+    weed.material = tmat(pbr(scene, { color: '#a8824a', rough: 1, name: 'wWeedM' }))
+    weed.isPickable = false
+    weed.setEnabled(false)
+    track(weed)
+    let weedAt = 700
+    animated.push((t) => {
+      const k = (t - weedAt) / 300
+      const active = k >= 0 && k < 1
+      weed.setEnabled(active)
+      if (active) {
+        weed.position.set(-13 + k * 26, 0.3 + Math.abs(Math.sin(k * Math.PI * 5)) * (0.7 - k * 0.3), -13.5)
+        weed.rotation.z = -k * 22
+      }
+      if (k >= 1) weedAt = t + 1200 + Math.random() * 1400
+    })
   }
 
   return {
     update(t) {
       for (const fn of animated) fn(t)
     },
+    // one-shot events (the Bigfoot sighting) the page turns into quips
+    takeEvent() {
+      return events.shift() || null
+    },
     dispose() {
       for (const m of meshes) m.dispose()
       for (const m of mats) m.dispose()
     },
   }
+}
+
+// The Bigfoot rig: primitive-built shaggy walker, hidden until his cue. Limbs
+// pivot from shoulders/hips (the pivot spheres double as joints); the forest
+// block drives the gait. Scaled to read at the treeline, not to star.
+function makeBigfootRig(scene, meshes, mats) {
+  const fur = pbr(scene, { color: '#4a3423', rough: 0.95, name: 'bfFur' })
+  const furDark = pbr(scene, { color: '#3a2818', rough: 0.95, name: 'bfFurD' })
+  const skin = pbr(scene, { color: '#c8975a', rough: 0.8, name: 'bfSkin' })
+  const eyeMat = pbr(scene, { color: '#241a12', rough: 0.4, name: 'bfEye' })
+  mats.push(fur, furDark, skin, eyeMat)
+  const S = 0.85 // background scale
+  const torso = MeshBuilder.CreateSphere('bf', { diameterX: 1.05 * S, diameterY: 1.7 * S, diameterZ: 0.85 * S, segments: 8 }, scene)
+  torso.material = fur
+  meshes.push(torso)
+  const head = MeshBuilder.CreateSphere('bfh', { diameterX: 0.8 * S, diameterY: 0.85 * S, diameterZ: 0.8 * S, segments: 8 }, scene)
+  head.material = fur
+  head.parent = torso
+  head.position.set(0, 1.15 * S, 0.02)
+  meshes.push(head)
+  const face = MeshBuilder.CreateSphere('bff', { diameterX: 0.42 * S, diameterY: 0.5 * S, diameterZ: 0.3 * S, segments: 6 }, scene)
+  face.material = skin
+  face.parent = head
+  face.position.set(0, -0.05 * S, 0.34 * S)
+  meshes.push(face)
+  for (const sx of [-1, 1]) {
+    const e = MeshBuilder.CreateSphere('bfe', { diameter: 0.08 * S, segments: 6 }, scene)
+    e.material = eyeMat
+    e.parent = head
+    e.position.set(sx * 0.12 * S, 0.05 * S, 0.46 * S)
+    meshes.push(e)
+  }
+  function limb(name, isArm, side) {
+    const pivot = MeshBuilder.CreateSphere(name + 'p', { diameter: 0.34 * S, segments: 6 }, scene)
+    pivot.material = fur
+    pivot.parent = torso
+    pivot.position.set(side * (isArm ? 0.62 : 0.28) * S, (isArm ? 0.55 : -0.75) * S, 0)
+    meshes.push(pivot)
+    const seg = MeshBuilder.CreateCylinder(name, { diameterTop: 0.32 * S, diameterBottom: 0.38 * S, height: (isArm ? 1.05 : 1.15) * S, tessellation: 8 }, scene)
+    seg.material = isArm ? fur : furDark
+    seg.parent = pivot
+    seg.position.y = -(isArm ? 0.55 : 0.6) * S
+    meshes.push(seg)
+    const end = isArm
+      ? MeshBuilder.CreateSphere(name + 'h', { diameterX: 0.34 * S, diameterY: 0.3 * S, diameterZ: 0.34 * S, segments: 6 }, scene)
+      : MeshBuilder.CreateBox(name + 'f', { width: 0.36 * S, height: 0.22 * S, depth: 0.6 * S }, scene)
+    end.material = skin
+    end.parent = pivot
+    end.position.set(0, -(isArm ? 1.05 : 1.15) * S, isArm ? 0 : 0.14 * S)
+    meshes.push(end)
+    return pivot
+  }
+  const armL = limb('bfaL', true, -1)
+  const armR = limb('bfaR', true, 1)
+  const legL = limb('bflL', false, -1)
+  const legR = limb('bflR', false, 1)
+  torso.setEnabled(false) // hidden until his moment
+  return { torso, armL, armR, legL, legR, baseY: 1.75 * S }
 }

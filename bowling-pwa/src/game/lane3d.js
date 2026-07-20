@@ -162,6 +162,12 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     laneMat.diffuseTexture = woodTex
     laneMat.diffuseColor = new Color3(1, 1, 1) // the texture carries the tone
   }
+  if (opts.ice) {
+    // Polar Nights: a polished ice slab — hard bright speculars, hotter mirror
+    laneMat.specularColor = new Color3(0.5, 0.56, 0.62)
+    laneMat.specularPower = 96
+    if (mirror) mirror.level = 0.55
+  }
   const gutterMat = pbr(scene, { color: colors.gutter, rough: 0.8, name: 'gutter' })
   const darkMat = pbr(scene, { color: colors.backstop, rough: 0.9, name: 'backstop' })
   for (const m of [laneMat, gutterMat, darkMat]) m.maxSimultaneousLights = 6
@@ -216,6 +222,12 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   //  - 'slot' (High Roller): the backer IS a slot machine — the pit is the
   //    payout tray
   //  - 'water' (Poolside): nothing at all — open water behind the deck
+  //  - 'forest' (Timberline): a rustic log gate with lanterns — the view stays
+  //    OPEN so the deep forest backdrop (environs) shows through
+  //  - 'ducks' (The Midway): a striped shooting-gallery wall with rows of
+  //    sliding tin ducks
+  //  - 'igloo' (Polar Nights): an igloo with a warm doorway, ice spires around
+  //  - 'saloon' (Dry Gulch): a false-front saloon; the batwing doors sway
   // Colliders are identical in all styles; only the dressing changes.
   const style = opts.pit || 'void'
   const waterPit = style === 'water'
@@ -274,9 +286,14 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
       }
     }
   }
+  let pitUpdate = null // animated backers (duck rows, saloon doors) tick here
   if (style === 'masks') buildMaskWall(scene, totalW, track, freeze, meshesOwnMats)
   if (style === 'volcano') buildVolcanoBacker(scene, track, freeze, meshesOwnMats)
   if (style === 'slot') buildSlotBacker(scene, totalW, track, freeze, meshesOwnMats)
+  if (style === 'forest') buildForestGate(scene, totalW, track, freeze, meshesOwnMats)
+  if (style === 'ducks') pitUpdate = buildDuckGallery(scene, totalW, track, freeze, meshesOwnMats)
+  if (style === 'igloo') buildIglooBacker(scene, track, freeze, meshesOwnMats)
+  if (style === 'saloon') pitUpdate = buildSaloonBacker(scene, totalW, track, freeze, meshesOwnMats)
 
   // neon edge strips (visual) — the page color-cycles their emissive
   const edges = []
@@ -332,6 +349,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     mirror,
     sweep,
     sweepUpdate: sweepKit.update,
+    pitUpdate,
     sweepDownY: 0.42,
     sweepUpY: 3.6,
     dispose() {
@@ -507,6 +525,106 @@ function buildSweep(scene, colors, style, track, mats) {
       ring.rotation.z = Math.PI / 2
       ring.material = litM(stripeCols[i % 2], 0.85)
       add(ring, -W / 2 + 0.5 + i * (W - 1) / 3)
+    }
+  } else if (style === 'log') {
+    // Timberline: a pine log on the chains — bark rings, pale cut ends, rope
+    const log = MeshBuilder.CreateCylinder('swLog', { diameter: 0.2, height: W, tessellation: 16 }, scene)
+    log.rotation.z = Math.PI / 2
+    log.material = litM('#6b4a2a', 0.85)
+    add(log)
+    const barkMat = litM('#4a3018', 0.95)
+    for (let i = 0; i < 4; i++) {
+      const ring = MeshBuilder.CreateTorus('swBark', { diameter: 0.205, thickness: 0.022, tessellation: 14 }, scene)
+      ring.rotation.z = Math.PI / 2
+      ring.material = barkMat
+      add(ring, -W / 2 + 0.4 + i * (W - 0.8) / 3)
+    }
+    const cutMat = litM('#d8b880', 0.7)
+    for (const s of [-1, 1]) {
+      const cut = MeshBuilder.CreateCylinder('swCut', { diameter: 0.19, height: 0.015, tessellation: 16 }, scene)
+      cut.rotation.z = Math.PI / 2
+      cut.material = cutMat
+      add(cut, s * (W / 2 + 0.005))
+    }
+    const ropeMat = litM('#8a6a3a', 0.95)
+    for (const s of [-1, 1]) {
+      const rope = MeshBuilder.CreateTorus('swLogRope', { diameter: 0.23, thickness: 0.03, tessellation: 14 }, scene)
+      rope.rotation.z = Math.PI / 2
+      rope.material = ropeMat
+      add(rope, s * (W / 2 - 0.16))
+    }
+  } else if (style === 'marquee') {
+    // The Midway: a painted marquee bar with a row of chasing lightbulbs
+    const bar = MeshBuilder.CreateBox('swMarq', { width: W, height: 0.22, depth: 0.14 }, scene)
+    bar.material = litM('#8a1a2a', 0.6)
+    add(bar)
+    const trim = glowM('#ffd23f', 0.5)
+    for (const y of [0.12, -0.12]) {
+      const t = MeshBuilder.CreateBox('swTrim', { width: W, height: 0.03, depth: 0.15 }, scene)
+      t.material = trim
+      add(t, 0, y)
+    }
+    const on = glowM('#fff0c0', 1.15)
+    const off = glowM('#ffd23f', 0.3)
+    const bulbs = []
+    for (let i = 0; i < 9; i++) {
+      const bulb = MeshBuilder.CreateSphere('swBulb', { diameter: 0.055, segments: 10 }, scene)
+      bulb.material = i % 2 ? off : on
+      add(bulb, -W / 2 + 0.2 + i * (W - 0.4) / 8, 0, 0.08)
+      bulbs.push(bulb)
+    }
+    update = (t) => {
+      // the chase: alternating bulbs swap every ~third of a second
+      const ph = Math.floor(t / 20) % 2
+      for (let i = 0; i < bulbs.length; i++) bulbs[i].material = (i + ph) % 2 ? off : on
+    }
+  } else if (style === 'icicle') {
+    // Polar Nights: a frosted bar with a snow cap and hanging icicles
+    const bar = MeshBuilder.CreateBox('swIce', { width: W, height: 0.2, depth: 0.14 }, scene)
+    bar.material = litM('#9fc4dc', 0.35)
+    add(bar)
+    const cap = MeshBuilder.CreateBox('swSnow', { width: W, height: 0.06, depth: 0.16 }, scene)
+    cap.material = litM('#f4faff', 0.6)
+    add(cap, 0, 0.12)
+    const iceMat = litM('#bfe4f5', 0.15)
+    iceMat.alpha = 0.85
+    const lens = [0.28, 0.14, 0.22, 0.32, 0.16, 0.26, 0.12]
+    lens.forEach((L, i) => {
+      const ic = MeshBuilder.CreateCylinder('swIcicle', { diameterTop: 0.05, diameterBottom: 0, height: L, tessellation: 8 }, scene)
+      ic.material = iceMat
+      add(ic, -W / 2 + 0.25 + i * (W - 0.5) / 6, -0.1 - L / 2)
+    })
+    const glintMat = glowM('#eaf8ff', 0.8)
+    for (const gx of [-W * 0.28, W * 0.31]) {
+      const g = MeshBuilder.CreateSphere('swGlint', { diameter: 0.035, segments: 8 }, scene)
+      g.material = glintMat
+      add(g, gx, 0.14, 0.06)
+    }
+  } else if (style === 'lasso') {
+    // Dry Gulch: a taut rope with whipped ends and a lazy loop swinging below
+    const rope = MeshBuilder.CreateCapsule('swRope', { radius: 0.055, height: W, orientation: new Vector3(1, 0, 0), tessellation: 14, capSubdivisions: 5 }, scene)
+    rope.material = litM('#c8a05a', 0.9)
+    add(rope)
+    const wrapMat = litM('#8a6a3a', 0.95)
+    for (let i = 0; i < 5; i++) {
+      const wrap = MeshBuilder.CreateTorus('swWrap', { diameter: 0.13, thickness: 0.025, tessellation: 12 }, scene)
+      wrap.rotation.z = Math.PI / 2
+      wrap.material = wrapMat
+      add(wrap, -W / 2 + 0.35 + i * (W - 0.7) / 4)
+    }
+    for (const s of [-1, 1]) {
+      const coil = MeshBuilder.CreateTorus('swCoil', { diameter: 0.22, thickness: 0.05, tessellation: 14 }, scene)
+      coil.rotation.z = Math.PI / 2
+      coil.material = wrapMat
+      add(coil, s * (W / 2 - 0.08))
+    }
+    const loop = MeshBuilder.CreateTorus('swLoop', { diameter: 0.5, thickness: 0.035, tessellation: 18 }, scene)
+    loop.material = rope.material
+    add(loop, 0.3, -0.32)
+    loop.rotation.x = 0.25
+    update = (t) => {
+      loop.rotation.x = 0.25 + Math.sin(t * 0.02) * 0.12
+      loop.position.x = 0.3 + Math.sin(t * 0.013) * 0.08
     }
   } else {
     // fallback: the plain service bar with a glow strip
@@ -1031,6 +1149,352 @@ function buildSlotBacker(scene, totalW, track, freeze, mats) {
   knob.position.set(totalW / 2 + 0.32, 2.38, DECK_END - 0.45)
   knob.material = knobMat
   track(freeze(knob))
+}
+
+// Timberline: a rustic log gate framing the pit — the view through it stays
+// open so the deep forest backdrop reads. Two posts, a crossbeam, rope
+// lashings, and a pair of warm lanterns hanging from the beam.
+function buildForestGate(scene, totalW, track, freeze, mats) {
+  const woodMat = new StandardMaterial('gateWood', scene)
+  woodMat.diffuseColor = Color3.FromHexString('#5a4028')
+  woodMat.specularColor = new Color3(0.05, 0.05, 0.04)
+  mats.push(woodMat)
+  for (const side of [-1, 1]) {
+    const post = MeshBuilder.CreateCylinder('gatePost', { diameter: 0.17, height: 2.25, tessellation: 12 }, scene)
+    post.position.set(side * (totalW / 2 - 0.12), 1.125, DECK_END - 0.2)
+    post.material = woodMat
+    track(freeze(post))
+  }
+  const beam = MeshBuilder.CreateCylinder('gateBeam', { diameter: 0.19, height: totalW + 0.3, tessellation: 12 }, scene)
+  beam.rotation.z = Math.PI / 2
+  beam.position.set(0, 2.28, DECK_END - 0.2)
+  beam.material = woodMat
+  track(freeze(beam))
+  const ropeMat = new StandardMaterial('gateRope', scene)
+  ropeMat.diffuseColor = Color3.FromHexString('#8a6a3a')
+  mats.push(ropeMat)
+  for (const side of [-1, 1]) {
+    const lash = MeshBuilder.CreateTorus('gateLash', { diameter: 0.24, thickness: 0.035, tessellation: 12 }, scene)
+    lash.rotation.z = Math.PI / 2
+    lash.position.set(side * (totalW / 2 - 0.12), 2.28, DECK_END - 0.2)
+    lash.material = ropeMat
+    track(freeze(lash))
+  }
+  // lanterns: warm glowing orbs on short straps under the beam
+  const strapMat = new StandardMaterial('lampStrap', scene)
+  strapMat.diffuseColor = Color3.FromHexString('#2e2418')
+  mats.push(strapMat)
+  const glow = new StandardMaterial('lampGlow', scene)
+  glow.emissiveColor = Color3.FromHexString('#ffb46a').scale(0.95)
+  glow.disableLighting = true
+  mats.push(glow)
+  for (const lx of [-1.15, 1.15]) {
+    const strap = MeshBuilder.CreateCylinder('lampS', { diameter: 0.02, height: 0.22, tessellation: 6 }, scene)
+    strap.position.set(lx, 2.1, DECK_END - 0.2)
+    strap.material = strapMat
+    track(freeze(strap))
+    const lamp = MeshBuilder.CreateSphere('lamp', { diameter: 0.13, segments: 12 }, scene)
+    lamp.position.set(lx, 1.93, DECK_END - 0.2)
+    lamp.material = glow
+    track(freeze(lamp))
+  }
+}
+
+// The Midway: a shooting-gallery backer — striped canvas wall, pennant row on
+// top, and two chains of tin ducks gliding in opposite directions. Returns the
+// update that drives the ducks.
+function buildDuckGallery(scene, totalW, track, freeze, mats) {
+  const zWall = DECK_END - 1.5
+  const stripeA = new StandardMaterial('galStripeA', scene)
+  stripeA.diffuseColor = Color3.FromHexString('#c8303a')
+  stripeA.specularColor = new Color3(0.04, 0.04, 0.04)
+  const stripeB = new StandardMaterial('galStripeB', scene)
+  stripeB.diffuseColor = Color3.FromHexString('#f2e8d0')
+  stripeB.specularColor = new Color3(0.04, 0.04, 0.04)
+  mats.push(stripeA, stripeB)
+  const N = 8
+  const sw = (totalW + 0.4) / N
+  const bitsA = []
+  const bitsB = []
+  for (let i = 0; i < N; i++) {
+    const s = MeshBuilder.CreateBox('galStripe', { width: sw, height: 1.95, depth: 0.1 }, scene)
+    s.position.set(-(totalW + 0.4) / 2 + sw / 2 + i * sw, 1.72, zWall)
+    ;(i % 2 ? bitsB : bitsA).push(s)
+  }
+  for (const [bits, m] of [[bitsA, stripeA], [bitsB, stripeB]]) {
+    const merged = Mesh.MergeMeshes(bits, true, true)
+    merged.material = m
+    merged.isPickable = false
+    track(freeze(merged))
+  }
+  // dark under-counter mouth: the ball vanishes beneath the gallery
+  const mouthMat = new StandardMaterial('galMouth', scene)
+  mouthMat.diffuseColor = new Color3(0, 0, 0)
+  mouthMat.specularColor = new Color3(0, 0, 0)
+  mouthMat.disableLighting = true
+  mats.push(mouthMat)
+  const mouth = MeshBuilder.CreateBox('galMouthP', { width: totalW + 0.4, height: 0.85, depth: 0.08 }, scene)
+  mouth.position.set(0, 0.33, zWall + 0.02)
+  mouth.material = mouthMat
+  track(freeze(mouth))
+  // counter lip in gold
+  const gold = new StandardMaterial('galGold', scene)
+  gold.emissiveColor = Color3.FromHexString('#ffd23f').scale(0.7)
+  gold.disableLighting = true
+  mats.push(gold)
+  const lip = MeshBuilder.CreateBox('galLip', { width: totalW + 0.4, height: 0.06, depth: 0.12 }, scene)
+  lip.position.set(0, 0.76, zWall + 0.03)
+  lip.material = gold
+  track(freeze(lip))
+  // pennant valance along the top
+  const pennCols = [stripeA, gold]
+  for (let i = 0; i < 9; i++) {
+    const p = MeshBuilder.CreateCylinder('galPenn', { diameterTop: 0.26, diameterBottom: 0, height: 0.3, tessellation: 3 }, scene)
+    p.scaling.z = 0.15
+    p.position.set(-(totalW + 0.4) / 2 + 0.26 + i * (totalW - 0.1) / 8, 2.55, zWall + 0.08)
+    p.material = pennCols[i % 2]
+    p.isPickable = false
+    track(freeze(p))
+  }
+  // star decals scattered on the canvas
+  const starMat = new StandardMaterial('galStar', scene)
+  starMat.emissiveColor = Color3.FromHexString('#ffe9a0').scale(0.55)
+  starMat.disableLighting = true
+  mats.push(starMat)
+  for (const [sx, sy] of [[-1.7, 2.2], [-0.6, 2.35], [0.9, 2.25], [1.8, 2.1]]) {
+    const st = MeshBuilder.CreateBox('galStarB', { width: 0.09, height: 0.09, depth: 0.02 }, scene)
+    st.position.set(sx, sy, zWall + 0.06)
+    st.rotation.z = Math.PI / 4
+    st.material = starMat
+    track(freeze(st))
+  }
+  // the duck rows: rails + tin ducks that slide, wrap, and fade at the edges
+  const railMat = new StandardMaterial('galRail', scene)
+  railMat.diffuseColor = Color3.FromHexString('#2a1a20')
+  mats.push(railMat)
+  for (const ry of [1.06, 1.66]) {
+    const rail = MeshBuilder.CreateBox('galRailB', { width: totalW + 0.2, height: 0.035, depth: 0.05 }, scene)
+    rail.position.set(0, ry, zWall + 0.09)
+    rail.material = railMat
+    track(freeze(rail))
+  }
+  const duckMat = new StandardMaterial('galDuck', scene)
+  duckMat.diffuseColor = Color3.FromHexString('#ffd23f')
+  duckMat.specularColor = new Color3(0.2, 0.18, 0.08)
+  const beakMat = new StandardMaterial('galBeak', scene)
+  beakMat.diffuseColor = Color3.FromHexString('#ff8a3a')
+  mats.push(duckMat, beakMat)
+  const half = totalW / 2 - 0.1
+  const ducks = []
+  const makeDuck = (x, y, dir, speed) => {
+    const bits = []
+    const body = MeshBuilder.CreateSphere('gd', { diameterX: 0.3, diameterY: 0.22, diameterZ: 0.14, segments: 12 }, scene)
+    bits.push(body)
+    const head = MeshBuilder.CreateSphere('gdh', { diameter: 0.14, segments: 10 }, scene)
+    head.position.set(dir * 0.12, 0.14, 0)
+    bits.push(head)
+    const tail = MeshBuilder.CreateSphere('gdt', { diameterX: 0.1, diameterY: 0.12, diameterZ: 0.08, segments: 8 }, scene)
+    tail.position.set(-dir * 0.14, 0.06, 0)
+    bits.push(tail)
+    const duck = Mesh.MergeMeshes(bits, true, true)
+    duck.material = duckMat
+    duck.isPickable = false
+    const beak = MeshBuilder.CreateCylinder('gdb', { diameterTop: 0, diameterBottom: 0.05, height: 0.08, tessellation: 8 }, scene)
+    beak.rotation.z = -dir * Math.PI / 2
+    beak.position.set(dir * 0.21, 0.14, 0)
+    beak.material = beakMat
+    beak.isPickable = false
+    beak.parent = duck
+    duck.position.set(x, y, zWall + 0.12)
+    track(duck)
+    ducks.push({ duck, x, y, dir, speed })
+  }
+  makeDuck(-1.4, 1.12, 1, 0.011)
+  makeDuck(0, 1.12, 1, 0.011)
+  makeDuck(1.4, 1.12, 1, 0.011)
+  makeDuck(-0.8, 1.72, -1, 0.008)
+  makeDuck(0.9, 1.72, -1, 0.008)
+  return (t) => {
+    for (const d of ducks) {
+      let x = d.x + d.dir * d.speed * t
+      // wrap into the wall span; fade in/out at the edges like a real gallery
+      x = ((x + half) % (2 * half) + 2 * half) % (2 * half) - half
+      d.duck.position.x = x
+      d.duck.position.y = d.y + Math.sin(t * 0.06 + d.x * 3) * 0.015 // chain rattle
+      const edge = Math.min(half - Math.abs(x), 0.35) / 0.35
+      d.duck.visibility = Math.max(0, edge)
+    }
+  }
+}
+
+// Polar Nights: an igloo hunkered behind the deck — warm doorway, block seams,
+// ice spires and snow mounds flanking it.
+function buildIglooBacker(scene, track, freeze, mats) {
+  const iceMat = new StandardMaterial('igIce', scene)
+  iceMat.diffuseColor = Color3.FromHexString('#cfe4f0')
+  iceMat.specularColor = new Color3(0.25, 0.28, 0.32)
+  mats.push(iceMat)
+  const dome = MeshBuilder.CreateSphere('igDome', { diameter: 3.8, segments: 20, slice: 0.52 }, scene)
+  dome.scaling.y = 0.72
+  dome.position.set(0.5, 0, DECK_END - 3.6)
+  dome.material = iceMat
+  track(freeze(dome))
+  // block seams: darker rings around the dome
+  const seamMat = new StandardMaterial('igSeam', scene)
+  seamMat.diffuseColor = Color3.FromHexString('#a8c4d8')
+  mats.push(seamMat)
+  for (const [sy, sd] of [[0.5, 3.42], [0.95, 2.6]]) {
+    const seam = MeshBuilder.CreateTorus('igSeamT', { diameter: sd, thickness: 0.035, tessellation: 28 }, scene)
+    seam.position.set(0.5, sy, DECK_END - 3.6)
+    seam.material = seamMat
+    track(freeze(seam))
+  }
+  // the entrance tunnel, glowing warm from the inside
+  const tun = MeshBuilder.CreateSphere('igTun', { diameter: 1.15, segments: 14, slice: 0.55 }, scene)
+  tun.scaling.z = 1.5
+  tun.position.set(0.2, 0, DECK_END - 2.2)
+  tun.material = iceMat
+  track(freeze(tun))
+  const warm = new StandardMaterial('igWarm', scene)
+  warm.emissiveColor = Color3.FromHexString('#ffb46a').scale(0.9)
+  warm.disableLighting = true
+  mats.push(warm)
+  const door = MeshBuilder.CreateCylinder('igDoor', { diameter: 0.5, height: 0.04, tessellation: 18 }, scene)
+  door.rotation.x = Math.PI / 2
+  door.position.set(0.2, 0.28, DECK_END - 1.75)
+  door.material = warm
+  track(freeze(door))
+  // flanking ice spires + snow mounds
+  const spireMat = new StandardMaterial('igSpire', scene)
+  spireMat.diffuseColor = Color3.FromHexString('#9ac8e8')
+  spireMat.specularColor = new Color3(0.3, 0.34, 0.38)
+  spireMat.alpha = 0.92
+  mats.push(spireMat)
+  for (const [px, pz, h] of [[-2.4, -1.6, 1.9], [-2.9, -2.6, 1.3], [2.6, -1.9, 2.2], [3.1, -3, 1.4]]) {
+    const sp = MeshBuilder.CreateCylinder('igSpireC', { diameterTop: 0, diameterBottom: 0.55, height: h, tessellation: 6 }, scene)
+    sp.position.set(px, h / 2, DECK_END + pz)
+    sp.rotation.y = px * 1.7
+    sp.material = spireMat
+    track(freeze(sp))
+  }
+  const snowMat = new StandardMaterial('igSnow', scene)
+  snowMat.diffuseColor = Color3.FromHexString('#eef6fc')
+  mats.push(snowMat)
+  for (const [mx, mz, s] of [[-1.9, -2.8, 1.2], [2.2, -3.4, 1.5], [0.4, -4.6, 2.2]]) {
+    const mound = MeshBuilder.CreateSphere('igMound', { diameterX: s * 1.6, diameterY: s * 0.5, diameterZ: s, segments: 10 }, scene)
+    mound.position.set(mx, 0.05, DECK_END + mz)
+    mound.material = snowMat
+    track(freeze(mound))
+  }
+}
+
+// Dry Gulch: a false-front saloon. Wood facade with warm windows, a painted
+// SALOON sign on the parapet, and batwing doors that never stop swinging.
+// Returns the update that sways the doors.
+function buildSaloonBacker(scene, totalW, track, freeze, mats) {
+  const zWall = DECK_END - 0.9
+  const wood = new StandardMaterial('salWood', scene)
+  wood.diffuseColor = Color3.FromHexString('#4a2f1a')
+  wood.specularColor = new Color3(0.05, 0.04, 0.03)
+  mats.push(wood)
+  const doorW = 1.3
+  const panelW = (totalW + 0.4 - doorW) / 2
+  for (const side of [-1, 1]) {
+    const panel = MeshBuilder.CreateBox('salPanel', { width: panelW, height: 1.66, depth: 0.12 }, scene)
+    panel.position.set(side * (doorW / 2 + panelW / 2), 1.55, zWall)
+    panel.material = wood
+    track(freeze(panel))
+  }
+  const header = MeshBuilder.CreateBox('salHeader', { width: doorW + 0.2, height: 0.55, depth: 0.12 }, scene)
+  header.position.set(0, 2.1, zWall)
+  header.material = wood
+  track(freeze(header))
+  // false-front parapet + sign board
+  const parapet = MeshBuilder.CreateBox('salTop', { width: totalW + 0.6, height: 0.5, depth: 0.14 }, scene)
+  parapet.position.set(0, 2.62, zWall)
+  parapet.material = wood
+  track(freeze(parapet))
+  const signTex = new DynamicTexture('salSign', { width: 512, height: 128 }, scene, true)
+  const ctx = signTex.getContext()
+  ctx.fillStyle = '#2e1c0e'
+  ctx.fillRect(0, 0, 512, 128)
+  ctx.strokeStyle = '#ffd9a0'
+  ctx.lineWidth = 8
+  ctx.strokeRect(10, 10, 492, 108)
+  ctx.fillStyle = '#ffd9a0'
+  ctx.font = 'bold 84px Georgia, serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('SALOON', 256, 70)
+  signTex.update()
+  const signMat = new StandardMaterial('salSignM', scene)
+  signMat.diffuseTexture = signTex
+  signMat.emissiveColor = new Color3(0.5, 0.42, 0.3) // lamplit even at dusk
+  signMat.specularColor = new Color3(0.03, 0.03, 0.02)
+  mats.push(signMat)
+  const sign = MeshBuilder.CreatePlane('salSignP', { width: 2.3, height: 0.575 }, scene)
+  sign.position.set(0, 2.62, zWall + 0.08)
+  sign.material = signMat
+  sign.isPickable = false
+  track(freeze(sign))
+  // warm windows on the panels
+  const warm = new StandardMaterial('salWarm', scene)
+  warm.emissiveColor = Color3.FromHexString('#ffca6a').scale(0.75)
+  warm.disableLighting = true
+  mats.push(warm)
+  for (const side of [-1, 1]) {
+    const win = MeshBuilder.CreateBox('salWin', { width: 0.5, height: 0.6, depth: 0.04 }, scene)
+    win.position.set(side * (doorW / 2 + panelW / 2), 1.62, zWall + 0.06)
+    win.material = warm
+    track(freeze(win))
+    const bar = MeshBuilder.CreateBox('salWinBar', { width: 0.52, height: 0.05, depth: 0.05 }, scene)
+    bar.position.set(side * (doorW / 2 + panelW / 2), 1.62, zWall + 0.07)
+    bar.material = wood
+    track(freeze(bar))
+  }
+  // the mouth below the facade — the dark space the ball rolls into
+  const mouthMat = new StandardMaterial('salMouth', scene)
+  mouthMat.diffuseColor = new Color3(0, 0, 0)
+  mouthMat.specularColor = new Color3(0, 0, 0)
+  mouthMat.disableLighting = true
+  mats.push(mouthMat)
+  const mouth = MeshBuilder.CreateBox('salMouthP', { width: totalW + 0.4, height: 0.78, depth: 0.08 }, scene)
+  mouth.position.set(0, 0.34, zWall + 0.02)
+  mouth.material = mouthMat
+  track(freeze(mouth))
+  // batwing doors on hinge pivots, swinging forever in the desert wind
+  const doorMat = new StandardMaterial('salDoor', scene)
+  doorMat.diffuseColor = Color3.FromHexString('#6b4423')
+  doorMat.specularColor = new Color3(0.06, 0.05, 0.04)
+  mats.push(doorMat)
+  const pivots = []
+  for (const side of [-1, 1]) {
+    const pivot = MeshBuilder.CreateBox('salHinge', { size: 0.02 }, scene)
+    pivot.isVisible = false
+    pivot.position.set(side * (doorW / 2), 1.3, zWall + 0.05)
+    track(pivot)
+    const door = MeshBuilder.CreateBox('salDoorP', { width: doorW / 2 - 0.06, height: 0.62, depth: 0.03 }, scene)
+    door.position.set(-side * (doorW / 4 - 0.02), 0, 0)
+    door.material = doorMat
+    door.isPickable = false
+    door.parent = pivot
+    track(door)
+    // slat lines carved into each door
+    for (const sy of [-0.18, 0, 0.18]) {
+      const slat = MeshBuilder.CreateBox('salSlat', { width: doorW / 2 - 0.1, height: 0.02, depth: 0.035 }, scene)
+      slat.position.set(-side * (doorW / 4 - 0.02), sy, 0)
+      slat.material = wood
+      slat.isPickable = false
+      slat.parent = pivot
+      track(slat)
+    }
+    pivots.push({ pivot, side })
+  }
+  return (t) => {
+    for (const { pivot, side } of pivots) {
+      pivot.rotation.y = side * (0.2 + Math.sin(t * 0.021 + side) * 0.16)
+    }
+  }
 }
 
 // The classic pin silhouette, lathe-turned: broad belly, slim neck, rounded

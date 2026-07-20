@@ -274,8 +274,9 @@ const CATALOG = {
           sp.visibility = phase < 1.6 ? 1 - phase / 1.8 : 0
         }
       }
-      return { root: blob, meshes, mats: [mat, coreMat, crustMat, sparkMat], restY: 0.02, patch: 0.48, edge: true, update }
+      return { root: blob, meshes, mats: [mat, coreMat, crustMat, sparkMat], restY: 0.02, patch: { r: 0.48, mul: 0.975, quip: 'Ssssizzle — right through the lava.' }, edge: true, update }
     },
+    isPatch: true,
   },
   boulder: {
     name: 'a basalt boulder',
@@ -781,6 +782,532 @@ const CATALOG = {
       return { root: col, meshes, mats: [mat, strapMat], restY: 0.045, phys: { shape: PhysicsShapeType.BOX, mass: 0.5, restitution: 0.3, friction: 0.7 } }
     },
   },
+
+  // -- Timberline ---------------------------------------------------------------
+  pinecone: {
+    name: 'a jumbo pinecone',
+    build(scene) {
+      // an egg core wearing tiers of splayed scales — faceted so it reads woody
+      const core = MeshBuilder.CreateSphere('hzCone', { diameterX: 0.26, diameterY: 0.36, diameterZ: 0.26, segments: 10 }, scene)
+      core.convertToFlatShadedMesh()
+      const mat = lit(pbr(scene, { color: '#5a3a1e', rough: 0.95, name: 'hzConeMat' }))
+      core.material = mat
+      const scaleMat = lit(pbr(scene, { color: '#7a5230', rough: 0.9, name: 'hzScaleMat' }))
+      const bits = []
+      for (let tier = 0; tier < 3; tier++) {
+        const y = -0.08 + tier * 0.1
+        const n = 6 - tier
+        const r = 0.11 - tier * 0.015
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + tier * 0.5
+          const sc = MeshBuilder.CreateSphere('hzScale', { diameterX: 0.09, diameterY: 0.03, diameterZ: 0.07, segments: 6 }, scene)
+          sc.position.set(Math.cos(a) * r, y, Math.sin(a) * r)
+          sc.rotation.y = -a
+          sc.rotation.z = 0.4 - tier * 0.15
+          bits.push(sc)
+        }
+      }
+      const scales = Mesh.MergeMeshes(bits, true, true)
+      scales.material = scaleMat
+      scales.isPickable = false
+      scales.parent = core
+      return { root: core, meshes: [core, scales], mats: [mat, scaleMat], restY: 0.17, phys: { shape: PhysicsShapeType.SPHERE, mass: 1, restitution: 0.3, friction: 0.7 } }
+    },
+  },
+  marshstick: {
+    name: 'a dropped s’more stick',
+    build(scene) {
+      // a roasting stick flat on the boards, marshmallow still on the tip
+      const stick = MeshBuilder.CreateCylinder('hzStick', { diameterTop: 0.03, diameterBottom: 0.045, height: 0.85, tessellation: 10 }, scene)
+      stick.rotation.z = Math.PI / 2
+      const stickMat = lit(pbr(scene, { color: '#8a6a4a', rough: 0.9, name: 'hzStickM' }))
+      stick.material = stickMat
+      const mallow = MeshBuilder.CreateCylinder('hzMallow', { diameter: 0.13, height: 0.15, tessellation: 14 }, scene)
+      const mallowMat = lit(pbr(scene, { color: '#f6f0e2', rough: 0.6, name: 'hzMallowM' }))
+      mallow.material = mallowMat
+      mallow.position.y = 0.44 // local +y = along the stick once it lies flat
+      mallow.rotation.x = Math.PI / 2
+      mallow.parent = stick
+      // the toasted side
+      const toast = MeshBuilder.CreateSphere('hzToast', { diameterX: 0.115, diameterY: 0.07, diameterZ: 0.115, segments: 10 }, scene)
+      const toastMat = lit(pbr(scene, { color: '#a86a2e', rough: 0.8, name: 'hzToastM' }))
+      toast.material = toastMat
+      toast.position.set(0, 0.5, 0)
+      toast.parent = stick
+      return { root: stick, meshes: [stick, mallow, toast], mats: [stickMat, mallowMat, toastMat], restY: 0.035, phys: { shape: PhysicsShapeType.CYLINDER, mass: 0.5, restitution: 0.25, friction: 0.6 } }
+    },
+  },
+  canteen: {
+    name: 'a ranger’s canteen',
+    build(scene) {
+      // the classic flat round canteen, dropped face-up
+      const col = MeshBuilder.CreateBox('hzCant', { width: 0.36, height: 0.14, depth: 0.36 }, scene)
+      col.isVisible = false
+      const body = MeshBuilder.CreateSphere('hzCantB', { diameterX: 0.34, diameterY: 0.13, diameterZ: 0.34, segments: 16 }, scene)
+      const mat = lit(pbr(scene, { color: '#3a5a3a', rough: 0.55, name: 'hzCantM' }))
+      body.material = mat
+      body.parent = col
+      const capMat = lit(pbr(scene, { color: '#9aa4b2', rough: 0.35, metal: 0.5, name: 'hzCapM' }))
+      const cap = MeshBuilder.CreateCylinder('hzCantC', { diameter: 0.07, height: 0.06, tessellation: 10 }, scene)
+      cap.rotation.z = Math.PI / 2
+      cap.position.set(0.19, 0, 0)
+      cap.material = capMat
+      cap.parent = col
+      const strapMat = lit(pbr(scene, { color: '#6b4a2b', rough: 0.9, name: 'hzStrapM' }))
+      const strap = MeshBuilder.CreateTorus('hzCantS', { diameter: 0.36, thickness: 0.022, tessellation: 20 }, scene)
+      strap.scaling.z = 0.6
+      strap.position.y = 0.01
+      strap.material = strapMat
+      strap.parent = col
+      return { root: col, meshes: [col, body, cap, strap], mats: [mat, capMat, strapMat], restY: 0.07, phys: { shape: PhysicsShapeType.BOX, mass: 1, restitution: 0.25, friction: 0.6 } }
+    },
+  },
+  bigfootprint: {
+    name: 'a suspiciously large footprint',
+    build(scene) {
+      // a giant muddy print pressed into the boards — no collider; the ball
+      // squelches through it. Heel, arch, and five big toes.
+      const mud = new StandardMaterial('hzMud', scene)
+      mud.diffuseColor = Color3.FromHexString('#3a2c1e')
+      mud.specularColor = new Color3(0.08, 0.07, 0.05)
+      mud.alpha = 0.92
+      const sole = MeshBuilder.CreateSphere('hzPrint', { diameterX: 0.5, diameterY: 0.016, diameterZ: 0.95, segments: 16 }, scene)
+      sole.material = mud
+      const meshes = [sole]
+      for (let i = 0; i < 5; i++) {
+        const a = -0.5 + i * 0.25
+        const d = 0.13 - Math.abs(i - 1.4) * 0.02
+        const toe = MeshBuilder.CreateSphere('hzToe', { diameterX: d, diameterY: 0.016, diameterZ: d * 1.25, segments: 10 }, scene)
+        toe.position.set(Math.sin(a) * 0.24, 0, 0.5 + Math.cos(a) * 0.1)
+        toe.material = mud
+        toe.parent = sole
+        meshes.push(toe)
+      }
+      return { root: sole, meshes, mats: [mud], restY: 0.012, patch: { r: 0.5, mul: 0.985, quip: 'You rolled through… a very large footprint.' } }
+    },
+    isPatch: true,
+  },
+
+  // -- The Midway ----------------------------------------------------------------
+  popcorn: {
+    name: 'a spilled popcorn box',
+    build(scene) {
+      const col = MeshBuilder.CreateBox('hzPop', { width: 0.5, height: 0.22, depth: 0.3 }, scene)
+      col.isVisible = false
+      // the striped box, tipped on its side
+      const box = MeshBuilder.CreateBox('hzPopB', { width: 0.22, height: 0.3, depth: 0.2 }, scene)
+      box.rotation.z = 1.35
+      box.position.set(-0.12, -0.02, 0)
+      const boxMat = lit(pbr(scene, { color: '#c8303a', rough: 0.6, name: 'hzPopM' }))
+      box.material = boxMat
+      box.parent = col
+      const stripeMat = lit(pbr(scene, { color: '#f2e8d0', rough: 0.6, name: 'hzPopS' }))
+      const meshes = [col, box]
+      for (const sx of [-0.055, 0.055]) {
+        const s = MeshBuilder.CreateBox('hzPopSt', { width: 0.05, height: 0.302, depth: 0.202 }, scene)
+        s.position.set(sx, 0, 0)
+        s.material = stripeMat
+        s.parent = box
+        meshes.push(s)
+      }
+      // the spill: faceted kernels tumbling out of the mouth
+      const kernMat = lit(pbr(scene, { color: '#f6e8c0', rough: 0.8, name: 'hzKern' }))
+      const bits = []
+      for (let i = 0; i < 8; i++) {
+        const k = MeshBuilder.CreateSphere('hzKernB', { diameter: 0.055 + (i % 3) * 0.012, segments: 5 }, scene)
+        k.position.set(0.02 + (i % 4) * 0.09, -0.095, ((i * 7) % 5 - 2) * 0.045)
+        bits.push(k)
+      }
+      const kernels = Mesh.MergeMeshes(bits, true, true)
+      kernels.convertToFlatShadedMesh()
+      kernels.material = kernMat
+      kernels.isPickable = false
+      kernels.parent = col
+      meshes.push(kernels)
+      return { root: col, meshes, mats: [boxMat, stripeMat, kernMat], restY: 0.11, phys: { shape: PhysicsShapeType.BOX, mass: 0.7, restitution: 0.3, friction: 0.6 } }
+    },
+  },
+  cottoncandy: {
+    name: 'a lost cotton candy',
+    build(scene) {
+      // a pink cloud on a paper cone, lying where somebody cried about it
+      const col = MeshBuilder.CreateBox('hzCandy', { width: 0.55, height: 0.26, depth: 0.3 }, scene)
+      col.isVisible = false
+      const coneMat = lit(pbr(scene, { color: '#f2e8d8', rough: 0.7, name: 'hzCandyCone' }))
+      const cone = MeshBuilder.CreateCylinder('hzCandyC', { diameterTop: 0.09, diameterBottom: 0.02, height: 0.3, tessellation: 12 }, scene)
+      cone.rotation.z = Math.PI / 2 + 0.08
+      cone.position.set(-0.18, -0.08, 0)
+      cone.material = coneMat
+      cone.parent = col
+      const fluffMat = lit(pbr(scene, { color: '#ff9ad8', rough: 0.95, name: 'hzFluff' }))
+      const meshes = [col, cone]
+      for (const [fx, fy, fz, d] of [[0.08, 0, 0, 0.3], [0.2, 0.03, 0.05, 0.22], [0.16, -0.02, -0.08, 0.2]]) {
+        const f = MeshBuilder.CreateSphere('hzFluffB', { diameterX: d, diameterY: d * 0.9, diameterZ: d, segments: 8 }, scene)
+        f.convertToFlatShadedMesh() // spun sugar, not a smooth balloon
+        f.position.set(fx, fy, fz)
+        f.material = fluffMat
+        f.parent = col
+        meshes.push(f)
+      }
+      return { root: col, meshes, mats: [coneMat, fluffMat], restY: 0.13, phys: { shape: PhysicsShapeType.BOX, mass: 0.4, restitution: 0.4, friction: 0.5 } }
+    },
+  },
+  rubberduck: {
+    name: 'an escaped gallery duck',
+    build(scene) {
+      const col = MeshBuilder.CreateBox('hzDuck', { width: 0.36, height: 0.3, depth: 0.28 }, scene)
+      col.isVisible = false
+      const mat = lit(pbr(scene, { color: '#ffd23f', rough: 0.4, name: 'hzDuckM' }))
+      const body = MeshBuilder.CreateSphere('hzDuckB', { diameterX: 0.34, diameterY: 0.24, diameterZ: 0.28, segments: 14 }, scene)
+      body.position.y = -0.03
+      body.material = mat
+      body.parent = col
+      const head = MeshBuilder.CreateSphere('hzDuckH', { diameter: 0.17, segments: 12 }, scene)
+      head.position.set(0.12, 0.11, 0)
+      head.material = mat
+      head.parent = col
+      const tail = MeshBuilder.CreateSphere('hzDuckT', { diameterX: 0.12, diameterY: 0.14, diameterZ: 0.1, segments: 8 }, scene)
+      tail.position.set(-0.16, 0.02, 0)
+      tail.rotation.z = -0.5
+      tail.material = mat
+      tail.parent = col
+      const beakMat = lit(pbr(scene, { color: '#ff8a3a', rough: 0.5, name: 'hzBeakM' }))
+      const beak = MeshBuilder.CreateSphere('hzDuckBk', { diameterX: 0.1, diameterY: 0.04, diameterZ: 0.08, segments: 8 }, scene)
+      beak.position.set(0.22, 0.09, 0)
+      beak.material = beakMat
+      beak.parent = col
+      const eyeMat = lit(pbr(scene, { color: '#1c1c22', rough: 0.3, name: 'hzDuckEye' }))
+      const meshes = [col, body, head, tail, beak]
+      for (const s of [-1, 1]) {
+        const eye = MeshBuilder.CreateSphere('hzDuckE', { diameter: 0.03, segments: 6 }, scene)
+        eye.position.set(0.17, 0.15, s * 0.055)
+        eye.material = eyeMat
+        eye.parent = col
+        meshes.push(eye)
+      }
+      return { root: col, meshes, mats: [mat, beakMat, eyeMat], restY: 0.15, phys: { shape: PhysicsShapeType.BOX, mass: 0.5, restitution: 0.5, friction: 0.5 } }
+    },
+  },
+  ticketroll: {
+    name: 'a runaway ticket roll',
+    build(scene) {
+      // the fat roll on its side, trailing a strip of tickets down the lane
+      const roll = MeshBuilder.CreateCylinder('hzTix', { diameter: 0.3, height: 0.14, tessellation: 20 }, scene)
+      roll.rotation.z = Math.PI / 2
+      const mat = lit(pbr(scene, { color: '#e84a5a', rough: 0.6, name: 'hzTixM' }))
+      roll.material = mat
+      const coreMat = lit(pbr(scene, { color: '#f2e8d0', rough: 0.7, name: 'hzTixCore' }))
+      const meshes = [roll]
+      for (const s of [-1, 1]) {
+        const core = MeshBuilder.CreateCylinder('hzTixC', { diameter: 0.1, height: 0.005, tessellation: 12 }, scene)
+        core.position.y = s * 0.073 // local +y = across the roll once tipped
+        core.material = coreMat
+        core.parent = roll
+        meshes.push(core)
+      }
+      // the unspooled strip: flat segments angling away
+      const stripMat = lit(pbr(scene, { color: '#f05a6a', rough: 0.7, name: 'hzTixStrip' }))
+      const bits = []
+      for (let i = 0; i < 4; i++) {
+        const seg = MeshBuilder.CreateBox('hzTixS', { width: 0.14, height: 0.008, depth: 0.3 }, scene)
+        seg.position.set(0.05 + Math.sin(i * 0.7) * 0.08, -0.14, 0.24 + i * 0.29)
+        seg.rotation.y = Math.sin(i * 1.7) * 0.35
+        bits.push(seg)
+      }
+      const strip = Mesh.MergeMeshes(bits, true, true)
+      strip.material = stripMat
+      strip.isPickable = false
+      strip.parent = roll
+      // the strip hangs off the roll's local frame; un-rotate it back to flat
+      strip.rotation.z = -Math.PI / 2
+      meshes.push(strip)
+      return { root: roll, meshes, mats: [mat, coreMat, stripMat], restY: 0.15, phys: { shape: PhysicsShapeType.CYLINDER, mass: 0.8, restitution: 0.3, friction: 0.6 } }
+    },
+  },
+
+  // -- Polar Nights ----------------------------------------------------------------
+  penguin: {
+    name: 'a curious penguin',
+    build(scene) {
+      // standing upright, watching your form. Judging it, probably.
+      const col = MeshBuilder.CreateCylinder('hzPeng', { diameter: 0.26, height: 0.42, tessellation: 12 }, scene)
+      col.isVisible = false
+      const tux = lit(pbr(scene, { color: '#20242c', rough: 0.5, name: 'hzPengM' }))
+      const body = MeshBuilder.CreateSphere('hzPengB', { diameterX: 0.26, diameterY: 0.38, diameterZ: 0.24, segments: 14 }, scene)
+      body.position.y = -0.04
+      body.material = tux
+      body.parent = col
+      const head = MeshBuilder.CreateSphere('hzPengH', { diameter: 0.16, segments: 12 }, scene)
+      head.position.y = 0.17
+      head.material = tux
+      head.parent = col
+      const bellyMat = lit(pbr(scene, { color: '#f4f8fa', rough: 0.6, name: 'hzBelly' }))
+      const belly = MeshBuilder.CreateSphere('hzPengBe', { diameterX: 0.19, diameterY: 0.29, diameterZ: 0.14, segments: 12 }, scene)
+      belly.position.set(0, -0.05, 0.075)
+      belly.material = bellyMat
+      belly.parent = col
+      const beakMat = lit(pbr(scene, { color: '#ff8a3a', rough: 0.5, name: 'hzPengBeak' }))
+      const beak = MeshBuilder.CreateCylinder('hzPengBk', { diameterTop: 0, diameterBottom: 0.045, height: 0.08, tessellation: 8 }, scene)
+      beak.rotation.x = Math.PI / 2
+      beak.position.set(0, 0.16, 0.1)
+      beak.material = beakMat
+      beak.parent = col
+      const meshes = [col, body, head, belly, beak]
+      const eyeMat = lit(pbr(scene, { color: '#f4f8fa', rough: 0.3, name: 'hzPengEye' }))
+      for (const s of [-1, 1]) {
+        const eye = MeshBuilder.CreateSphere('hzPengE', { diameter: 0.035, segments: 6 }, scene)
+        eye.position.set(s * 0.045, 0.2, 0.065)
+        eye.material = eyeMat
+        eye.parent = col
+        meshes.push(eye)
+        const wing = MeshBuilder.CreateSphere('hzPengW', { diameterX: 0.05, diameterY: 0.22, diameterZ: 0.12, segments: 8 }, scene)
+        wing.position.set(s * 0.13, -0.05, 0)
+        wing.rotation.z = -s * 0.25
+        wing.material = tux
+        wing.parent = col
+        meshes.push(wing)
+        const foot = MeshBuilder.CreateSphere('hzPengF', { diameterX: 0.07, diameterY: 0.025, diameterZ: 0.11, segments: 6 }, scene)
+        foot.position.set(s * 0.06, -0.21, 0.04)
+        foot.material = beakMat
+        foot.parent = col
+        meshes.push(foot)
+      }
+      return { root: col, meshes, mats: [tux, bellyMat, beakMat, eyeMat], restY: 0.215, phys: { shape: PhysicsShapeType.CYLINDER, mass: 1.2, restitution: 0.3, friction: 0.6 } }
+    },
+  },
+  snowman: {
+    name: 'a tiny snowman',
+    build(scene) {
+      const col = MeshBuilder.CreateCylinder('hzSnow', { diameter: 0.34, height: 0.5, tessellation: 12 }, scene)
+      col.isVisible = false
+      const snow = lit(pbr(scene, { color: '#f4faff', rough: 0.85, name: 'hzSnowM' }))
+      const meshes = [col]
+      const sizes = [[0.32, -0.11], [0.24, 0.07], [0.17, 0.21]]
+      for (const [d, y] of sizes) {
+        const ball = MeshBuilder.CreateSphere('hzSnowB', { diameter: d, segments: 14 }, scene)
+        ball.position.y = y
+        ball.material = snow
+        ball.parent = col
+        meshes.push(ball)
+      }
+      const coalMat = lit(pbr(scene, { color: '#1c1c22', rough: 0.7, name: 'hzCoal' }))
+      for (const [cx, cy, cz] of [[-0.03, 0.24, 0.075], [0.03, 0.24, 0.075], [0, 0.1, 0.115], [0, 0.04, 0.12]]) {
+        const c = MeshBuilder.CreateSphere('hzCoalB', { diameter: 0.025, segments: 5 }, scene)
+        c.position.set(cx, cy, cz)
+        c.material = coalMat
+        c.parent = col
+        meshes.push(c)
+      }
+      const carrotMat = lit(pbr(scene, { color: '#ff8a3a', rough: 0.6, name: 'hzCarrot' }))
+      const carrot = MeshBuilder.CreateCylinder('hzCarrotC', { diameterTop: 0, diameterBottom: 0.035, height: 0.1, tessellation: 8 }, scene)
+      carrot.rotation.x = Math.PI / 2
+      carrot.position.set(0, 0.21, 0.12)
+      carrot.material = carrotMat
+      carrot.parent = col
+      meshes.push(carrot)
+      const scarfMat = lit(pbr(scene, { color: '#e84a5a', rough: 0.9, name: 'hzScarf' }))
+      const scarf = MeshBuilder.CreateTorus('hzScarfT', { diameter: 0.2, thickness: 0.035, tessellation: 14 }, scene)
+      scarf.position.y = 0.15
+      scarf.material = scarfMat
+      scarf.parent = col
+      meshes.push(scarf)
+      return { root: col, meshes, mats: [snow, coalMat, carrotMat, scarfMat], restY: 0.25, phys: { shape: PhysicsShapeType.CYLINDER, mass: 1.4, restitution: 0.2, friction: 0.7 } }
+    },
+  },
+  icepatch: {
+    name: 'a slick of black ice',
+    build(scene) {
+      // a glassy sheen on the boards — the ball keeps its speed and then some
+      const ice = new StandardMaterial('hzIce', scene)
+      ice.diffuseColor = Color3.FromHexString('#bfe4f5')
+      ice.specularColor = new Color3(0.5, 0.55, 0.6)
+      ice.alpha = 0.38
+      const slick = MeshBuilder.CreateSphere('hzIceP', { diameterX: 0.95, diameterY: 0.014, diameterZ: 0.7, segments: 16 }, scene)
+      slick.material = ice
+      const sheenMat = new StandardMaterial('hzSheen', scene)
+      sheenMat.emissiveColor = Color3.FromHexString('#eaf8ff').scale(0.5)
+      sheenMat.disableLighting = true
+      sheenMat.alpha = 0.5
+      const meshes = [slick]
+      for (const [sx, sz, w] of [[-0.15, 0.1, 0.3], [0.18, -0.12, 0.22]]) {
+        const sheen = MeshBuilder.CreateBox('hzSheenB', { width: w, height: 0.004, depth: 0.03 }, scene)
+        sheen.position.set(sx, 0.008, sz)
+        sheen.rotation.y = 0.4
+        sheen.material = sheenMat
+        sheen.parent = slick
+        meshes.push(sheen)
+      }
+      return { root: slick, meshes, mats: [ice, sheenMat], restY: 0.012, patch: { r: 0.45, mul: 1.012, quip: 'Black ice! The ball says wheee.' } }
+    },
+    isPatch: true,
+  },
+  frozenfish: {
+    name: 'a fish frozen mid-flop',
+    build(scene) {
+      // a fish sealed in a cloudy block of ice. Nobody asks how it got here.
+      const block = MeshBuilder.CreateBox('hzFish', { width: 0.44, height: 0.24, depth: 0.18 }, scene)
+      const iceMat = lit(pbr(scene, { color: '#bfe4f5', rough: 0.15, name: 'hzFishIce' }))
+      iceMat.alpha = 0.55
+      block.material = iceMat
+      const fishMat = lit(pbr(scene, { color: '#5a7a8c', rough: 0.5, name: 'hzFishM' }))
+      const body = MeshBuilder.CreateSphere('hzFishB', { diameterX: 0.26, diameterY: 0.12, diameterZ: 0.06, segments: 12 }, scene)
+      body.rotation.z = 0.2 // mid-flop
+      body.material = fishMat
+      body.parent = block
+      const tail = MeshBuilder.CreateCylinder('hzFishT', { diameterTop: 0.11, diameterBottom: 0, height: 0.09, tessellation: 3 }, scene)
+      tail.scaling.z = 0.3
+      tail.rotation.z = Math.PI / 2 - 0.2
+      tail.position.set(-0.16, -0.03, 0)
+      tail.material = fishMat
+      tail.parent = block
+      const eyeMat = lit(pbr(scene, { color: '#1c1c22', rough: 0.4, name: 'hzFishEye' }))
+      const eye = MeshBuilder.CreateSphere('hzFishE', { diameter: 0.025, segments: 6 }, scene)
+      eye.position.set(0.09, 0.03, 0.032)
+      eye.material = eyeMat
+      eye.parent = block
+      return { root: block, meshes: [block, body, tail, eye], mats: [iceMat, fishMat, eyeMat], restY: 0.12, phys: { shape: PhysicsShapeType.BOX, mass: 1.8, restitution: 0.15, friction: 0.25 } }
+    },
+  },
+
+  // -- Dry Gulch ----------------------------------------------------------------
+  cactus: {
+    name: 'a stubborn little cactus',
+    build(scene) {
+      // a potted saguaro somebody set down mid-lane, arms up like a hold-up
+      const col = MeshBuilder.CreateCylinder('hzCact', { diameter: 0.24, height: 0.56, tessellation: 12 }, scene)
+      col.isVisible = false
+      const green = lit(pbr(scene, { color: '#2e6b3a', rough: 0.7, name: 'hzCactM' }))
+      const trunk = MeshBuilder.CreateCapsule('hzCactT', { radius: 0.07, height: 0.44, tessellation: 12, capSubdivisions: 5 }, scene)
+      trunk.position.y = 0.02
+      trunk.material = green
+      trunk.parent = col
+      const meshes = [col, trunk]
+      // arms: out from the trunk, elbows up
+      for (const s of [-1, 1]) {
+        const out = MeshBuilder.CreateCapsule('hzCactA', { radius: 0.045, height: 0.16, orientation: new Vector3(1, 0, 0), tessellation: 10, capSubdivisions: 4 }, scene)
+        out.position.set(s * 0.1, s < 0 ? 0.0 : 0.08, 0)
+        out.material = green
+        out.parent = col
+        const up = MeshBuilder.CreateCapsule('hzCactU', { radius: 0.045, height: 0.2, tessellation: 10, capSubdivisions: 4 }, scene)
+        up.position.set(s * 0.16, (s < 0 ? 0.08 : 0.16), 0)
+        up.material = green
+        up.parent = col
+        meshes.push(out, up)
+      }
+      // a bloom on top
+      const bloomMat = lit(pbr(scene, { color: '#ff8ac2', rough: 0.7, name: 'hzBloom' }))
+      const bloom = MeshBuilder.CreateSphere('hzCactF', { diameter: 0.07, segments: 8 }, scene)
+      bloom.position.y = 0.27
+      bloom.material = bloomMat
+      bloom.parent = col
+      meshes.push(bloom)
+      // terracotta pot
+      const potMat = lit(pbr(scene, { color: '#b0552e', rough: 0.8, name: 'hzPot' }))
+      const pot = MeshBuilder.CreateCylinder('hzCactP', { diameterTop: 0.22, diameterBottom: 0.16, height: 0.14, tessellation: 14 }, scene)
+      pot.position.y = -0.21
+      pot.material = potMat
+      pot.parent = col
+      meshes.push(pot)
+      return { root: col, meshes, mats: [green, bloomMat, potMat], restY: 0.28, phys: { shape: PhysicsShapeType.CYLINDER, mass: 1.6, restitution: 0.25, friction: 0.7 } }
+    },
+  },
+  tumbleweed: {
+    name: 'a tumbleweed passing through',
+    build(scene) {
+      // a scraggly ball of crossed twig rings — barely weighs a thing, so the
+      // ball sends it FLYING
+      const bits = []
+      for (let i = 0; i < 4; i++) {
+        const ring = MeshBuilder.CreateTorus('hzTumb', { diameter: 0.36 - (i % 2) * 0.05, thickness: 0.016, tessellation: 10 }, scene)
+        ring.rotation.set(i * 0.8, i * 1.2, i * 0.5)
+        bits.push(ring)
+      }
+      const weed = Mesh.MergeMeshes(bits, true, true)
+      weed.convertToFlatShadedMesh()
+      const mat = lit(pbr(scene, { color: '#a8824a', rough: 1, name: 'hzTumbM' }))
+      weed.material = mat
+      return { root: weed, meshes: [weed], mats: [mat], restY: 0.19, phys: { shape: PhysicsShapeType.SPHERE, mass: 0.25, restitution: 0.6, friction: 0.5 } }
+    },
+  },
+  horseshoe: {
+    name: 'a lucky horseshoe',
+    build(scene) {
+      // heels toward the bowler — that's the lucky way up. Allegedly.
+      const col = MeshBuilder.CreateBox('hzShoeH', { width: 0.34, height: 0.05, depth: 0.36 }, scene)
+      col.isVisible = false
+      const iron = lit(pbr(scene, { color: '#8a8f98', rough: 0.4, metal: 0.7, name: 'hzIron' }))
+      const bits = []
+      // the curve: capsule segments laid around a semicircle
+      const R = 0.14
+      for (let i = 0; i < 5; i++) {
+        const a0 = -0.35 + (i / 5) * (Math.PI + 0.7)
+        const a1 = -0.35 + ((i + 1) / 5) * (Math.PI + 0.7)
+        const mx = Math.cos((a0 + a1) / 2) * R
+        const mz = Math.sin((a0 + a1) / 2) * R
+        const seg = xCapsule(scene, 'hzShoeSeg', 0.026, R * (a1 - a0) + 0.01, 10)
+        seg.position.set(mx, 0, mz)
+        seg.rotation.y = -((a0 + a1) / 2 + Math.PI / 2)
+        bits.push(seg)
+      }
+      const shoe = Mesh.MergeMeshes(bits, true, true)
+      shoe.material = iron
+      shoe.isPickable = false
+      shoe.parent = col
+      shoe.position.z = -0.05
+      // nail holes: tiny dark dots along the arc
+      const holeMat = lit(pbr(scene, { color: '#3a3e44', rough: 0.6, name: 'hzHole2' }))
+      const holes = []
+      for (let i = 0; i < 4; i++) {
+        const a = 0.1 + (i / 3.2) * Math.PI
+        const h = MeshBuilder.CreateSphere('hzNail', { diameter: 0.018, segments: 5 }, scene)
+        h.position.set(Math.cos(a) * R, 0.027, Math.sin(a) * R - 0.05)
+        h.material = holeMat
+        h.parent = col
+        holes.push(h)
+      }
+      return { root: col, meshes: [col, shoe, ...holes], mats: [iron, holeMat], restY: 0.028, phys: { shape: PhysicsShapeType.BOX, mass: 1.6, restitution: 0.2, friction: 0.6 } }
+    },
+  },
+  cowboyhat: {
+    name: 'somebody’s ten-gallon hat',
+    build(scene) {
+      const col = MeshBuilder.CreateCylinder('hzHat', { diameter: 0.5, height: 0.2, tessellation: 14 }, scene)
+      col.isVisible = false
+      const felt = lit(pbr(scene, { color: '#8a5a2e', rough: 0.85, name: 'hzHatM' }))
+      const brim = MeshBuilder.CreateCylinder('hzBrim', { diameter: 0.5, height: 0.03, tessellation: 22 }, scene)
+      brim.position.y = -0.07
+      brim.material = felt
+      brim.parent = col
+      // the brim curls up at the sides
+      const meshes = [col, brim]
+      for (const s of [-1, 1]) {
+        const curl = MeshBuilder.CreateSphere('hzCurl', { diameterX: 0.1, diameterY: 0.07, diameterZ: 0.32, segments: 10 }, scene)
+        curl.position.set(s * 0.22, -0.045, 0)
+        curl.material = felt
+        curl.parent = col
+        meshes.push(curl)
+      }
+      const crown = MeshBuilder.CreateSphere('hzCrown', { diameterX: 0.26, diameterY: 0.26, diameterZ: 0.3, segments: 14, slice: 0.55 }, scene)
+      crown.position.y = -0.07
+      crown.material = felt
+      crown.parent = col
+      meshes.push(crown)
+      // the crease pinched into the crown
+      const crease = MeshBuilder.CreateBox('hzCrease', { width: 0.04, height: 0.05, depth: 0.24 }, scene)
+      const creaseMat = lit(pbr(scene, { color: '#6b4423', rough: 0.9, name: 'hzCrease' }))
+      crease.position.y = 0.055
+      crease.material = creaseMat
+      crease.parent = col
+      meshes.push(crease)
+      const bandMat = lit(pbr(scene, { color: '#3a2414', rough: 0.7, name: 'hzHatBand' }))
+      const band = MeshBuilder.CreateCylinder('hzBand', { diameter: 0.27, height: 0.045, tessellation: 18 }, scene)
+      band.position.y = -0.05
+      band.material = bandMat
+      band.parent = col
+      meshes.push(band)
+      return { root: col, meshes, mats: [felt, creaseMat, bandMat], restY: 0.1, phys: { shape: PhysicsShapeType.CYLINDER, mass: 0.6, restitution: 0.3, friction: 0.7 } }
+    },
+  },
 }
 
 const SHARED = ['roguepin', 'spilleddrink', 'rogueball', 'shoe']
@@ -808,7 +1335,7 @@ export function pickHazards(alley, level, forceId = null) {
   let patchSeen = false
   return ids.filter((id) => {
     if (!CATALOG[id].build) return false
-    const isPatch = id === 'lavapatch'
+    const isPatch = !!CATALOG[id].isPatch
     if (isPatch && patchSeen) return false
     if (isPatch) patchSeen = true
     return true
@@ -841,7 +1368,9 @@ export function spawnHazard(scene, id, { x = null, z = null } = {}) {
     mats: built.mats,
     agg,
     update: built.update || null,
-    patch: built.patch ? { x: px, z: pz, r: built.patch } : null,
+    // patch: { r, mul, quip } — the page drags (mul<1) or slicks (mul>1) the
+    // ball while it's inside the radius, quipping the first time
+    patch: built.patch ? { x: px, z: pz, ...built.patch } : null,
     dispose() {
       agg?.dispose()
       for (const m of built.meshes) m.dispose()

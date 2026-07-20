@@ -204,6 +204,142 @@ export const alleys = [
       open: ['Pins survive. The pool party continues.', 'Left a few sunbathing.'],
     },
   },
+  {
+    id: 'park',
+    name: 'Timberline',
+    tagline: 'Night bowling in the national park. Keep one eye on the treeline.',
+    icon: '🏕️',
+    gravity: -9.81,
+    fx: 'forest', // the first DEEP backdrop: forest, campfires… and a visitor
+    pit: 'forest', // a log gate frames the open view into the woods
+    sweepStyle: 'log', // a pine log on the pinsetter chains
+    wood: true, // lodge boards on the lane floor
+    pin: { body: '#f4ead8', bands: [{ y: 0.66, c: '#2e6b45' }, { y: 0.735, c: '#ffb46a' }] },
+    hazards: ['pinecone', 'marshstick', 'canteen', 'bigfootprint'],
+    colors: {
+      clear: '#0b1410',
+      lane: '#4a3826',
+      laneEdgeA: '#ffb46a',
+      laneEdgeB: '#6ade8a',
+      gutter: '#1c150c',
+      backstop: '#080c08',
+      pin: '#f4ead8',
+      pinStripe: '#2e6b45',
+      arrow: '#ffc46a',
+      sweep: '#4a3a26',
+      sweepGlow: '#ffb46a',
+    },
+    sky: 'linear-gradient(160deg,#1d3a2a 0%,#0b1410 100%)',
+    lines: {
+      strike: ['STRIKE! It echoed off the mountains.', 'All ten! The owls are hooting.', 'Timber. All of it.'],
+      spare: ['Spare! Leave no pin behind.', 'Cleaned the campsite. Ranger-approved.'],
+      gutter: ['Gutter. Straight into the creek.', 'That one’s bear food now.'],
+      split: ['A split. Rough trail ahead.', 'The forest heard that split. It’s whispering.'],
+      open: ['Pins left standing, like old growth.', 'A few survivors around the fire.'],
+    },
+  },
+  {
+    id: 'carnival',
+    name: 'The Midway',
+    tagline: 'Step right up! Every roll’s a winner. Results may vary.',
+    icon: '🎪',
+    gravity: -9.81,
+    fx: 'carnival', // ferris wheel, string lights, the occasional firework
+    pit: 'ducks', // the backer is a shooting-gallery duck row
+    sweepStyle: 'marquee', // a lightbulb marquee bar, bulbs chasing
+    wood: true, // boardwalk planks
+    pin: { body: '#fff4e8', bands: [{ y: 0.66, c: '#ff4a5e' }, { y: 0.735, c: '#ffd23f' }] },
+    hazards: ['popcorn', 'cottoncandy', 'rubberduck', 'ticketroll'],
+    colors: {
+      clear: '#140a14',
+      lane: '#4a2a1c',
+      laneEdgeA: '#ff4a5e',
+      laneEdgeB: '#ffd23f',
+      gutter: '#20101a',
+      backstop: '#0c060c',
+      pin: '#fff4e8',
+      pinStripe: '#ff4a5e',
+      arrow: '#ffd23f',
+      sweep: '#4a1626',
+      sweepGlow: '#ffd23f',
+    },
+    sky: 'linear-gradient(160deg,#3a1440 0%,#140a14 100%)',
+    lines: {
+      strike: ['STRIKE! Winner winner — pick any prize on the top shelf.', 'All ten! Ring the bell!', 'The carny is speechless. That never happens.'],
+      spare: ['Spare! Step right up and do it again.', 'Cleanup! You win the medium bear.'],
+      gutter: ['Gutter. No prize. The ducks laugh.', 'That one rolled off to join the circus.'],
+      split: ['A split! The house ALWAYS does that.', 'A split — classic midway hustle.'],
+      open: ['Pins still up. Rigged? Probably rigged.', 'The ducks judge you silently.'],
+    },
+  },
+  {
+    id: 'arctic',
+    name: 'Polar Nights',
+    tagline: 'Bowling under the aurora. The lane is actual ice. You’ll be fine.',
+    icon: '🧊',
+    gravity: -9.81,
+    fx: 'aurora', // ribbons overhead, snowfall, icebergs on the horizon
+    pit: 'igloo', // the lane ends at a warm-windowed igloo
+    sweepStyle: 'icicle', // a frosted bar fringed with icicles
+    ice: true, // no wood — a polished ice slab with a hard gleam
+    pin: { body: '#f4faff', bands: [{ y: 0.66, c: '#38b8d8' }, { y: 0.735, c: '#a88aff' }] },
+    hazards: ['penguin', 'snowman', 'icepatch', 'frozenfish'],
+    colors: {
+      clear: '#0a1424',
+      lane: '#b8d8ec',
+      laneEdgeA: '#6ae8c8',
+      laneEdgeB: '#a88aff',
+      gutter: '#12233a',
+      backstop: '#060d18',
+      pin: '#f4faff',
+      pinStripe: '#38b8d8',
+      arrow: '#8ae8ff',
+      sweep: '#1b2b3f',
+      sweepGlow: '#6ae8c8',
+    },
+    sky: 'linear-gradient(160deg,#16305a 0%,#0a1424 100%)',
+    lines: {
+      strike: ['STRIKE! The aurora flared for you.', 'All ten! Heard clean across the ice shelf.', 'Subzero. Absolutely subzero.'],
+      spare: ['Spare! Cool under pressure.', 'Swept clean, like fresh powder.'],
+      gutter: ['Gutter. Straight into the crevasse.', 'The penguins saw. The penguins remember.'],
+      split: ['A split — cracked like spring ice.', 'That split came with wind chill.'],
+      open: ['Pins standing, frozen solid.', 'A few survived the cold snap.'],
+    },
+  },
+  {
+    id: 'west',
+    name: 'Dry Gulch',
+    tagline: 'High noon at midnight. This lane ain’t big enough for the ten of them.',
+    icon: '🤠',
+    gravity: -9.81,
+    fx: 'west', // mesas, cacti, a sunset that never quits, tumbleweed
+    pit: 'saloon', // the ball pushes through the batwing doors
+    sweepStyle: 'lasso', // a rope bar, coiled ends, a loop swinging under it
+    wood: true, // sun-dried planks
+    pin: { body: '#f2e2c8', bands: [{ y: 0.66, c: '#8a4a22' }, { y: 0.735, c: '#ffb03a' }] },
+    hazards: ['cactus', 'tumbleweed', 'horseshoe', 'cowboyhat'],
+    colors: {
+      clear: '#180d08',
+      lane: '#5a3a22',
+      laneEdgeA: '#ffb03a',
+      laneEdgeB: '#ff5e3a',
+      gutter: '#241408',
+      backstop: '#0c0705',
+      pin: '#f2e2c8',
+      pinStripe: '#8a4a22',
+      arrow: '#ffb03a',
+      sweep: '#3a2414',
+      sweepGlow: '#ffb03a',
+    },
+    sky: 'linear-gradient(160deg,#5a2418 0%,#180d08 100%)',
+    lines: {
+      strike: ['STRIKE! Fastest ball in the West.', 'All ten, kissin’ the dirt.', 'This town just got ten pins quieter.'],
+      spare: ['Spare! Quick on the draw.', 'Rounded up the stragglers.'],
+      gutter: ['Gutter. That ball rode off into the sunset.', 'Missed ’em by a country mile, partner.'],
+      split: ['A split. A genuine standoff.', 'Two pins, ten paces apart.'],
+      open: ['Pins still standing. Wanted: dead or down.', 'The tumbleweeds saw the whole thing.'],
+    },
+  },
 ]
 
 export function alleyById(id) {
