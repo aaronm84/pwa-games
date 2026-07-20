@@ -31,3 +31,6 @@ yarn-error.log*
 
 # local .env files
 .env.local*
+
+# throwaway headless verification harnesses (created per session, not shipped)
+_check-*.mjs

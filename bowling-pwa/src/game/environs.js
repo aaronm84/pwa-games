@@ -525,15 +525,15 @@ export function buildEnvirons(scene, alley, opts = {}) {
       row.freezeWorldMatrix()
       track(row)
     }
-    pineRow(-21, '#0d1a12', 16, 3.2, 5.2, 2.2)
-    pineRow(-16.5, '#122417', 15, 2.4, 3.8, 2.0)
-    pineRow(-12, '#16301e', 10, 2.0, 3.2, 3.1)
+    pineRow(-21, '#0d1a12', 13, 3.0, 5.4, 2.9)
+    pineRow(-16.5, '#122417', 11, 2.2, 4.0, 2.8)
+    pineRow(-12, '#16301e', 9, 1.9, 3.4, 3.4)
     // campfires in the middle distance: crossed logs, breathing flames, embers
     const logMat = tmat(pbr(scene, { color: '#2e2014', rough: 1, name: 'fLog' }))
     const flameMat = tmat(emissiveMat(scene, '#ffab3a', { scale: 1.35 }))
     const coreMat = tmat(emissiveMat(scene, '#ffe28a', { scale: 1.5 }))
     const emberMat = tmat(emissiveMat(scene, '#ffb52f', { scale: 1.2 }))
-    for (const [fx2, fz, seed] of [[-4.6, -12.5, 0.7], [5.2, -14.5, 2.3]]) {
+    for (const [fx2, fz, seed] of [[-2.9, -13, 0.7], [3.4, -16, 2.3]]) {
       const logBits = []
       for (const ry of [0.5, 2.1, 3.7]) {
         const lg = MeshBuilder.CreateCylinder('fFireLog', { diameter: 0.14, height: 0.9, tessellation: 6 }, scene)
