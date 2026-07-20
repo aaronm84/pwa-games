@@ -248,6 +248,7 @@ export const alleys = [
     pit: 'ducks', // the backer is a shooting-gallery duck row
     sweepStyle: 'marquee', // a lightbulb marquee bar, bulbs chasing
     wood: true, // boardwalk planks
+    edgeBulbs: true, // runway-style rows of little bulbs, not neon tubes
     pin: { body: '#fff4e8', bands: [{ y: 0.66, c: '#ff4a5e' }, { y: 0.735, c: '#ffd23f' }] },
     hazards: ['popcorn', 'cottoncandy', 'rubberduck', 'ticketroll'],
     colors: {

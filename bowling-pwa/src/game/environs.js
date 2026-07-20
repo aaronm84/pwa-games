@@ -809,6 +809,15 @@ export function buildEnvirons(scene, alley, opts = {}) {
     ground.isPickable = false
     ground.freezeWorldMatrix()
     track(ground)
+    // and snow UNDER the house too — on a scene this bright, the usual dark
+    // floor gaps beside the lane read as harsh black slabs
+    const roomSnow = tmat(pbr(scene, { color: '#7d9cb4', rough: 0.95, name: 'aRoomSnow' }))
+    const room = MeshBuilder.CreateBox('aRoom', { width: 40, height: 0.1, depth: 24 }, scene)
+    room.position.set(0, -0.38, 0)
+    room.material = roomSnow
+    room.isPickable = false
+    room.freezeWorldMatrix()
+    track(room)
     const starMat = tmat(emissiveMat(scene, '#dfe8ff', { scale: 0.7 }))
     track(starfield(scene, 70, starMat, 1.47))
     // icebergs and pressure ridges on the horizon

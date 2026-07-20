@@ -400,7 +400,7 @@ async function boot() {
   }
 
   await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice, edgeBulbs: alley.edgeBulbs })
   environs = buildEnvirons(scene, alley, { bigfootSoon: !!devParam('bigfoot') })
 
   makeBall()
