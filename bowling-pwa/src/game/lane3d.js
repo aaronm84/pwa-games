@@ -1410,8 +1410,9 @@ function buildSaloonBacker(scene, totalW, track, freeze, mats) {
   header.material = wood
   track(freeze(header))
   // false-front parapet + sign board
+  // low enough that the sign clears the portrait HUD chips
   const parapet = MeshBuilder.CreateBox('salTop', { width: totalW + 0.6, height: 0.5, depth: 0.14 }, scene)
-  parapet.position.set(0, 2.62, zWall)
+  parapet.position.set(0, 2.4, zWall)
   parapet.material = wood
   track(freeze(parapet))
   const signTex = new DynamicTexture('salSign', { width: 512, height: 128 }, scene, true)
@@ -1432,8 +1433,10 @@ function buildSaloonBacker(scene, totalW, track, freeze, mats) {
   signMat.emissiveColor = new Color3(0.5, 0.42, 0.3) // lamplit even at dusk
   signMat.specularColor = new Color3(0.03, 0.03, 0.02)
   mats.push(signMat)
-  const sign = MeshBuilder.CreatePlane('salSignP', { width: 2.3, height: 0.575 }, scene)
-  sign.position.set(0, 2.62, zWall + 0.08)
+  // hung over the batwing doors — the parapet top sits above the portrait
+  // sightline, so the sign lives where the camera can actually read it
+  const sign = MeshBuilder.CreatePlane('salSignP', { width: 1.8, height: 0.45 }, scene)
+  sign.position.set(0, 1.98, zWall + 0.09)
   sign.material = signMat
   sign.isPickable = false
   track(freeze(sign))
