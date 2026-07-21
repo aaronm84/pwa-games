@@ -58,4 +58,9 @@ export const sfx = {
   uiTick() {
     synth.tone(660, 0.05, { type: 'square', gain: 0.05 })
   },
+  boing() {
+    // Bouncy Castle: the ball hits the boards and the boards hit back
+    synth.tone(150, 0.24, { type: 'sine', gain: 0.28, slide: 340 })
+    synth.noise(0.08, { freq: 900, gain: 0.06, type: 'bandpass', q: 2 })
+  },
 }

@@ -76,6 +76,29 @@
         </q-card-section>
       </q-card>
 
+      <!-- Kooky physics -->
+      <q-card class="settings-card q-mb-md">
+        <q-card-section>
+          <div class="text-h6 text-white">Kooky physics 🤪</div>
+          <div class="text-caption text-white q-mb-md" style="opacity: 0.7;">
+            Optional nonsense. Scores still count — records don't.
+          </div>
+          <button
+            v-for="m in KOOKY_MODES"
+            :key="m.id"
+            class="kooky-row"
+            :class="{ sel: m.id === (settings.kookyMode || 'off') }"
+            @click="setKooky(m.id)"
+          >
+            <span class="k-icon">{{ m.icon }}</span>
+            <span class="k-text">
+              <span class="k-name">{{ m.name }}</span>
+              <span class="k-blurb">{{ m.blurb }}</span>
+            </span>
+          </button>
+        </q-card-section>
+      </q-card>
+
       <!-- Extras -->
       <q-card class="settings-card q-mb-md">
         <q-card-section>
@@ -123,6 +146,7 @@
 import { computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useSettingsStore } from 'src/stores/settings'
+import { KOOKY_MODES } from 'src/game/kooky'
 import AlleyBackdrop from 'src/components/AlleyBackdrop.vue'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
@@ -133,6 +157,11 @@ const progressStore = useProgressStore()
 const haptics = useHaptics()
 
 const settings = computed(() => settingsStore.settings)
+
+function setKooky(id) {
+  haptics.light()
+  settingsStore.updateSetting('kookyMode', id)
+}
 
 function replayCoach() {
   haptics.light()
@@ -175,6 +204,29 @@ function confirmReset() {
   padding-top: max(40px, env(safe-area-inset-top) + 24px);
   margin: 0 auto;
 }
+
+.kooky-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.kooky-row.sel {
+  border-color: #6ee07a;
+  background: rgba(110, 224, 122, 0.14);
+}
+.k-icon { font-size: 1.4rem; line-height: 1; }
+.k-text { display: flex; flex-direction: column; }
+.k-name { font-weight: 700; font-size: 0.92rem; }
+.k-blurb { font-size: 0.74rem; opacity: 0.7; }
 
 .settings-card {
   border-radius: 12px;

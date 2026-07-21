@@ -18,6 +18,9 @@
       <div class="chip mode">{{ backend }}</div>
     </div>
 
+    <!-- kooky physics badge: you chose this, and the badge remembers -->
+    <div v-if="kooky.id !== 'off'" class="kooky-chip">{{ kooky.icon }} {{ kooky.name }}</div>
+
     <!-- mini per-frame marks strip (with the ghost's line under yours) -->
     <div class="marks">
       <div v-for="(f, i) in framesView" :key="i" class="mark-cell" :class="{ cur: i === curFrame && !gameOver }">
@@ -171,6 +174,7 @@ import { useSettingsStore } from 'src/stores/settings'
 import { useProgressStore } from 'src/stores/progress'
 import { useHaptics } from 'src/composables/useHaptics'
 import { sfx } from 'src/game/sfx'
+import { kookyById } from 'src/game/kooky'
 
 const router = useRouter()
 const route = useRoute()
@@ -184,6 +188,10 @@ function devParam(k) {
   return new URLSearchParams(location.hash.split('?')[1] || '').get(k)
 }
 const alley = alleyById(devParam('alley') || settings.settings.selectedAlley)
+// kooky physics: the optional Goat-Simulator dial. One mode bends the sim in
+// one ridiculous way; ballR is the ONE ball radius everyone must use.
+const kooky = kookyById(devParam('kooky') || settings.settings.kookyMode || 'off')
+const ballR = BALL_R * (kooky.ballScale || 1)
 // vs mode: ?vs=<rivalId> plays a match; ?tour=1 makes it a tournament round
 const vsRival = rivalById(route.query.vs)
 const inTournament = !!route.query.tour
@@ -308,6 +316,8 @@ let sweepAt = 0
 let gutterQuipped = false
 let patchSizzled = false // the lava patch only quips once per throw
 let lastEnvEvent = null // most recent backdrop event (Bigfoot!) — for DEV checks
+let hauntAt = 260 // Poltergeist: when the next unexplained shove lands
+let prevBallVy = 0 // Bouncy Castle: detect the up-bounce for the boing
 let crashPlayed = false // one pin-crash sound per throw
 let strikesThisGame = 0
 let aiActAt = -1 // when the rival takes their next throw
@@ -399,8 +409,8 @@ async function boot() {
     fxaa.samples = 2 // light MSAA on the post pipeline, FXAA mops up the rest
   }
 
-  await initPhysics(scene, { gravity: alley.gravity })
-  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice, edgeStyle: alley.edgeStyle })
+  await initPhysics(scene, { gravity: kooky.gravity ?? alley.gravity })
+  laneKit = buildAlley(scene, shadowGen, alley.colors, { reflections: settings.settings.reflections !== false, mirrorRatio: sharp ? 0.75 : 0.5, pit: alley.pit, sweepStyle: alley.sweepStyle, wood: alley.wood, ice: alley.ice, edgeStyle: alley.edgeStyle, surface: kooky.surface })
   environs = buildEnvirons(scene, alley, { bigfootSoon: !!devParam('bigfoot') })
 
   makeBall()
@@ -454,6 +464,7 @@ async function boot() {
   if (!vsRival && (!settings.settings.coachDone || devParam('coach'))) coachStep.value = 0
   stage.run((dt) => tick(dt))
   booting.value = false
+  if (kooky.quip) setQuip(kooky.quip)
 
   if (import.meta.env.DEV) {
     window.__scene = scene
@@ -473,6 +484,8 @@ async function boot() {
       hazardCount: hazards.length,
       hazardIds: hazards.map((h) => h.id),
       envEvent: lastEnvEvent,
+      kooky: kooky.id,
+      ballR,
       replayOn: showReplay.value,
       sfxEvents: sfx.events,
       coachStep: coachStep.value,
@@ -515,11 +528,11 @@ function hexToRgba(hex) {
 }
 
 function makeBall() {
-  ball = MeshBuilder.CreateSphere('ball', { diameter: BALL_R * 2, segments: 48 }, scene)
+  ball = MeshBuilder.CreateSphere('ball', { diameter: ballR * 2, segments: 48 }, scene)
   applyBallLook()
   shadowGen.addShadowCaster(ball)
-  ball.position.set(0, BALL_R, START_Z)
-  ballAgg = makeDynamic(ball, { mass: activeBall.value.mods.mass, restitution: 0.2, friction: 0.35, linearDamping: 0.06, angularDamping: 0.4 })
+  ball.position.set(0, ballR, START_Z)
+  ballAgg = makeDynamic(ball, { mass: activeBall.value.mods.mass * (kooky.ballMass || 1), restitution: kooky.ball?.restitution ?? 0.2, friction: kooky.ball?.friction ?? 0.35, linearDamping: 0.06, angularDamping: 0.4 })
   parkBall()
   refreshMirror()
 }
@@ -547,10 +560,10 @@ function applyLook({ color, glow }) {
 function syncBallToBowler() {
   if (bowler.value === 'ai' && vsRival?.ball) {
     applyLook({ color: vsRival.ball.color, glow: vsRival.ball.glow || null })
-    ballAgg.body.setMassProperties({ mass: vsRival.ball.mass })
+    ballAgg.body.setMassProperties({ mass: vsRival.ball.mass * (kooky.ballMass || 1) })
   } else {
     applyBallLook()
-    ballAgg.body.setMassProperties({ mass: activeBall.value.mods.mass })
+    ballAgg.body.setMassProperties({ mass: activeBall.value.mods.mass * (kooky.ballMass || 1) })
   }
 }
 function setBallColor(hex) {
@@ -563,13 +576,13 @@ function saveCustomBall(patch) {
   settings.updateSetting('customBall', { ...settings.settings.customBall, ...patch })
   if (activeBallId.value === 'custom') {
     applyBallLook()
-    ballAgg.body.setMassProperties({ mass: settings.settings.customBall.mass })
+    ballAgg.body.setMassProperties({ mass: settings.settings.customBall.mass * (kooky.ballMass || 1) })
   }
 }
 function parkBall() {
   ballAgg.body.setLinearVelocity(Vector3.Zero())
   ballAgg.body.setAngularVelocity(Vector3.Zero())
-  ball.position.set(aimX, BALL_R, START_Z) // stay where the bowler stood
+  ball.position.set(aimX, ballR, START_Z) // stay where the bowler stood
   ballAgg.body.disablePreStep = false
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
@@ -577,14 +590,14 @@ function placeBallForThrow(x) {
   aimX = Math.max(-1.35, Math.min(1.35, x))
   ballAgg.body.setLinearVelocity(Vector3.Zero())
   ballAgg.body.setAngularVelocity(Vector3.Zero())
-  ball.position.set(aimX, BALL_R, START_Z)
+  ball.position.set(aimX, ballR, START_Z)
   ballAgg.body.disablePreStep = false
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
 
 function rackPins() {
   for (const p of pins) { shadowGen.removeShadowCaster(p.body, true); p.dispose() }
-  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors, alley.pin, pinMats))
+  pins = pinSpots().map((s) => makePin(scene, shadowGen, s.x, s.z, alley.colors, alley.pin, pinMats, kooky.pin))
   spawnHazards()
   refreshMirror()
 }
@@ -667,7 +680,7 @@ function onAim(g) {
   if (gestureMode.kind === 'aim') {
     aimX = Math.max(-1.35, Math.min(1.35, gestureMode.fromX + g.dx / 130))
     if (coachStep.value === 0 && Math.abs(g.dx) > 55) coachNext()
-    ball.position.set(aimX, BALL_R, START_Z)
+    ball.position.set(aimX, ballR, START_Z)
     syncBallBody()
     return
   }
@@ -679,7 +692,7 @@ function onAim(g) {
   // pendulum: the ball lifts visibly into frame as you wind up
   const p = Math.max(0, Math.min(1.15, g.dy / 230))
   if ((coachStep.value === 0 || coachStep.value === 1) && g.dy > 140) coachStep.value = 2
-  ball.position.set(aimX + g.dx / 600, BALL_R + p * 1.6, START_Z + p * 0.4)
+  ball.position.set(aimX + g.dx / 600, ballR + p * 1.6, START_Z + p * 0.4)
   syncBallBody()
   // power cue
   const pw = Math.min(maxBackswing / 230, 1)
@@ -736,7 +749,7 @@ function onRelease(g) {
   haptics.medium()
 }
 function resetSwingBall() {
-  ball.position.set(aimX, BALL_R, START_Z)
+  ball.position.set(aimX, ballR, START_Z)
   syncBallBody()
   scene.onAfterRenderObservable.addOnce(() => { ballAgg.body.disablePreStep = true })
 }
@@ -758,11 +771,11 @@ function launch(speed, spin, vx0 = 0) {
   sfx.configure({ on: settings.settings.soundEffectsEnabled, vol: settings.settings.soundEffectsVolume })
   sfx.rollStart()
   state.value = 'rolling'
-  ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), BALL_R, START_Z)
+  ball.position.set(Math.max(-1.35, Math.min(1.35, ball.position.x)), ballR, START_Z)
   ballAgg.body.disablePreStep = false
   scene.onAfterRenderObservable.addOnce(() => {
     ballAgg.body.setLinearVelocity(new Vector3(vx0, 0, -speed))
-    ballAgg.body.setAngularVelocity(new Vector3(-speed / BALL_R, 0, 0))
+    ballAgg.body.setAngularVelocity(new Vector3(-speed / ballR, 0, 0))
     ballAgg.body.disablePreStep = true
   })
   ball.__spin = spin
@@ -837,6 +850,25 @@ function tick(dt = 1 / 60) {
     setQuip(envEvent)
     haptics.light()
   }
+  // Poltergeist: unexplained shoves. Pins wobble (sometimes topple) on their
+  // own; the rolling ball takes the occasional gremlin nudge.
+  if (kooky.haunted && state.value !== 'replay') {
+    if (tickN >= hauntAt) {
+      hauntAt = tickN + 70 + Math.random() * 130
+      const standing = pins.filter((p) => p.isStanding())
+      if (standing.length) {
+        const p = standing[Math.floor(Math.random() * standing.length)]
+        const a = Math.random() * Math.PI * 2
+        const k = Math.random() < 0.14 ? 1.7 : 0.55 // mostly wobbles, rarely a topple
+        p.nudge(Math.cos(a) * k, 0.3 + Math.random() * 0.35, Math.sin(a) * k)
+        if (Math.random() < 0.25) setQuip(pick(['Did… did that pin just move?', 'The pins are restless tonight.', 'Something brushed past the deck. Nothing was there.', 'Pin 7 is doing that on its own. We checked.']))
+      }
+    }
+    if (state.value === 'rolling' && thrown && ballAgg && Math.random() < 0.012) {
+      const gv = ballAgg.body.getLinearVelocity()
+      ballAgg.body.setLinearVelocity(new Vector3(gv.x + (Math.random() - 0.5) * 3, gv.y, gv.z))
+    }
+  }
   laneKit?.sweepUpdate?.(tickN) // living sweep arms (the lava drips)
   laneKit?.pitUpdate?.(tickN) // living backers (duck rows, batwing doors)
   for (const h of hazards) h.update?.(tickN) // living hazards (flowing lava)
@@ -868,10 +900,13 @@ function tick(dt = 1 / 60) {
 
   if (state.value === 'rolling' && thrown) {
     if (settings.settings.showTrace !== false && tickN % 3 === 0 && tracePts.length < 220 && ball.position.y > -0.3) {
-      tracePts.push(ball.position.clone().add(new Vector3(0, 0.02 - BALL_R + 0.03, 0)))
+      tracePts.push(ball.position.clone().add(new Vector3(0, 0.02 - ballR + 0.03, 0)))
     }
     const v = ballAgg.body.getLinearVelocity()
     sfx.rollUpdate(Math.hypot(v.x, v.y, v.z))
+    // Bouncy Castle: the boards hit back — boing on every real bounce
+    if (kooky.id === 'bouncy' && prevBallVy < -1.4 && v.y > 1.1) { sfx.boing(); haptics.light() }
+    prevBallVy = v.y
     // the moment the ball reaches the rack: one crash, scaled by pace
     if (!crashPlayed && ball.position.z < PIN_Z + 0.55 && !gutterBall) {
       crashPlayed = true
@@ -1143,7 +1178,7 @@ function endGame() {
     const won = me > them
     finalTotal.value = `${me} — ${them}`
     finalLabel.value = won ? 'You Win!' : me === them ? 'Dead Even' : `${vsRival.name} Wins`
-    const rec = progress.recordGame(me, strikesThisGame, rolls.value)
+    const rec = progress.recordGame(me, strikesThisGame, rolls.value, kooky.id === 'off')
     const outcome = progress.recordMatch(won, inTournament)
     statLine.value =
       outcome === 'champion' ? '🏆 TOURNAMENT CHAMPION!' :
@@ -1160,7 +1195,7 @@ function endGame() {
   finalLabel.value = total === 300 ? 'PERFECT GAME!' : total >= 200 ? 'On Fire!' : total >= 150 ? 'Great Game' : total >= 100 ? 'Solid Game' : 'Game Over'
   const prevBest = progress.bowling.bestScore
   const hadGhost = (progress.bowling.bestRolls || []).length > 0 && settings.settings.ghostRace !== false
-  const rec = progress.recordGame(total, strikesThisGame, rolls.value)
+  const rec = progress.recordGame(total, strikesThisGame, rolls.value, kooky.id === 'off')
   // the ghost race verdict: beat your tape or lose to yourself
   statLine.value = rec.newBest
     ? `🏆 New best game: ${total}` + (hadGhost && prevBest != null ? ` — ghost beaten by +${total - prevBest}` : '')
@@ -1244,6 +1279,7 @@ function goBack() { router.push({ name: 'menu' }) }
 .mark-cell.cur { outline: 1px solid rgba(255,255,255,0.55); }
 .m-rolls { font-size: 0.6rem; font-weight: 700; min-height: 0.8rem; }
 .m-cum { font-size: 0.55rem; opacity: 0.75; min-height: 0.7rem; }
+.kooky-chip { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 96px); left: 50%; transform: translateX(-50%); z-index: 3; background: rgba(24, 14, 38, 0.62); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; padding: 3px 13px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; color: #fff; pointer-events: none; white-space: nowrap; }
 .banner { position: absolute; top: 34%; left: 0; right: 0; text-align: center; font-size: 3rem; font-weight: 900; letter-spacing: 0.06em; z-index: 3; pointer-events: none; text-shadow: 0 4px 18px rgba(0,0,0,0.6); }
 .banner.good { color: #7dffb0; }
 .banner.bad { color: #ff8f7d; }

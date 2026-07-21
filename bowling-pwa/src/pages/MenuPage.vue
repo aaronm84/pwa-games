@@ -49,6 +49,13 @@
           <q-btn flat text-color="white" class="pair-btn pair-quiet" icon="help_outline" label="How to Play" @click="howToPlay" />
           <q-btn flat text-color="white" class="pair-btn pair-quiet" icon="settings" label="Settings" @click="openSettings" />
         </div>
+
+        <!-- kooky physics: tap to cycle through the nonsense -->
+        <button class="kooky-bar" :class="{ on: kookyObj.id !== 'off' }" @click="cycleKooky">
+          <span class="kb-icon">{{ kookyObj.id === 'off' ? '🤪' : kookyObj.icon }}</span>
+          <span v-if="kookyObj.id === 'off'" class="kb-text">Kooky physics: <b>off</b> — tap to get weird</span>
+          <span v-else class="kb-text"><b>{{ kookyObj.name }}</b> — {{ kookyObj.blurb }}</span>
+        </button>
       </div>
 
       <!-- one-line progress strip -->
@@ -95,6 +102,7 @@ import { useSettingsStore } from 'src/stores/settings'
 import { useHaptics } from 'src/composables/useHaptics'
 import { ref, computed } from 'vue'
 import { alleys, alleyById } from 'src/game/alleys'
+import { KOOKY_MODES, kookyById } from 'src/game/kooky'
 import { rivals, rivalById, TOURNAMENT } from 'src/game/rivals'
 import AlleyBackdrop from 'src/components/AlleyBackdrop.vue'
 import RivalAvatar from 'src/components/RivalAvatar.vue'
@@ -107,6 +115,13 @@ const haptics = useHaptics()
 
 const showRivals = ref(false)
 const selectedAlleyObj = computed(() => alleyById(settings.settings.selectedAlley))
+const kookyObj = computed(() => kookyById(settings.settings.kookyMode || 'off'))
+
+function cycleKooky() {
+  haptics.light()
+  const i = KOOKY_MODES.findIndex((m) => m.id === kookyObj.value.id)
+  settings.updateSetting('kookyMode', KOOKY_MODES[(i + 1) % KOOKY_MODES.length].id)
+}
 const nextTournamentRival = computed(() => rivalById(TOURNAMENT[Math.min(2, bowling.value.tournamentStage)]) || rivals[1])
 
 function pickAlley(id) {
@@ -280,6 +295,30 @@ function openSettings() {
 .bowl-label { font-size: 1.15rem; font-weight: 700; letter-spacing: 0.02em; }
 
 .pair-row { display: flex; gap: 10px; }
+
+.kooky-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.kooky-bar.on {
+  border: 2px solid #ffd23f;
+  background: rgba(255, 210, 63, 0.12);
+  box-shadow: 0 0 16px rgba(255, 210, 63, 0.3);
+  color: #fff;
+}
+.kb-icon { font-size: 1.05rem; line-height: 1; }
+.kb-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pair-btn {
   flex: 1;
   border-radius: 12px;

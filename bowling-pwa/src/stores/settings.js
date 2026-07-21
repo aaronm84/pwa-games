@@ -32,6 +32,7 @@ export const useSettingsStore = defineStore('settings', () => {
     snappySweep: false, // shorter pinsetter pause (quick sessions)
     hookSens: 1, // hook sensitivity multiplier
     powerSens: 1, // swing power multiplier
+    kookyMode: 'off', // kooky physics: 'off' | 'moon' | 'bouncy' | 'big' | 'butter' | 'gremlin'
   })
 
   function updateSetting(key, value) {

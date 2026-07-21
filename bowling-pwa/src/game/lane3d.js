@@ -177,13 +177,16 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
 
   // lane bed (top at y=0), slick like an oiled lane. The floor STOPS at the pit
   // edge — balls and deadwood drop away behind the pin deck like a real house.
+  // kooky physics can repave the whole house: surf overrides friction and/or
+  // restitution on every static surface (butter lane, bouncy castle…)
+  const surf = opts.surface || {}
   const floorLen = START_Z + 2 - DECK_END
   const floorZ = (START_Z + 2 + DECK_END) / 2
   const lane = MeshBuilder.CreateBox('lane', { width: LANE_W, height: 0.3, depth: floorLen }, scene)
   lane.position.set(0, -0.15, floorZ)
   lane.material = laneMat
   lane.receiveShadows = true
-  aggs.push(makeStatic(lane, { shape: PhysicsShapeType.BOX, friction: 0.18, restitution: 0.1 }))
+  aggs.push(makeStatic(lane, { shape: PhysicsShapeType.BOX, friction: surf.friction ?? 0.18, restitution: surf.restitution ?? 0.1 }))
   track(freeze(lane))
 
   // gutters: a lower floor channel each side. The edges are rounded — a soft
@@ -194,21 +197,21 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
     const g = MeshBuilder.CreateBox('gutterFloor', { width: GUTTER_W, height: 0.3, depth: floorLen }, scene)
     g.position.set(gx, -0.27, floorZ)
     g.material = gutterMat
-    aggs.push(makeStatic(g, { shape: PhysicsShapeType.BOX, friction: 0.3, restitution: 0.05 }))
+    aggs.push(makeStatic(g, { shape: PhysicsShapeType.BOX, friction: surf.friction ?? 0.3, restitution: surf.restitution ?? 0.05 }))
     track(freeze(g))
     // rounded lip at the lane/gutter boundary
     const lip = MeshBuilder.CreateCylinder('lip', { diameter: 0.09, height: floorLen, tessellation: 20 }, scene)
     lip.rotation.x = Math.PI / 2
     lip.position.set(side * (LANE_W / 2 + 0.01), -0.045, floorZ)
     lip.material = laneMat
-    aggs.push(makeStatic(lip, { shape: PhysicsShapeType.CYLINDER, friction: 0.2, restitution: 0.05 }))
+    aggs.push(makeStatic(lip, { shape: PhysicsShapeType.CYLINDER, friction: surf.friction ?? 0.2, restitution: surf.restitution ?? 0.05 }))
     track(freeze(lip))
     // smooth outer rail
     const rail = MeshBuilder.CreateCylinder('rail', { diameter: 0.22, height: floorLen, tessellation: 24 }, scene)
     rail.rotation.x = Math.PI / 2
     rail.position.set(side * (LANE_W / 2 + GUTTER_W + 0.1), 0.02, floorZ)
     rail.material = darkMat
-    aggs.push(makeStatic(rail, { shape: PhysicsShapeType.CYLINDER, friction: 0.3, restitution: 0.2 }))
+    aggs.push(makeStatic(rail, { shape: PhysicsShapeType.CYLINDER, friction: surf.friction ?? 0.3, restitution: surf.restitution ?? 0.2 }))
     track(freeze(rail))
   }
 
@@ -241,7 +244,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   pit.position.set(0, waterPit ? -0.85 : -1.5, DECK_END - 1.3)
   pit.material = voidMat
   pit.isVisible = !waterPit // under water level — the environs' pool shows instead
-  aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: 0.9, restitution: 0 }))
+  aggs.push(makeStatic(pit, { shape: PhysicsShapeType.BOX, friction: surf.friction ?? 0.9, restitution: surf.restitution ?? 0 }))
   track(freeze(pit))
   if (style === 'void') {
     // masking hood above the opening (the "mouth" of the void)
@@ -404,7 +407,7 @@ export function buildAlley(scene, shadow, colors, opts = {}) {
   back.position.set(0, -1.0, DECK_END - 2.7)
   back.material = voidMat
   back.isVisible = !waterPit
-  aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: 0.6, restitution: 0 }))
+  aggs.push(makeStatic(back, { shape: PhysicsShapeType.BOX, friction: surf.friction ?? 0.6, restitution: surf.restitution ?? 0 }))
   track(freeze(back))
 
   // the sweep: the pinsetter's bar that drops down while the deck is serviced.
@@ -1726,11 +1729,11 @@ export function makePinMesh(scene, colors, name = 'pin', pinStyle = null, shared
 
 // One pin: a lathed body whose collider is its convex hull, so the ball meets a
 // real pin shape. Dynamic from birth so a hit topples it realistically.
-export function makePin(scene, shadow, x, z, colors, pinStyle = null, sharedMats = null) {
+export function makePin(scene, shadow, x, z, colors, pinStyle = null, sharedMats = null, mod = null) {
   const { body, stripes, mats } = makePinMesh(scene, colors, 'pin', pinStyle, sharedMats)
   body.position.set(x, 0.001, z)
   shadow.addShadowCaster(body)
-  let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: 1.5, friction: 0.55, restitution: 0.25 }, scene)
+  let agg = new PhysicsAggregate(body, PhysicsShapeType.CONVEX_HULL, { mass: mod?.mass ?? 1.5, friction: mod?.friction ?? 0.55, restitution: mod?.restitution ?? 0.25 }, scene)
   agg.body.setLinearDamping(0.1)
   agg.body.setAngularDamping(0.2)
   return {
@@ -1748,6 +1751,10 @@ export function makePin(scene, shadow, x, z, colors, pinStyle = null, sharedMats
       const v = agg.body.getLinearVelocity()
       const w = agg.body.getAngularVelocity()
       return Math.hypot(v.x, v.y, v.z) > 0.25 || Math.hypot(w.x, w.y, w.z) > 0.6
+    },
+    // a shove from nowhere (Poltergeist mode) — impulse at the pin's base
+    nudge(ix, iy, iz) {
+      agg?.body.applyImpulse(new Vector3(ix, iy, iz), body.getAbsolutePosition())
     },
     // drop the collider now (deadwood must stop interacting) but keep the mesh
     // so the page can fade it out

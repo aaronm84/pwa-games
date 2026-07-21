@@ -18,12 +18,14 @@ export const useProgressStore = defineStore('progress', () => {
   })
 
   // Called once when a full ten-frame game finishes. Returns { newBest }.
-  function recordGame(total, strikes, gameRolls = null) {
+  // eligible=false (kooky physics on) still counts games and strikes but can
+  // never set records — a 300 with a rubber lane is a story, not a best.
+  function recordGame(total, strikes, gameRolls = null, eligible = true) {
     const g = bowling.value
     g.games++
     g.totalStrikes += strikes
-    if (total === 300) g.perfectGames++
-    const newBest = g.bestScore === null || total > g.bestScore
+    if (total === 300 && eligible) g.perfectGames++
+    const newBest = eligible && (g.bestScore === null || total > g.bestScore)
     if (newBest) {
       g.bestScore = total
       if (gameRolls) g.bestRolls = [...gameRolls]
